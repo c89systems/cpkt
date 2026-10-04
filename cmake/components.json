@@ -5198,6 +5198,76 @@
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES"
           ]
+        },
+        {
+          "name": "lua_runtime_contract_static_native_upvalues",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_shared_resume_budget",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_shared_wrap_budget",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_error_conversion_oom",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_numeric_error",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_native_upvalues",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_shared_resume_budget",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_shared_wrap_budget",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_error_conversion_oom",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_numeric_error",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
         }
       ],
       "target_sensitive": true

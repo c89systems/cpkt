@@ -9,6 +9,7 @@
 #define LUA_MULTRET (-1)
 #define LUA_REGISTRYINDEX (-10000)
 #define LUA_MASKCOUNT 1
+#define LUA_TSTRING 4
 
 #define LUA_LOADLIBNAME "package"
 #define LUA_COLIBNAME "coroutine"
@@ -52,6 +53,7 @@ void lua_pushstring(lua_State *state, const char *value);
 void lua_rawseti(lua_State *state, int index, int n);
 int luaL_error(lua_State *state, const char *message);
 const char *lua_tostring(lua_State *state, int index);
+int lua_type(lua_State *state, int index);
 int lua_gettop(lua_State *state);
 void lua_pushcfunction(lua_State *state, lua_CFunction fn);
 void lua_pushvalue(lua_State *state, int index);

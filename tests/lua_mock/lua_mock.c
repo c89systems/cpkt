@@ -298,6 +298,12 @@ const char *lua_tostring(lua_State *state, int index) {
   return value->text;
 }
 
+int lua_type(lua_State *state, int index) {
+  struct mock_value *value;
+  value = mock_at(state, index);
+  return value != NULL && value->type == MOCK_STRING ? LUA_TSTRING : 0;
+}
+
 int lua_gettop(lua_State *state) { return state != 0 ? state->top : 0; }
 
 void lua_pushcfunction(lua_State *state, lua_CFunction fn) {
@@ -343,7 +349,10 @@ int lua_pcall(lua_State *state, int nargs, int nresults, int error_index) {
   (void)error_index;
   if (state->next_limit_loop && state->hook != 0 && state->hook_count > 0) {
     memset(&debug, 0, sizeof(debug));
-    state->hook(state, &debug);
+    do {
+      state->hook(state, &debug);
+    } while (!state->raised_error);
+    state->raised_error = 0;
     state->next_limit_loop = 0;
     mock_push_message(state, "Lua instruction limit exceeded");
     return 1;

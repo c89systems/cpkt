@@ -1,5 +1,7 @@
+#include <cpkt/lua.h>
 #include <cpkt/lua_runtime.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct runtime_case {
@@ -71,7 +73,66 @@ static const struct runtime_case cases[] = {
     {"existing_wrap_limit",
      "local f=coroutine.wrap(function() coroutine.yield('ready'); "
      "while true do end end); _G.policy_saved_wrap=f; assert(f()=='ready')",
-     0, CPKT_LUA_RUNTIME_OK}};
+     0, CPKT_LUA_RUNTIME_OK},
+    {"native_upvalues",
+     "assert(debug.getupvalue(coroutine.create,1)==nil); "
+     "assert(debug.getupvalue(coroutine.resume,1)==nil); "
+     "assert(debug.getupvalue(coroutine.wrap,1)==nil); "
+     "local f=coroutine.wrap(function() return 7 end); "
+     "local _,co=debug.getupvalue(f,1); assert(type(co)=='thread'); "
+     "assert(debug.getupvalue(f,2)==nil); "
+     "policy_saved_resume=coroutine.resume; "
+     "policy_saved_thread=coroutine.create(function() while true do end end)",
+     0, CPKT_LUA_RUNTIME_OK},
+    {"shared_resume_budget",
+     "local co=coroutine.create(function() for j=1,10 do local sum=0; "
+     "for i=1,200 do sum=sum+i end; coroutine.yield(sum) end end); "
+     "for j=1,10 do assert(coroutine.resume(co)) end",
+     1, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"shared_wrap_budget",
+     "local f=coroutine.wrap(function() for j=1,10 do local sum=0; "
+     "for i=1,200 do sum=sum+i end; coroutine.yield(sum) end end); "
+     "for j=1,10 do assert(f()) end",
+     1, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"error_conversion_oom", "", 0, CPKT_LUA_RUNTIME_ERR_ALLOC},
+    {"numeric_error", "error(1729)", 0, CPKT_LUA_RUNTIME_ERR_RUNTIME}};
+
+struct failure_allocator {
+  int reject_growth;
+};
+
+static void *allocate(void *user, size_t size) {
+  struct failure_allocator *allocator;
+  allocator = (struct failure_allocator *)user;
+  return allocator->reject_growth ? NULL : malloc(size);
+}
+
+static void *resize(void *user, void *pointer, size_t old_size,
+                    size_t new_size) {
+  struct failure_allocator *allocator;
+  allocator = (struct failure_allocator *)user;
+  return allocator->reject_growth && new_size > old_size
+             ? NULL
+             : realloc(pointer, new_size);
+}
+
+static void release(void *user, void *pointer, size_t size) {
+  (void)user;
+  (void)size;
+  free(pointer);
+}
+
+static int failing_numeric_module(void *state) {
+  struct failure_allocator *allocator;
+  cpkt_lua_integer value;
+  allocator =
+      (struct failure_allocator *)cpkt_lua_runtime_context_from_state(state);
+  value.high = 0;
+  value.low = 1729;
+  cpkt_lua_pushinteger((cpkt_lua_state *)state, value);
+  allocator->reject_growth = 1;
+  return cpkt_lua_error((cpkt_lua_state *)state);
+}
 
 static int exercise(const struct runtime_case *item) {
   cpkt_lua_runtime *runtime;
@@ -79,10 +140,22 @@ static int exercise(const struct runtime_case *item) {
   const char *message;
   int failed;
   const char *recovery;
+  struct failure_allocator allocator;
+  cpkt_lua_runtime_allocator_config config;
+  int conversion_case;
 
   runtime = NULL;
   failed = 0;
-  status = cpkt_lua_runtime_new(&runtime);
+  conversion_case = strcmp(item->name, "error_conversion_oom") == 0;
+  allocator.reject_growth = 0;
+  memset(&config, 0, sizeof(config));
+  config.user = &allocator;
+  config.alloc_fn = allocate;
+  config.realloc_fn = resize;
+  config.free_fn = release;
+  status = conversion_case
+               ? cpkt_lua_runtime_new_with_allocator(&runtime, &config)
+               : cpkt_lua_runtime_new(&runtime);
   if (status != CPKT_LUA_RUNTIME_OK) {
     return 1;
   }
@@ -90,7 +163,15 @@ static int exercise(const struct runtime_case *item) {
   if (status == CPKT_LUA_RUNTIME_OK && item->limited) {
     status = cpkt_lua_runtime_set_instruction_limit(runtime, 1000);
   }
-  if (status == CPKT_LUA_RUNTIME_OK) {
+  if (status == CPKT_LUA_RUNTIME_OK && conversion_case) {
+    cpkt_lua_runtime_set_context(runtime, &allocator);
+    status = cpkt_lua_runtime_register_c_module(runtime, "numeric_failure",
+                                                failing_numeric_module);
+    if (status == CPKT_LUA_RUNTIME_OK) {
+      status = cpkt_lua_runtime_require(runtime, "numeric_failure");
+    }
+    allocator.reject_growth = 0;
+  } else if (status == CPKT_LUA_RUNTIME_OK) {
     status = cpkt_lua_runtime_run_buffer(
         runtime, (const unsigned char *)item->source, strlen(item->source),
         item->name, 0, NULL, 0);
@@ -102,8 +183,18 @@ static int exercise(const struct runtime_case *item) {
             message != NULL ? message : "no diagnostic");
     failed = 1;
   }
-  if (!failed && strcmp(item->name, "existing_wrap_limit") == 0) {
-    recovery = "policy_saved_wrap()";
+  if (!failed && strcmp(item->name, "numeric_error") == 0) {
+    message = cpkt_lua_runtime_error(runtime);
+    if (message == NULL || strstr(message, "1729") == NULL) {
+      fprintf(stderr, "numeric error conversion lost the original value\n");
+      failed = 1;
+    }
+  }
+  if (!failed && (strcmp(item->name, "existing_wrap_limit") == 0 ||
+                  strcmp(item->name, "native_upvalues") == 0)) {
+    recovery = strcmp(item->name, "existing_wrap_limit") == 0
+                   ? "policy_saved_wrap()"
+                   : "policy_saved_resume(policy_saved_thread)";
     status = cpkt_lua_runtime_set_instruction_limit(runtime, 1000);
     if (status == CPKT_LUA_RUNTIME_OK) {
       status = cpkt_lua_runtime_run_buffer(

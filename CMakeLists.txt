@@ -1258,11 +1258,13 @@ if(CPKT_BUILD_TESTS)
     cpkt_group_use_local_runtime(cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test)
     cpkt_group_target_command(target_link_libraries
           cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test PRIVATE
-          cpkt_lua_runtime_${_cpkt_lua_policy_linkage})
+          cpkt_lua_runtime_${_cpkt_lua_policy_linkage}
+          cpkt_lua_${_cpkt_lua_policy_linkage})
     if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
       foreach(_cpkt_lua_policy_case IN ITEMS large_arguments large_results large_yields
               closed_error close_error_replaced protected_limit xprotected_limit
-              registry_limit protected_yields yielded_protected_limit upvalue_limit existing_wrap_limit)
+              registry_limit protected_yields yielded_protected_limit upvalue_limit existing_wrap_limit
+              native_upvalues shared_resume_budget shared_wrap_budget error_conversion_oom numeric_error)
         cpkt_group_add_test(NAME lua_runtime_contract_${_cpkt_lua_policy_linkage}_${_cpkt_lua_policy_case}
               COMMAND cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test ${_cpkt_lua_policy_case})
         cpkt_group_set_tests_properties(lua_runtime_contract_${_cpkt_lua_policy_linkage}_${_cpkt_lua_policy_case}

@@ -35,9 +35,14 @@ struct cpkt_lua_runtime {
   int traceback_enabled;
   int instruction_limit;
   int instruction_limit_hit;
+  int instruction_remaining;
   int coroutine_wrapped;
   lua_CFunction native_pcall;
   lua_CFunction native_xpcall;
+  lua_CFunction native_create;
+  lua_CFunction native_resume;
+  lua_CFunction native_wrap;
+  lua_CFunction native_auxwrap;
 };
 
 struct cpkt_lua_runtime_open_lib {
@@ -431,11 +436,13 @@ static void cpkt_lua_runtime_instruction_hook(lua_State *state,
   if (runtime == NULL || runtime->instruction_limit <= 0) {
     return;
   }
-  if (runtime != NULL) {
-    runtime->instruction_limit_hit = 1;
+  if (!runtime->instruction_limit_hit && runtime->instruction_remaining > 0) {
+    runtime->instruction_remaining -= 1;
+    if (runtime->instruction_remaining > 0) {
+      return;
+    }
   }
-  /* After exhaustion, no Lua instruction may establish a fresh catch frame. */
-  lua_sethook(state, cpkt_lua_runtime_instruction_hook, LUA_MASKCOUNT, 1);
+  runtime->instruction_limit_hit = 1;
   luaL_error(state, "Lua instruction limit exceeded");
 }
 
@@ -445,9 +452,8 @@ static void cpkt_lua_runtime_apply_instruction_hook(cpkt_lua_runtime *runtime,
     return;
   }
   if (runtime->instruction_limit > 0) {
-    lua_sethook(state, cpkt_lua_runtime_instruction_hook, LUA_MASKCOUNT,
-                runtime->instruction_limit_hit ? 1
-                                               : runtime->instruction_limit);
+    /* One shared counter accounts for every thread, including short yields. */
+    lua_sethook(state, cpkt_lua_runtime_instruction_hook, LUA_MASKCOUNT, 1);
   } else {
     lua_sethook(state, NULL, 0, 0);
   }
@@ -556,96 +562,92 @@ static int cpkt_lua_runtime_disable_debug_sethook_protected(lua_State *state) {
 static int cpkt_lua_runtime_coroutine_create(lua_State *state) {
   cpkt_lua_runtime *runtime;
   lua_State *coroutine;
-  int nargs;
-
+  int results;
   runtime = cpkt_lua_runtime_from_state(state);
-  nargs = lua_gettop(state);
-  lua_pushvalue(state, lua_upvalueindex(1));
-  lua_insert(state, 1);
-  lua_call(state, nargs, 1);
-
+  if (runtime == NULL || runtime->native_create == NULL) {
+    return luaL_error(state, "missing coroutine runtime");
+  }
+  results = runtime->native_create(state);
   coroutine = lua_tothread(state, -1);
   if (coroutine != NULL) {
     cpkt_lua_runtime_store_state(coroutine, runtime);
     cpkt_lua_runtime_apply_instruction_hook(runtime, coroutine);
   }
-  return 1;
+  return results;
 }
 
 static int cpkt_lua_runtime_coroutine_resume(lua_State *state) {
   cpkt_lua_runtime *runtime;
   lua_State *coroutine;
-  int nargs;
-
   runtime = cpkt_lua_runtime_from_state(state);
+  if (runtime == NULL || runtime->native_resume == NULL) {
+    return luaL_error(state, "missing coroutine runtime");
+  }
   coroutine = lua_tothread(state, 1);
   if (coroutine != NULL) {
     cpkt_lua_runtime_store_state(coroutine, runtime);
     cpkt_lua_runtime_apply_instruction_hook(runtime, coroutine);
   }
-
-  nargs = lua_gettop(state);
-  lua_pushvalue(state, lua_upvalueindex(1));
-  lua_insert(state, 1);
-  lua_call(state, nargs, LUA_MULTRET);
-  return lua_gettop(state);
+  return runtime->native_resume(state);
 }
 
 static int cpkt_lua_runtime_coroutine_auxwrap(lua_State *state) {
   lua_State *coroutine;
   cpkt_lua_runtime *runtime;
-  int nargs;
-  coroutine = lua_tothread(state, lua_upvalueindex(2));
+  coroutine = lua_tothread(state, lua_upvalueindex(1));
   runtime = cpkt_lua_runtime_from_state(state);
-  if (coroutine == NULL || runtime == NULL) {
+  if (coroutine == NULL || runtime == NULL || runtime->native_auxwrap == NULL) {
     return luaL_error(state, "missing coroutine runtime");
   }
   cpkt_lua_runtime_store_state(coroutine, runtime);
   cpkt_lua_runtime_apply_instruction_hook(runtime, coroutine);
-  nargs = lua_gettop(state);
-  lua_pushvalue(state, lua_upvalueindex(1));
-  lua_insert(state, 1);
-  /* Delegate stack growth, error closure and result transfer to native wrap. */
-  lua_call(state, nargs, LUA_MULTRET);
-  return lua_gettop(state);
+  /* Native auxwrap expects only the coroutine in its first upvalue. */
+  return runtime->native_auxwrap(state);
 }
 
 static int cpkt_lua_runtime_coroutine_wrap(lua_State *state) {
   cpkt_lua_runtime *runtime;
   lua_State *coroutine;
-  int nargs;
+  lua_CFunction native;
   runtime = cpkt_lua_runtime_from_state(state);
-  nargs = lua_gettop(state);
-  lua_pushvalue(state, lua_upvalueindex(1));
-  lua_insert(state, 1);
-  lua_call(state, nargs, 1);
-  /* The pinned native wrap closure owns its coroutine as its first upvalue. */
-  if (lua_getupvalue(state, -1, 1) == NULL) {
+  if (runtime == NULL || runtime->native_wrap == NULL) {
+    return luaL_error(state, "missing coroutine runtime");
+  }
+  runtime->native_wrap(state);
+  native = lua_tocfunction(state, -1);
+  if (native == NULL || lua_getupvalue(state, -1, 1) == NULL) {
     return luaL_error(state,
                       "unsupported native coroutine.wrap implementation");
   }
   coroutine = lua_tothread(state, -1);
-  if (coroutine == NULL || runtime == NULL) {
-    return luaL_error(state, "missing coroutine runtime");
+  if (coroutine == NULL ||
+      (runtime->native_auxwrap != NULL && runtime->native_auxwrap != native)) {
+    return luaL_error(state, "unsupported native coroutine wrapper");
   }
+  runtime->native_auxwrap = native;
   cpkt_lua_runtime_store_state(coroutine, runtime);
   cpkt_lua_runtime_apply_instruction_hook(runtime, coroutine);
-  lua_pushcclosure(state, cpkt_lua_runtime_coroutine_auxwrap, 2);
+  /* Retain the thread, never the callable native wrapper, as the upvalue. */
+  lua_remove(state, -2);
+  lua_pushcclosure(state, cpkt_lua_runtime_coroutine_auxwrap, 1);
   return 1;
 }
 
-static void cpkt_lua_runtime_wrap_coroutine_function(cpkt_lua_runtime *runtime,
-                                                     const char *name,
-                                                     lua_CFunction wrapper) {
+static void cpkt_lua_runtime_wrap_coroutine_function(
+    cpkt_lua_runtime *runtime, const char *name, lua_CFunction wrapper,
+    lua_CFunction *native_slot) {
   lua_State *state;
-
+  lua_CFunction native;
   state = runtime->state;
   lua_getfield(state, -1, name);
-  if (!lua_isfunction(state, -1)) {
-    lua_pop(state, 1);
+  native = lua_tocfunction(state, -1);
+  if (native == NULL || lua_getupvalue(state, -1, 1) != NULL) {
+    luaL_error(state, "unsupported native coroutine entrypoint");
     return;
   }
-  lua_pushcclosure(state, wrapper, 1);
+  *native_slot = native;
+  lua_pop(state, 1);
+  lua_pushcfunction(state, wrapper);
   lua_setfield(state, -2, name);
 }
 
@@ -664,11 +666,13 @@ static void cpkt_lua_runtime_wrap_coroutine_library(cpkt_lua_runtime *runtime) {
   }
 
   cpkt_lua_runtime_wrap_coroutine_function(runtime, "create",
-                                           cpkt_lua_runtime_coroutine_create);
+                                           cpkt_lua_runtime_coroutine_create,
+                                           &runtime->native_create);
   cpkt_lua_runtime_wrap_coroutine_function(runtime, "resume",
-                                           cpkt_lua_runtime_coroutine_resume);
-  cpkt_lua_runtime_wrap_coroutine_function(runtime, "wrap",
-                                           cpkt_lua_runtime_coroutine_wrap);
+                                           cpkt_lua_runtime_coroutine_resume,
+                                           &runtime->native_resume);
+  cpkt_lua_runtime_wrap_coroutine_function(
+      runtime, "wrap", cpkt_lua_runtime_coroutine_wrap, &runtime->native_wrap);
   lua_pop(state, 1);
   runtime->coroutine_wrapped = 1;
 }
@@ -697,6 +701,16 @@ static int cpkt_lua_runtime_traceback(lua_State *state) {
   return 1;
 }
 
+/* Numeric error conversion can allocate; it must remain inside lua_pcall. */
+static int cpkt_lua_runtime_error_to_string(lua_State *state) {
+  const char *message;
+  message = lua_tostring(state, 1);
+  if (message == NULL) {
+    lua_pushstring(state, "non-string Lua error");
+  }
+  return 1;
+}
+
 static cpkt_lua_runtime_status cpkt_lua_runtime_call_with_status(
     cpkt_lua_runtime *runtime, int nargs, int nresults,
     cpkt_lua_runtime_status failure_status, int traceback_enabled) {
@@ -710,6 +724,7 @@ static cpkt_lua_runtime_status cpkt_lua_runtime_call_with_status(
   function_index = lua_gettop(state) - nargs;
   error_index = 0;
   runtime->instruction_limit_hit = 0;
+  runtime->instruction_remaining = runtime->instruction_limit;
   cpkt_lua_runtime_apply_instruction_hook(runtime, state);
   runtime->allocator.failed = 0;
 
@@ -728,8 +743,19 @@ static cpkt_lua_runtime_status cpkt_lua_runtime_call_with_status(
     } else {
       status = failure_status;
     }
-    status =
-        cpkt_lua_runtime_set_error(runtime, status, lua_tostring(state, -1));
+    if (lua_type(state, -1) != LUA_TSTRING) {
+      lua_pushcfunction(state, cpkt_lua_runtime_error_to_string);
+      lua_pushvalue(state, -2);
+      if (lua_pcall(state, 1, 1, 0) != LUA_OK && runtime->allocator.failed) {
+        status = CPKT_LUA_RUNTIME_ERR_ALLOC;
+      }
+      status =
+          cpkt_lua_runtime_set_error(runtime, status, lua_tostring(state, -1));
+      lua_pop(state, 1);
+    } else {
+      status =
+          cpkt_lua_runtime_set_error(runtime, status, lua_tostring(state, -1));
+    }
     if (error_index != 0) {
       lua_settop(state, error_index - 1);
     } else {

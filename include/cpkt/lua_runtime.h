@@ -86,11 +86,11 @@ typedef enum cpkt_lua_runtime_libs {
  * C module opener callback used by `cpkt_lua_runtime_register_c_module()`.
  *
  * The pointer is the upstream Lua VM state as an opaque `void *` so this public
- * header remains C89-compatible and does not include Lua headers. Callback
- * implementations that use the Lua C API should live in a C99-or-newer
- * translation unit that includes upstream Lua headers. The borrowed state
- * stores facade policy in Lua extra space; module openers must leave that
- * embedder-owned storage intact.
+ * header remains C89-compatible and does not include Lua headers. C89 callbacks
+ * may include <cpkt/lua.h> and cast the borrowed pointer to cpkt_lua_state *.
+ * Callbacks using upstream Lua headers require a C99-or-newer translation unit.
+ * The borrowed state stores facade policy in Lua extra space; module openers
+ * must leave that embedder-owned storage intact.
  */
 typedef int (*cpkt_lua_runtime_c_module_open_fn)(void *lua_state);
 
@@ -255,8 +255,10 @@ cpkt_lua_runtime_set_traceback(cpkt_lua_runtime *runtime, int enabled);
  * Ordinary protected-call results and coroutine yields retain native behavior.
  * This embedding policy does not make unrestricted Lua a security sandbox.
  *
- * The limit is also installed on coroutines created through the facade-opened
- * coroutine library.
+ * The budget is shared across the main thread and coroutines for each host
+ * invocation. Yielding or resuming a coroutine does not replenish it. A new
+ * host invocation starts a fresh budget. While enabled, instruction accounting
+ * runs a count hook for every VM instruction.
  */
 cpkt_lua_runtime_status
 cpkt_lua_runtime_set_instruction_limit(cpkt_lua_runtime *runtime,
