@@ -2321,6 +2321,17 @@
         "tests/sdk-consumers/cpkt_sasl_facade_strict.c"
       ],
       "requires": []
+    },
+    "cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [
+        "lua"
+      ],
+      "source_inputs": [
+        "tests/lua_runtime_contract_test.c"
+      ]
     }
   },
   "tests": {
@@ -2900,9 +2911,7 @@
           "name": "lua_runtime_unit",
           "conditions": [
             "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
           ]
         }
       ],
@@ -5011,6 +5020,187 @@
           ]
         }
       ]
+    },
+    "lua_runtime_contract_${_cpkt_lua_policy_linkage}_${_cpkt_lua_policy_case}": {
+      "group": "core",
+      "execution": "runtime",
+      "command_inputs": [
+        "tests/lua_runtime_contract_test.c"
+      ],
+      "requires": [
+        "lua"
+      ],
+      "registrations": [
+        {
+          "name": "lua_runtime_contract_static_large_arguments",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_large_results",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_large_yields",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_closed_error",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_close_error_replaced",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_protected_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_xprotected_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_registry_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_protected_yields",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_yielded_protected_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_upvalue_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_existing_wrap_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_large_arguments",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_large_results",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_large_yields",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_closed_error",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_close_error_replaced",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_protected_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_xprotected_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_registry_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_protected_yields",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_yielded_protected_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_upvalue_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_existing_wrap_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ],
+      "target_sensitive": true
     }
   },
   "tooling": {

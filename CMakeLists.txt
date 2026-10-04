@@ -1240,18 +1240,40 @@ if(CPKT_BUILD_TESTS)
     cpkt_add_repo_warning_errors(cpkt_sasl_callback_retry_test)
     cpkt_group_target_command(target_link_libraries cpkt_sasl_callback_retry_test PRIVATE
           cpkt::cyrus_sasl_shared)
-    cpkt_group_add_executable(cpkt_lua_runtime_test tests/lua_runtime_test.c)
-    cpkt_group_use_local_runtime(cpkt_lua_runtime_test)
-    cpkt_group_target_command(target_compile_options cpkt_lua_runtime_test PRIVATE -std=c99)
-    cpkt_add_repo_warning_errors(cpkt_lua_runtime_test)
-    cpkt_group_target_command(target_link_libraries cpkt_lua_runtime_test PRIVATE
-          cpkt_lua_runtime_static
-          cpkt::cmocka
-        )
     cpkt_add_lua_runtime_mock_test(cpkt_lua_runtime_mock_test tests/lua_runtime_mock_test.c)
   endif()
-  set(_cpkt_fixture_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/opcua-fixture")
+  cpkt_group_add_executable(cpkt_lua_runtime_test tests/lua_runtime_test.c)
+  cpkt_group_use_local_runtime(cpkt_lua_runtime_test)
+  cpkt_group_target_command(target_compile_options cpkt_lua_runtime_test PRIVATE -std=c99)
+  cpkt_add_repo_warning_errors(cpkt_lua_runtime_test)
+  cpkt_group_target_command(target_link_libraries cpkt_lua_runtime_test PRIVATE
+        cpkt_lua_runtime_static
+        cpkt::cmocka
+      )
+  foreach(_cpkt_lua_policy_linkage IN ITEMS static shared)
+    cpkt_group_add_executable(cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test
+          tests/lua_runtime_contract_test.c)
+    cpkt_configure_c89_target(cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test)
+    cpkt_add_repo_warning_errors(cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test)
+    cpkt_group_use_local_runtime(cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test)
+    cpkt_group_target_command(target_link_libraries
+          cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test PRIVATE
+          cpkt_lua_runtime_${_cpkt_lua_policy_linkage})
+    if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
+      foreach(_cpkt_lua_policy_case IN ITEMS large_arguments large_results large_yields
+              closed_error close_error_replaced protected_limit xprotected_limit
+              registry_limit protected_yields yielded_protected_limit upvalue_limit existing_wrap_limit)
+        cpkt_group_add_test(NAME lua_runtime_contract_${_cpkt_lua_policy_linkage}_${_cpkt_lua_policy_case}
+              COMMAND cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test ${_cpkt_lua_policy_case})
+        cpkt_group_set_tests_properties(lua_runtime_contract_${_cpkt_lua_policy_linkage}_${_cpkt_lua_policy_case}
+              PROPERTIES LABELS "facade;memcheck" TIMEOUT 10)
+      endforeach()
+    endif()
+  endforeach()
+
   if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
+    cpkt_group_add_test(NAME lua_runtime_unit COMMAND cpkt_lua_runtime_test)
+    cpkt_group_set_tests_properties(lua_runtime_unit PROPERTIES LABELS "facade;memcheck" TIMEOUT 30)
     foreach(_cpkt_ldap_linkage IN ITEMS static shared)
       cpkt_group_add_test(NAME openldap_${_cpkt_ldap_linkage}
               COMMAND cpkt_openldap_${_cpkt_ldap_linkage}_test)
@@ -1320,13 +1342,6 @@ if(CPKT_BUILD_TESTS)
     elseif(NOT CPKT_NATIVE_BOOTLIN_RUNTIME)
     endif()
     if(NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-      cpkt_group_add_test(NAME lua_runtime_unit COMMAND cpkt_lua_runtime_test)
-      string(REGEX MATCH "^[0-9]+" _cpkt_postgresql_oauth_major
-              "${CPKT_POSTGRESQL_VERSION}")
-      cpkt_group_get_target_property(_cpkt_postgresql_shared_location
-              cpkt::postgresql_shared IMPORTED_LOCATION)
-      get_filename_component(_cpkt_postgresql_library_dir
-              "${_cpkt_postgresql_shared_location}" DIRECTORY)
       cpkt_group_add_test(NAME openssl_facade COMMAND cpkt_openssl_facade_test)
       cpkt_group_add_test(NAME nghttp2_facade COMMAND cpkt_nghttp2_facade_test)
       cpkt_group_add_test(NAME libssh2_header_facade COMMAND cpkt_libssh2_header_facade_test)
@@ -1337,7 +1352,6 @@ if(CPKT_BUILD_TESTS)
       endif()
       cpkt_group_add_test(NAME mqttc_header_facade COMMAND cpkt_mqttc_header_facade_test)
       cpkt_group_add_test(NAME mqttc_facade COMMAND cpkt_mqttc_facade_test)
-      file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/db-completion")
       cpkt_group_add_test(NAME openssl_builddata
               COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_SOURCE_DIR}/tests/openssl_builddata_test.py"

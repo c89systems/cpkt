@@ -30,6 +30,9 @@ struct mock_block {
 };
 
 struct lua_State {
+  void *runtime_context;
+  lua_CFunction protected_pcall;
+  lua_CFunction protected_xpcall;
   lua_Alloc alloc_fn;
   void *alloc_user;
   lua_WarnFunction warn_fn;
@@ -198,6 +201,32 @@ void lua_gettable(lua_State *state, int index) {
   }
 }
 
+void *lua_getextraspace(lua_State *state) { return &state->runtime_context; }
+
+lua_CFunction lua_tocfunction(lua_State *state, int index) {
+  struct mock_value *value;
+  value = mock_at(state, index);
+  return value != NULL && value->type == MOCK_FUNCTION ? value->fn : NULL;
+}
+
+const char *lua_getupvalue(lua_State *state, int index, int upvalue) {
+  (void)state;
+  (void)index;
+  (void)upvalue;
+  return NULL;
+}
+
+static int mock_protected_call(lua_State *state) { return lua_gettop(state); }
+
+void lua_setglobal(lua_State *state, const char *name) {
+  if (strcmp(name, "pcall") == 0) {
+    state->protected_pcall = lua_tocfunction(state, -1);
+  } else if (strcmp(name, "xpcall") == 0) {
+    state->protected_xpcall = lua_tocfunction(state, -1);
+  }
+  lua_pop(state, 1);
+}
+
 void *lua_touserdata(lua_State *state, int index) {
   struct mock_value *value;
 
@@ -250,11 +279,6 @@ void lua_pushstring(lua_State *state, const char *value) {
 void lua_rawseti(lua_State *state, int index, int n) {
   (void)index;
   (void)n;
-  lua_pop(state, 1);
-}
-
-void lua_setglobal(lua_State *state, const char *name) {
-  (void)name;
   lua_pop(state, 1);
 }
 
@@ -413,6 +437,13 @@ void lua_call(lua_State *state, int nargs, int nresults) {
 }
 
 void lua_getglobal(lua_State *state, const char *name) {
+  if (strcmp(name, "pcall") == 0 || strcmp(name, "xpcall") == 0) {
+    lua_CFunction fn;
+    fn = strcmp(name, "pcall") == 0 ? state->protected_pcall
+                                    : state->protected_xpcall;
+    lua_pushcfunction(state, fn != NULL ? fn : mock_protected_call);
+    return;
+  }
   if (strcmp(name, "package") == 0 && state->package_open) {
     mock_push(state, MOCK_TABLE);
     return;

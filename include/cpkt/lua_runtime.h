@@ -88,7 +88,9 @@ typedef enum cpkt_lua_runtime_libs {
  * The pointer is the upstream Lua VM state as an opaque `void *` so this public
  * header remains C89-compatible and does not include Lua headers. Callback
  * implementations that use the Lua C API should live in a C99-or-newer
- * translation unit that includes upstream Lua headers.
+ * translation unit that includes upstream Lua headers. The borrowed state
+ * stores facade policy in Lua extra space; module openers must leave that
+ * embedder-owned storage intact.
  */
 typedef int (*cpkt_lua_runtime_c_module_open_fn)(void *lua_state);
 
@@ -248,7 +250,10 @@ cpkt_lua_runtime_set_traceback(cpkt_lua_runtime *runtime, int enabled);
  *
  * instruction_count must be positive; use
  * cpkt_lua_runtime_clear_instruction_limit() to disable it. This is not a
- * wall-clock timeout and cannot interrupt a blocking C call.
+ * wall-clock timeout and cannot interrupt a blocking C call. Exhaustion is
+ * terminal for the host run: Lua pcall/xpcall cannot suppress the limit.
+ * Ordinary protected-call results and coroutine yields retain native behavior.
+ * This embedding policy does not make unrestricted Lua a security sandbox.
  *
  * The limit is also installed on coroutines created through the facade-opened
  * coroutine library.

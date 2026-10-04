@@ -36,6 +36,8 @@ struct cpkt_lua_runtime {
   int instruction_limit;
   int instruction_limit_hit;
   int coroutine_wrapped;
+  lua_CFunction native_pcall;
+  lua_CFunction native_xpcall;
 };
 
 struct cpkt_lua_runtime_open_lib {
@@ -106,8 +108,6 @@ struct cpkt_lua_runtime_load_buffer_context {
   size_t source_size;
   const char *chunk_name;
 };
-
-static char cpkt_lua_runtime_registry_key;
 
 static int cpkt_lua_runtime_c_module_loader(lua_State *state);
 static int cpkt_lua_runtime_lua_module_loader(lua_State *state);
@@ -367,22 +367,14 @@ cpkt_lua_runtime_set_error(cpkt_lua_runtime *runtime,
   return status;
 }
 
+/* VM extra space belongs to the embedder, unlike Lua's writable registry. */
 static cpkt_lua_runtime *cpkt_lua_runtime_from_state(lua_State *state) {
-  cpkt_lua_runtime *runtime;
-
-  lua_pushlightuserdata(state, (void *)&cpkt_lua_runtime_registry_key);
-  lua_gettable(state, LUA_REGISTRYINDEX);
-  runtime = (cpkt_lua_runtime *)lua_touserdata(state, -1);
-  lua_pop(state, 1);
-
-  return runtime;
+  return *(cpkt_lua_runtime **)lua_getextraspace(state);
 }
 
 static void cpkt_lua_runtime_store_state(lua_State *state,
                                          cpkt_lua_runtime *runtime) {
-  lua_pushlightuserdata(state, (void *)&cpkt_lua_runtime_registry_key);
-  lua_pushlightuserdata(state, runtime);
-  lua_settable(state, LUA_REGISTRYINDEX);
+  *(cpkt_lua_runtime **)lua_getextraspace(state) = runtime;
 }
 
 static int cpkt_lua_runtime_store_state_protected(lua_State *state) {
@@ -442,6 +434,8 @@ static void cpkt_lua_runtime_instruction_hook(lua_State *state,
   if (runtime != NULL) {
     runtime->instruction_limit_hit = 1;
   }
+  /* After exhaustion, no Lua instruction may establish a fresh catch frame. */
+  lua_sethook(state, cpkt_lua_runtime_instruction_hook, LUA_MASKCOUNT, 1);
   luaL_error(state, "Lua instruction limit exceeded");
 }
 
@@ -452,10 +446,78 @@ static void cpkt_lua_runtime_apply_instruction_hook(cpkt_lua_runtime *runtime,
   }
   if (runtime->instruction_limit > 0) {
     lua_sethook(state, cpkt_lua_runtime_instruction_hook, LUA_MASKCOUNT,
-                runtime->instruction_limit);
+                runtime->instruction_limit_hit ? 1
+                                               : runtime->instruction_limit);
   } else {
     lua_sethook(state, NULL, 0, 0);
   }
+}
+
+/* Native base functions have no upvalues. Calling them in this same C frame
+ * preserves their yielding continuations without exposing a Lua-callable
+ * bypass. */
+static int cpkt_lua_runtime_guard_protected_call(lua_State *state,
+                                                 lua_CFunction native) {
+  cpkt_lua_runtime *runtime;
+  int results;
+  runtime = cpkt_lua_runtime_from_state(state);
+  if (runtime == NULL || native == NULL) {
+    return luaL_error(state, "missing protected-call runtime");
+  }
+  if (runtime->instruction_limit_hit) {
+    return luaL_error(state, "Lua instruction limit exceeded");
+  }
+  results = native(state);
+  if (runtime->instruction_limit_hit) {
+    return luaL_error(state, "Lua instruction limit exceeded");
+  }
+  return results;
+}
+
+static int cpkt_lua_runtime_pcall(lua_State *state) {
+  cpkt_lua_runtime *runtime;
+  runtime = cpkt_lua_runtime_from_state(state);
+  return cpkt_lua_runtime_guard_protected_call(
+      state, runtime != NULL ? runtime->native_pcall : NULL);
+}
+
+static int cpkt_lua_runtime_xpcall(lua_State *state) {
+  cpkt_lua_runtime *runtime;
+  runtime = cpkt_lua_runtime_from_state(state);
+  return cpkt_lua_runtime_guard_protected_call(
+      state, runtime != NULL ? runtime->native_xpcall : NULL);
+}
+
+static int cpkt_lua_runtime_wrap_protected_calls(lua_State *state) {
+  cpkt_lua_runtime *runtime;
+  lua_CFunction native_pcall;
+  lua_CFunction native_xpcall;
+  runtime = cpkt_lua_runtime_from_state(state);
+  if (runtime == NULL) {
+    return luaL_error(state, "missing Lua runtime");
+  }
+  if (runtime->native_pcall != NULL && runtime->native_xpcall != NULL) {
+    return 0;
+  }
+  lua_getglobal(state, "pcall");
+  native_pcall = lua_tocfunction(state, -1);
+  if (native_pcall == NULL || lua_getupvalue(state, -1, 1) != NULL) {
+    return luaL_error(state, "unsupported native pcall implementation");
+  }
+  lua_pop(state, 1);
+  lua_getglobal(state, "xpcall");
+  native_xpcall = lua_tocfunction(state, -1);
+  if (native_xpcall == NULL || lua_getupvalue(state, -1, 1) != NULL) {
+    return luaL_error(state, "unsupported native xpcall implementation");
+  }
+  lua_pop(state, 1);
+  runtime->native_pcall = native_pcall;
+  runtime->native_xpcall = native_xpcall;
+  lua_pushcfunction(state, cpkt_lua_runtime_pcall);
+  lua_setglobal(state, "pcall");
+  lua_pushcfunction(state, cpkt_lua_runtime_xpcall);
+  lua_setglobal(state, "xpcall");
+  return 0;
 }
 
 static int cpkt_lua_runtime_disabled_debug_sethook(lua_State *state) {
@@ -496,7 +558,7 @@ static int cpkt_lua_runtime_coroutine_create(lua_State *state) {
   lua_State *coroutine;
   int nargs;
 
-  runtime = (cpkt_lua_runtime *)lua_touserdata(state, lua_upvalueindex(2));
+  runtime = cpkt_lua_runtime_from_state(state);
   nargs = lua_gettop(state);
   lua_pushvalue(state, lua_upvalueindex(1));
   lua_insert(state, 1);
@@ -515,7 +577,7 @@ static int cpkt_lua_runtime_coroutine_resume(lua_State *state) {
   lua_State *coroutine;
   int nargs;
 
-  runtime = (cpkt_lua_runtime *)lua_touserdata(state, lua_upvalueindex(2));
+  runtime = cpkt_lua_runtime_from_state(state);
   coroutine = lua_tothread(state, 1);
   if (coroutine != NULL) {
     cpkt_lua_runtime_store_state(coroutine, runtime);
@@ -533,45 +595,42 @@ static int cpkt_lua_runtime_coroutine_auxwrap(lua_State *state) {
   lua_State *coroutine;
   cpkt_lua_runtime *runtime;
   int nargs;
-  int nresults;
-  int status;
-
-  coroutine = lua_tothread(state, lua_upvalueindex(1));
+  coroutine = lua_tothread(state, lua_upvalueindex(2));
   runtime = cpkt_lua_runtime_from_state(state);
-  if (coroutine == NULL) {
-    return luaL_error(state, "missing coroutine");
+  if (coroutine == NULL || runtime == NULL) {
+    return luaL_error(state, "missing coroutine runtime");
   }
   cpkt_lua_runtime_store_state(coroutine, runtime);
   cpkt_lua_runtime_apply_instruction_hook(runtime, coroutine);
-
   nargs = lua_gettop(state);
-  lua_xmove(state, coroutine, nargs);
-  status = lua_resume(coroutine, state, nargs, &nresults);
-  if (status == LUA_OK || status == LUA_YIELD) {
-    lua_xmove(coroutine, state, nresults);
-    return nresults;
-  }
-  lua_xmove(coroutine, state, 1);
-  return lua_error(state);
+  lua_pushvalue(state, lua_upvalueindex(1));
+  lua_insert(state, 1);
+  /* Delegate stack growth, error closure and result transfer to native wrap. */
+  lua_call(state, nargs, LUA_MULTRET);
+  return lua_gettop(state);
 }
 
 static int cpkt_lua_runtime_coroutine_wrap(lua_State *state) {
   cpkt_lua_runtime *runtime;
   lua_State *coroutine;
   int nargs;
-
-  runtime = (cpkt_lua_runtime *)lua_touserdata(state, lua_upvalueindex(2));
+  runtime = cpkt_lua_runtime_from_state(state);
   nargs = lua_gettop(state);
   lua_pushvalue(state, lua_upvalueindex(1));
   lua_insert(state, 1);
   lua_call(state, nargs, 1);
-
-  coroutine = lua_tothread(state, -1);
-  if (coroutine != NULL) {
-    cpkt_lua_runtime_store_state(coroutine, runtime);
-    cpkt_lua_runtime_apply_instruction_hook(runtime, coroutine);
+  /* The pinned native wrap closure owns its coroutine as its first upvalue. */
+  if (lua_getupvalue(state, -1, 1) == NULL) {
+    return luaL_error(state,
+                      "unsupported native coroutine.wrap implementation");
   }
-  lua_pushcclosure(state, cpkt_lua_runtime_coroutine_auxwrap, 1);
+  coroutine = lua_tothread(state, -1);
+  if (coroutine == NULL || runtime == NULL) {
+    return luaL_error(state, "missing coroutine runtime");
+  }
+  cpkt_lua_runtime_store_state(coroutine, runtime);
+  cpkt_lua_runtime_apply_instruction_hook(runtime, coroutine);
+  lua_pushcclosure(state, cpkt_lua_runtime_coroutine_auxwrap, 2);
   return 1;
 }
 
@@ -586,8 +645,7 @@ static void cpkt_lua_runtime_wrap_coroutine_function(cpkt_lua_runtime *runtime,
     lua_pop(state, 1);
     return;
   }
-  lua_pushlightuserdata(state, runtime);
-  lua_pushcclosure(state, wrapper, 2);
+  lua_pushcclosure(state, wrapper, 1);
   lua_setfield(state, -2, name);
 }
 
@@ -609,14 +667,8 @@ static void cpkt_lua_runtime_wrap_coroutine_library(cpkt_lua_runtime *runtime) {
                                            cpkt_lua_runtime_coroutine_create);
   cpkt_lua_runtime_wrap_coroutine_function(runtime, "resume",
                                            cpkt_lua_runtime_coroutine_resume);
-  lua_getfield(state, -1, "create");
-  if (lua_isfunction(state, -1)) {
-    lua_pushlightuserdata(state, runtime);
-    lua_pushcclosure(state, cpkt_lua_runtime_coroutine_wrap, 2);
-    lua_setfield(state, -2, "wrap");
-  } else {
-    lua_pop(state, 1);
-  }
+  cpkt_lua_runtime_wrap_coroutine_function(runtime, "wrap",
+                                           cpkt_lua_runtime_coroutine_wrap);
   lua_pop(state, 1);
   runtime->coroutine_wrapped = 1;
 }
@@ -658,6 +710,7 @@ static cpkt_lua_runtime_status cpkt_lua_runtime_call_with_status(
   function_index = lua_gettop(state) - nargs;
   error_index = 0;
   runtime->instruction_limit_hit = 0;
+  cpkt_lua_runtime_apply_instruction_hook(runtime, state);
   runtime->allocator.failed = 0;
 
   if (traceback_enabled) {
@@ -1228,6 +1281,11 @@ cpkt_lua_runtime_status cpkt_lua_runtime_open_libs(cpkt_lua_runtime *runtime,
   status = CPKT_LUA_RUNTIME_OK;
   if ((libs & CPKT_LUA_RUNTIME_LIB_BASE) != 0) {
     status = cpkt_lua_runtime_open_one_lib(runtime, "_G", luaopen_base);
+    if (status == CPKT_LUA_RUNTIME_OK) {
+      status = cpkt_lua_runtime_protected_call(
+          runtime, cpkt_lua_runtime_wrap_protected_calls, runtime, 0,
+          CPKT_LUA_RUNTIME_ERR_RUNTIME);
+    }
   }
   if (status == CPKT_LUA_RUNTIME_OK &&
       (libs & CPKT_LUA_RUNTIME_LIB_PACKAGE) != 0) {

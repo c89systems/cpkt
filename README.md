@@ -23,6 +23,9 @@ Public headers keep the `<cpkt/...>` namespace and existing facade library names
 Shared-library ABI majors retain their existing identities. Repository release
 versions are independent of those ABI majors.
 
+See [Lua runtime execution policy](docs/lua-runtime-policy.md) for embedding
+limits, coroutine behavior and native module ownership.
+
 ## Independent repositories
 
 | Repository | Scope | Prerequisite |
