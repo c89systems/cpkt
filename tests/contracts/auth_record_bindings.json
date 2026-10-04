@@ -1,0 +1,377 @@
+{
+  "gssapi": {
+    "gssapi.h:gss_OID_desc_struct": {
+      "elements": "cpkt_gss_oid_view",
+      "length": "cpkt_gss_oid_view"
+    },
+    "gssapi.h:gss_OID_set_desc_struct": {
+      "count": "cpkt_gss_oid_set_count",
+      "elements": "cpkt_gss_oid_set_at"
+    },
+    "gssapi.h:gss_buffer_desc_struct": {
+      "length": "cpkt_gss_buffer.length",
+      "value": "cpkt_gss_buffer.value"
+    },
+    "gssapi.h:gss_channel_bindings_struct": {
+      "acceptor_address": "cpkt_gss_channel_bindings.acceptor_address",
+      "acceptor_addrtype": "cpkt_gss_channel_bindings.acceptor_address_type",
+      "application_data": "cpkt_gss_channel_bindings.application_data",
+      "initiator_address": "cpkt_gss_channel_bindings.initiator_address",
+      "initiator_addrtype": "cpkt_gss_channel_bindings.initiator_address_type"
+    },
+    "gssapi_ext.h:gss_buffer_set_desc_struct": {
+      "count": "cpkt_gss_buffer_set_count",
+      "elements": "cpkt_gss_buffer_set_at"
+    },
+    "gssapi_ext.h:gss_iov_buffer_desc_struct": {
+      "buffer": "cpkt_gss_iov.buffer",
+      "type": "cpkt_gss_iov.type"
+    },
+    "gssapi_ext.h:gss_key_value_element_struct": {
+      "key": "cpkt_gss_store_entry.key",
+      "value": "cpkt_gss_store_entry.value"
+    },
+    "gssapi_ext.h:gss_key_value_set_struct": {
+      "count": "cpkt_gss_store.count",
+      "elements": "cpkt_gss_store.entries"
+    },
+    "gssapi_krb5.h:gss_krb5_cfx_keydata": {
+      "acceptor_subkey": "cpkt_gss_lucid_context.acceptor_subkey",
+      "ctx_key": "cpkt_gss_lucid_context.context_key",
+      "have_acceptor_subkey": "cpkt_gss_lucid_context.have_acceptor_subkey"
+    },
+    "gssapi_krb5.h:gss_krb5_lucid_context_v1": {
+      "cfx_kd": "cpkt_gss_lucid_context.acceptor_subkey",
+      "endtime": "cpkt_gss_lucid_context.endtime",
+      "initiate": "cpkt_gss_lucid_context.initiate",
+      "protocol": "cpkt_gss_lucid_context.protocol",
+      "recv_seq": "cpkt_gss_lucid_context.receive_sequence",
+      "rfc1964_kd": "cpkt_gss_lucid_context.sign_algorithm",
+      "send_seq": "cpkt_gss_lucid_context.send_sequence",
+      "version": "cpkt_gss_lucid_context.version"
+    },
+    "gssapi_krb5.h:gss_krb5_lucid_context_version": {
+      "version": "cpkt_gss_lucid_context.version"
+    },
+    "gssapi_krb5.h:gss_krb5_lucid_key": {
+      "data": "cpkt_gss_lucid_key.data",
+      "length": "cpkt_gss_lucid_key.length",
+      "type": "cpkt_gss_lucid_key.type"
+    },
+    "gssapi_krb5.h:gss_krb5_rfc1964_keydata": {
+      "ctx_key": "cpkt_gss_lucid_context.context_key",
+      "seal_alg": "cpkt_gss_lucid_context.seal_algorithm",
+      "sign_alg": "cpkt_gss_lucid_context.sign_algorithm"
+    }
+  },
+  "sasl": {
+    "hmac-md5.h:HMAC_MD5_CTX_s": {
+      "ictx": "cpkt_sasl_hmac_md5_context.inner",
+      "octx": "cpkt_sasl_hmac_md5_context.outer"
+    },
+    "hmac-md5.h:HMAC_MD5_STATE_s": {
+      "istate": "cpkt_sasl_hmac_md5_state.inner",
+      "ostate": "cpkt_sasl_hmac_md5_state.outer"
+    },
+    "md5.h:@26": {
+      "buffer": "cpkt_sasl_md5_context.buffer",
+      "count": "cpkt_sasl_md5_context.count",
+      "state": "cpkt_sasl_md5_context.state"
+    },
+    "prop.h:propval": {
+      "name": "cpkt_sasl_property_value.name",
+      "nvalues": "cpkt_sasl_property_value.value_count",
+      "valsize": "cpkt_sasl_property_value.total_value_bytes",
+      "values": "cpkt_sasl_property_value.values"
+    },
+    "sasl.h:sasl_callback": {
+      "context": "cpkt_sasl_callbacks.context",
+      "id": "cpkt_sasl_callbacks.simple",
+      "proc": "cpkt_sasl_callbacks.simple"
+    },
+    "sasl.h:sasl_channel_binding": {
+      "critical": "cpkt_sasl_channel_binding.critical",
+      "data": "cpkt_sasl_channel_binding.data",
+      "len": "cpkt_sasl_channel_binding.byte_count",
+      "name": "cpkt_sasl_channel_binding.name"
+    },
+    "sasl.h:sasl_http_request": {
+      "elen": "cpkt_sasl_http_request.entity_byte_count",
+      "entity": "cpkt_sasl_http_request.entity",
+      "method": "cpkt_sasl_http_request.method",
+      "non_persist": "cpkt_sasl_http_request.non_persistent",
+      "uri": "cpkt_sasl_http_request.uri"
+    },
+    "sasl.h:sasl_interact": {
+      "challenge": "cpkt_sasl_interaction.challenge",
+      "defresult": "cpkt_sasl_interaction.default_result",
+      "id": "cpkt_sasl_interaction.id",
+      "len": "cpkt_sasl_interaction.result_byte_count",
+      "prompt": "cpkt_sasl_interaction.prompt",
+      "result": "cpkt_sasl_interaction.result"
+    },
+    "sasl.h:sasl_secret": {
+      "data": "cpkt_sasl_secret.data",
+      "len": "cpkt_sasl_secret.byte_count"
+    },
+    "sasl.h:sasl_security_properties": {
+      "max_ssf": "cpkt_sasl_security_properties.maximum_ssf",
+      "maxbufsize": "cpkt_sasl_security_properties.maximum_buffer_bytes",
+      "min_ssf": "cpkt_sasl_security_properties.minimum_ssf",
+      "property_names": "cpkt_sasl_security_properties.property_names",
+      "property_values": "cpkt_sasl_security_properties.property_values",
+      "security_flags": "cpkt_sasl_security_properties.security_flags"
+    },
+    "saslplug.h:client_sasl_mechanism": {
+      "plug": "cpkt_sasl_plugin_info.client_plugin",
+      "plugname": "cpkt_sasl_plugin_info.plugin_name",
+      "version": "cpkt_sasl_plugin_info.version"
+    },
+    "saslplug.h:sasl_auxprop_plug": {
+      "auxprop_free": "cpkt_sasl_auxiliary_plugin.free_context",
+      "auxprop_lookup": "cpkt_sasl_auxiliary_plugin.lookup",
+      "auxprop_store": "cpkt_sasl_auxiliary_plugin.store",
+      "features": "cpkt_sasl_auxiliary_plugin.features",
+      "glob_context": "cpkt_sasl_auxiliary_plugin.context",
+      "name": "cpkt_sasl_auxiliary_plugin.name",
+      "spare_int1": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      }
+    },
+    "saslplug.h:sasl_canonuser": {
+      "canon_user_client": "cpkt_sasl_canonicalizer_plugin.client",
+      "canon_user_free": "cpkt_sasl_canonicalizer_plugin.free_context",
+      "canon_user_server": "cpkt_sasl_canonicalizer_plugin.server",
+      "features": "cpkt_sasl_canonicalizer_plugin.features",
+      "glob_context": "cpkt_sasl_canonicalizer_plugin.context",
+      "name": "cpkt_sasl_canonicalizer_plugin.name",
+      "spare_fptr1": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_fptr2": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_fptr3": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_int1": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      }
+    },
+    "saslplug.h:sasl_client_params": {
+      "canon_user": "cpkt_sasl_client_params.canonicalize",
+      "cbinding": "cpkt_sasl_client_params.channel_binding",
+      "cbindingdisp": "cpkt_sasl_client_params.channel_binding_disposition",
+      "clen": "cpkt_sasl_client_params.client_length",
+      "clientFQDN": "cpkt_sasl_client_params.client_name",
+      "external_ssf": "cpkt_sasl_client_params.external_ssf",
+      "flags": "cpkt_sasl_client_params.flags",
+      "gss_creds": "cpkt_sasl_client_params.gss_credentials",
+      "http_request": "cpkt_sasl_client_params.http_request",
+      "iplocalport": "cpkt_sasl_client_params.local_endpoint",
+      "iploclen": "cpkt_sasl_client_params.local_length",
+      "ipremlen": "cpkt_sasl_client_params.remote_length",
+      "ipremoteport": "cpkt_sasl_client_params.remote_endpoint",
+      "param_version": "cpkt_sasl_client_params.parameter_version",
+      "prompt_supp": "cpkt_sasl_client_params.prompt_callbacks",
+      "props": "cpkt_sasl_client_params.security",
+      "serverFQDN": "cpkt_sasl_client_params.server_name",
+      "service": "cpkt_sasl_client_params.service",
+      "servicelen": "cpkt_sasl_client_params.service_length",
+      "slen": "cpkt_sasl_client_params.server_length",
+      "spare_fptr1": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_int2": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_int3": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_ptr4": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "utils": "cpkt_sasl_client_params.utils"
+    },
+    "saslplug.h:sasl_client_plug": {
+      "features": "cpkt_sasl_client_plugin.features",
+      "glob_context": "cpkt_sasl_client_plugin.context",
+      "idle": "cpkt_sasl_client_plugin.idle",
+      "max_ssf": "cpkt_sasl_client_plugin.maximum_ssf",
+      "mech_dispose": "cpkt_sasl_client_plugin.dispose_connection",
+      "mech_free": "cpkt_sasl_client_plugin.free_context",
+      "mech_name": "cpkt_sasl_client_plugin.mechanism_name",
+      "mech_new": "cpkt_sasl_client_plugin.new_connection",
+      "mech_step": "cpkt_sasl_client_plugin.step",
+      "required_prompts": "cpkt_sasl_client_plugin.required_prompts",
+      "security_flags": "cpkt_sasl_client_plugin.security_flags",
+      "spare_fptr1": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_fptr2": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      }
+    },
+    "saslplug.h:sasl_out_params": {
+      "alen": "cpkt_sasl_plugin_output.authentication_length",
+      "authid": "cpkt_sasl_plugin_output.authentication_identity",
+      "cbindingdisp": "cpkt_sasl_plugin_output.channel_binding_disposition",
+      "cbindingname": "cpkt_sasl_plugin_output.channel_binding_name",
+      "client_creds": "cpkt_sasl_plugin_output.client_credentials",
+      "decode": "cpkt_sasl_plugin_output.decode",
+      "decode_context": "cpkt_sasl_plugin_output.decode_context",
+      "doneflag": "cpkt_sasl_plugin_output.done",
+      "encode": "cpkt_sasl_plugin_output.encode",
+      "encode_context": "cpkt_sasl_plugin_output.encode_context",
+      "gss_local_name": "cpkt_sasl_plugin_output.gss_local_name",
+      "gss_peer_name": "cpkt_sasl_plugin_output.gss_peer_name",
+      "maxoutbuf": "cpkt_sasl_plugin_output.maximum_output_bytes",
+      "mech_ssf": "cpkt_sasl_plugin_output.mechanism_ssf",
+      "param_version": "cpkt_sasl_plugin_output.parameter_version",
+      "spare_fptr1": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_fptr2": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_int2": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_int3": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_int4": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "ulen": "cpkt_sasl_plugin_output.user_length",
+      "user": "cpkt_sasl_plugin_output.user"
+    },
+    "saslplug.h:sasl_server_params": {
+      "applen": "cpkt_sasl_server_params.application_length",
+      "appname": "cpkt_sasl_server_params.application_name",
+      "callbacks": "cpkt_sasl_server_params.callbacks",
+      "canon_user": "cpkt_sasl_server_params.canonicalize",
+      "cbinding": "cpkt_sasl_server_params.channel_binding",
+      "external_ssf": "cpkt_sasl_server_params.external_ssf",
+      "flags": "cpkt_sasl_server_params.flags",
+      "gss_creds": "cpkt_sasl_server_params.gss_credentials",
+      "http_request": "cpkt_sasl_server_params.http_request",
+      "iplocalport": "cpkt_sasl_server_params.local_endpoint",
+      "iploclen": "cpkt_sasl_server_params.local_length",
+      "ipremlen": "cpkt_sasl_server_params.remote_length",
+      "ipremoteport": "cpkt_sasl_server_params.remote_endpoint",
+      "log_level": "cpkt_sasl_server_params.log_level",
+      "param_version": "cpkt_sasl_server_params.parameter_version",
+      "propctx": "cpkt_sasl_server_params.properties",
+      "props": "cpkt_sasl_server_params.security",
+      "serverFQDN": "cpkt_sasl_server_params.server_name",
+      "service": "cpkt_sasl_server_params.service",
+      "servicelen": "cpkt_sasl_server_params.service_length",
+      "slen": "cpkt_sasl_server_params.server_length",
+      "spare_fptr1": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_fptr2": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_int1": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_int2": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_int3": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_ptr4": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "transition": "cpkt_sasl_server_params.transition",
+      "urlen": "cpkt_sasl_server_params.realm_length",
+      "user_realm": "cpkt_sasl_server_params.user_realm",
+      "utils": "cpkt_sasl_server_params.utils"
+    },
+    "saslplug.h:sasl_server_plug": {
+      "features": "cpkt_sasl_server_plugin.features",
+      "glob_context": "cpkt_sasl_server_plugin.context",
+      "idle": "cpkt_sasl_server_plugin.idle",
+      "max_ssf": "cpkt_sasl_server_plugin.maximum_ssf",
+      "mech_avail": "cpkt_sasl_server_plugin.available",
+      "mech_dispose": "cpkt_sasl_server_plugin.dispose_connection",
+      "mech_free": "cpkt_sasl_server_plugin.free_context",
+      "mech_name": "cpkt_sasl_server_plugin.mechanism_name",
+      "mech_new": "cpkt_sasl_server_plugin.new_connection",
+      "mech_step": "cpkt_sasl_server_plugin.step",
+      "security_flags": "cpkt_sasl_server_plugin.security_flags",
+      "setpass": "cpkt_sasl_server_plugin.set_password",
+      "spare_fptr2": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "user_query": "cpkt_sasl_server_plugin.user_query"
+    },
+    "saslplug.h:sasl_utils": {
+      "MD5Final": "cpkt_sasl_plugin_utils.md5_final",
+      "MD5Init": "cpkt_sasl_plugin_utils.md5_init",
+      "MD5Update": "cpkt_sasl_plugin_utils.md5_update",
+      "auxprop_store": "cpkt_sasl_plugin_utils.auxiliary_store",
+      "calloc": "cpkt_sasl_plugin_utils.allocate_zeroed",
+      "checkpass": "cpkt_sasl_plugin_utils.check_password",
+      "churn": "cpkt_sasl_plugin_utils.random_churn",
+      "conn": "cpkt_sasl_plugin_utils.connection",
+      "decode64": "cpkt_sasl_plugin_utils.base64_decode",
+      "encode64": "cpkt_sasl_plugin_utils.base64_encode",
+      "erasebuffer": "cpkt_sasl_plugin_utils.erase",
+      "free": "cpkt_sasl_plugin_utils.release",
+      "getcallback": "cpkt_sasl_plugin_utils.get_callbacks",
+      "getopt": "cpkt_sasl_plugin_utils.option",
+      "getopt_context": "cpkt_sasl_plugin_utils.option_context",
+      "getprop": "cpkt_sasl_plugin_utils.get_text_property",
+      "hmac_md5": "cpkt_sasl_plugin_utils.hmac_md5",
+      "hmac_md5_final": "cpkt_sasl_plugin_utils.hmac_md5_final",
+      "hmac_md5_import": "cpkt_sasl_plugin_utils.hmac_md5_import",
+      "hmac_md5_init": "cpkt_sasl_plugin_utils.hmac_md5_init",
+      "hmac_md5_precalc": "cpkt_sasl_plugin_utils.hmac_md5_precalculate",
+      "log": "cpkt_sasl_plugin_utils.log",
+      "malloc": "cpkt_sasl_plugin_utils.allocate",
+      "mkchal": "cpkt_sasl_plugin_utils.make_challenge",
+      "mutex_alloc": "cpkt_sasl_plugin_utils.mutex_new",
+      "mutex_free": "cpkt_sasl_plugin_utils.mutex_free",
+      "mutex_lock": "cpkt_sasl_plugin_utils.mutex_lock",
+      "mutex_unlock": "cpkt_sasl_plugin_utils.mutex_unlock",
+      "prop_clear": "cpkt_sasl_plugin_utils.property_clear",
+      "prop_dispose": "cpkt_sasl_plugin_utils.property_dispose",
+      "prop_dup": "cpkt_sasl_plugin_utils.property_duplicate",
+      "prop_erase": "cpkt_sasl_plugin_utils.property_erase",
+      "prop_format": "cpkt_sasl_plugin_utils.property_format",
+      "prop_get": "cpkt_sasl_plugin_utils.property_get",
+      "prop_getnames": "cpkt_sasl_plugin_utils.property_getnames",
+      "prop_new": "cpkt_sasl_plugin_utils.property_new",
+      "prop_request": "cpkt_sasl_plugin_utils.property_request",
+      "prop_set": "cpkt_sasl_plugin_utils.property_set",
+      "prop_setvals": "cpkt_sasl_plugin_utils.property_set_values",
+      "rand": "cpkt_sasl_plugin_utils.random_fill",
+      "realloc": "cpkt_sasl_plugin_utils.resize",
+      "rpool": "cpkt_sasl_plugin_utils.random_pool",
+      "seterror": "cpkt_sasl_plugin_utils.set_error",
+      "setprop": "cpkt_sasl_plugin_utils.set_external_ssf",
+      "spare_fptr": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_fptr1": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "spare_fptr2": {
+        "reserved": "upstream reserved field; required zero by its contract"
+      },
+      "utf8verify": "cpkt_sasl_plugin_utils.utf8_verify",
+      "version": "cpkt_sasl_plugin_utils.version"
+    },
+    "saslplug.h:server_sasl_mechanism": {
+      "condition": "cpkt_sasl_plugin_info.condition",
+      "f": "cpkt_sasl_plugin_info.source_file",
+      "plug": "cpkt_sasl_plugin_info.server_plugin",
+      "plugname": "cpkt_sasl_plugin_info.plugin_name",
+      "version": "cpkt_sasl_plugin_info.version"
+    }
+  }
+}

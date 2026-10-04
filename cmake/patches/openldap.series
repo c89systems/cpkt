@@ -1,0 +1,3 @@
+openldap_client_const.patch
+openldap_sasl_logging.patch
+openldap_c89_log_setter.patch

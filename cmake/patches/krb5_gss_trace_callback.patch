@@ -1,0 +1,129 @@
+--- a/src/lib/gssapi/krb5/gssapi_krb5.h
++++ b/src/lib/gssapi/krb5/gssapi_krb5.h
+@@ -33,6 +33,12 @@
+ #ifdef __cplusplus
+ extern "C" {
+ #endif /* __cplusplus */
++
++/* Process-wide trace hook for internally created Kerberos GSS contexts.
++ * Register before concurrent GSS operations; message storage is borrowed. */
++typedef void (*gss_krb5_trace_callback)(void *data, const char *message);
++GSS_DLLIMP void KRB5_CALLCONV
++gss_krb5_set_trace_callback(gss_krb5_trace_callback callback, void *data);
+ 
+ /* Reserved static storage for GSS_oids.  See rfc 1964 for more details. */
+ 
+--- a/src/lib/gssapi/krb5/init_sec_context.c
++++ b/src/lib/gssapi/krb5/init_sec_context.c
+@@ -99,6 +99,7 @@
+ 
+ #include "k5-int.h"
+ #include "gssapiP_krb5.h"
++#include "gssapiP_trace.h"
+ #ifdef HAVE_MEMORY_H
+ #include <memory.h>
+ #endif
+@@ -992,6 +992,34 @@
+ static int kdc_flag = 0;
+ #endif
+ 
++/* Caller-owned registration data; set before starting worker threads. */
++static gss_krb5_trace_callback gss_trace_callback;
++static void *gss_trace_data;
++
++void KRB5_CALLCONV
++gss_krb5_set_trace_callback(gss_krb5_trace_callback callback, void *data)
++{
++    gss_trace_callback = callback;
++    gss_trace_data = data;
++}
++
++static void KRB5_CALLCONV
++gss_trace_bridge(krb5_context context, const krb5_trace_info *info, void *data)
++{
++    (void)context;
++    (void)data;
++    if (info != NULL && gss_trace_callback != NULL)
++        gss_trace_callback(gss_trace_data, info->message);
++}
++
++krb5_error_code
++krb5_gss_apply_trace(krb5_context context)
++{
++    if (gss_trace_callback == NULL)
++        return 0;
++    return krb5_set_trace_callback(context, gss_trace_bridge, NULL);
++}
++
+ krb5_error_code
+ krb5_gss_init_context (krb5_context *ctxp)
+ {
+@@ -1009,10 +1037,18 @@
+     k5_mutex_unlock(&kg_kdc_flag_mutex);
+ 
+     if (is_kdc)
+-        return krb5int_init_context_kdc(ctxp);
++        err = krb5int_init_context_kdc(ctxp);
++    else
+ #endif
+-
+-    return krb5_init_context(ctxp);
++        err = krb5_init_context(ctxp);
++    if (err)
++        return err;
++    err = krb5_gss_apply_trace(*ctxp);
++    if (err) {
++        krb5_free_context(*ctxp);
++        *ctxp = NULL;
++    }
++    return err;
+ }
+ 
+ #ifndef _WIN32
+--- a/src/lib/gssapi/spnego/negoex_util.c
++++ b/src/lib/gssapi/spnego/negoex_util.c
+@@ -33,6 +33,8 @@
+ #include <generic/gssapiP_generic.h>
+ #include "k5-input.h"
+ 
++#include "gssapiP_trace.h"
++
+ static void
+ release_auth_mech(struct negoex_auth_mech *mech);
+ 
+@@ -88,6 +90,13 @@
+      * by SPNEGO.) */
+     ret = krb5_init_context(&ctx->kctx);
+     if (ret) {
++        *minor = ret;
++        return GSS_S_FAILURE;
++    }
++    ret = krb5_gss_apply_trace(ctx->kctx);
++    if (ret) {
++        krb5_free_context(ctx->kctx);
++        ctx->kctx = NULL;
+         *minor = ret;
+         return GSS_S_FAILURE;
+     }
+--- a/src/lib/gssapi/libgssapi_krb5.exports
++++ b/src/lib/gssapi/libgssapi_krb5.exports
+@@ -94,6 +94,7 @@
+ gss_inquire_saslname_for_mech
+ gss_inquire_sec_context_by_oid
+ gss_krb5_ccache_name
++gss_krb5_set_trace_callback
+ gss_krb5_copy_ccache
+ gss_krb5_export_lucid_sec_context
+ gss_krb5_free_lucid_sec_context
+--- /dev/null
++++ b/src/lib/gssapi/generic/gssapiP_trace.h
+@@ -0,0 +1,9 @@
++/* cpkt private trace bridge shared by Kerberos and SPNEGO. */
++#ifndef GSSAPIP_TRACE_H
++#define GSSAPIP_TRACE_H
++
++#include <krb5.h>
++
++krb5_error_code krb5_gss_apply_trace(krb5_context context);
++
++#endif

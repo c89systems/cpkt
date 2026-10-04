@@ -1,0 +1,21 @@
+CompileFlags:
+  CompilationDatabase: build/clangd
+  Add:
+    - -Wall
+    - -Wextra
+    - -Wpedantic
+Documentation:
+  CommentFormat: Markdown
+---
+If:
+  PathMatch: (include/cpkt/lua_runtime\.h|examples/lua-runtime-c89/main\.c|scripts/package-install-smoke\.sh)
+CompileFlags:
+  Remove:
+    - -std=*
+  Add:
+    - -std=c89
+---
+If:
+  PathMatch: (dist|build|\\.cache)/.*
+Index:
+  Background: Skip

@@ -1,0 +1,81 @@
+--- a/src/lib/krb5/krb/init_ctx.c
++++ b/src/lib/krb5/krb/init_ctx.c
+@@ -57,4 +57,34 @@
+ #include "brand.c"
+ #include "../krb5_libinit.h"
+ 
++#ifndef _WIN32
++#include <dlfcn.h>
++
++/* Find plugins beside the loaded libkrb5, so a staged SDK can move. */
++static char *
++bundled_plugin_dir(void)
++{
++    Dl_info info;
++    const char *slash;
++    size_t length;
++    char *path;
++
++    if (dladdr((const void *)&krb5_init_context, &info) == 0 ||
++        info.dli_fname == NULL)
++        return NULL;
++    slash = strrchr(info.dli_fname, '/');
++    if (slash == NULL || strncmp(slash + 1, "libkrb5", 7) != 0)
++        return NULL;
++    length = (size_t)(slash - info.dli_fname);
++    if (length > (size_t)-1 - sizeof("/krb5/plugins"))
++        return NULL;
++    path = malloc(length + sizeof("/krb5/plugins"));
++    if (path == NULL)
++        return NULL;
++    memcpy(path, info.dli_fname, length);
++    memcpy(path + length, "/krb5/plugins", sizeof("/krb5/plugins"));
++    return path;
++}
++#endif
++
+ static krb5_enctype default_enctype_list[] = {
+@@ -158,2 +188,5 @@
+     char *plugin_dir = NULL, *timeout_str = NULL;
++#ifndef _WIN32
++    char *bundled_dir = NULL;
++#endif
+     krb5_error_code retval;
+@@ -270,7 +300,14 @@
+     ctx->library_options = tmp ? KRB5_LIBOPT_SYNC_KDCTIME : 0;
+ 
++#ifndef _WIN32
++    bundled_dir = bundled_plugin_dir();
++#endif
+     retval = profile_get_string(ctx->profile, KRB5_CONF_LIBDEFAULTS,
+                                 KRB5_CONF_PLUGIN_BASE_DIR, 0,
+-                                DEFAULT_PLUGIN_BASE_DIR, &plugin_dir);
++                                bundled_dir != NULL ? bundled_dir : DEFAULT_PLUGIN_BASE_DIR,
++                                &plugin_dir);
++#ifndef _WIN32
++    free(bundled_dir);
++#endif
+     if (!retval)
+         retval = k5_expand_path_tokens(ctx, plugin_dir, &ctx->plugin_base_dir);
+--- a/src/lib/krb5/os/sendto_kdc.c
++++ b/src/lib/krb5/os/sendto_kdc.c
+@@ -147,4 +147,9 @@
+ /* Set up context->tls.  On allocation failure, return ENOMEM.  On plugin load
+  * failure, set context->tls to point to a nulled vtable and return 0. */
++#ifdef CPKT_KRB5_STATIC_TLS
++extern krb5_error_code tls_k5tls_initvt(krb5_context context, int maj_ver,
++                                        int min_ver, krb5_plugin_vtable vtable);
++#endif
++
+ static krb5_error_code
+ init_tls_vtable(krb5_context context)
+@@ -160,5 +166,9 @@
+         return ENOMEM;
+ 
+     /* Attempt to load the module; just let it stay nulled out on failure. */
++#ifdef CPKT_KRB5_STATIC_TLS
++    k5_plugin_register(context, PLUGIN_INTERFACE_TLS, "k5tls", tls_k5tls_initvt);
++#else
+     k5_plugin_register_dyn(context, PLUGIN_INTERFACE_TLS, "k5tls", "tls");
++#endif
+     ret = k5_plugin_load(context, PLUGIN_INTERFACE_TLS, "k5tls", &initfn);

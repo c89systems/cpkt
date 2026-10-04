@@ -1,0 +1,11 @@
+--- a/src/lib/krb5/krb/kerrs.c
++++ b/src/lib/krb5/krb/kerrs.c
+@@ -92,7 +92,7 @@
+ krb5_vprepend_error_message(krb5_context ctx, krb5_error_code code,
+                             const char *fmt, va_list ap)
+ {
+-    krb5_wrap_error_message(ctx, code, code, fmt, ap);
++    krb5_vwrap_error_message(ctx, code, code, fmt, ap);
+ }
+ 
+ void KRB5_CALLCONV

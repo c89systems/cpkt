@@ -1,0 +1,241 @@
+{
+  "gssapi": {
+    "GSS_C_ATTR_LOCAL_LOGIN_USER": {
+      "facade": "cpkt_gss_local_login_attribute"
+    },
+    "GSS_C_INQ_NEGOEX_KEY": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_INQ_NEGOEX_KEY"
+    },
+    "GSS_C_INQ_NEGOEX_VERIFY_KEY": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_INQ_NEGOEX_VERIFY_KEY"
+    },
+    "GSS_C_INQ_ODBC_SESSION_KEY": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_INQ_ODBC_SESSION_KEY"
+    },
+    "GSS_C_INQ_SSPI_SESSION_KEY": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_INQ_SSPI_SESSION_KEY"
+    },
+    "GSS_C_MA_AUTH_INIT": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_AUTH_INIT"
+    },
+    "GSS_C_MA_AUTH_INIT_ANON": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_AUTH_INIT_ANON"
+    },
+    "GSS_C_MA_AUTH_INIT_INIT": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_AUTH_INIT_INIT"
+    },
+    "GSS_C_MA_AUTH_TARG": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_AUTH_TARGET"
+    },
+    "GSS_C_MA_AUTH_TARG_ANON": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_AUTH_TARGET_ANON"
+    },
+    "GSS_C_MA_AUTH_TARG_INIT": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_AUTH_TARGET_INIT"
+    },
+    "GSS_C_MA_CBINDINGS": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_CHANNEL_BINDINGS"
+    },
+    "GSS_C_MA_COMPRESS": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_COMPRESSION"
+    },
+    "GSS_C_MA_CONF_PROT": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_CONFIDENTIALITY"
+    },
+    "GSS_C_MA_CTX_TRANS": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_CONTEXT_TRANSFER"
+    },
+    "GSS_C_MA_DELEG_CRED": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_DELEGATE_CRED"
+    },
+    "GSS_C_MA_DEPRECATED": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_DEPRECATED"
+    },
+    "GSS_C_MA_INTEG_PROT": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_INTEGRITY"
+    },
+    "GSS_C_MA_ITOK_FRAMED": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_INITIAL_TOKEN_FRAMED"
+    },
+    "GSS_C_MA_MECH_COMPOSITE": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_MECH_COMPOSITE"
+    },
+    "GSS_C_MA_MECH_CONCRETE": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_MECH_CONCRETE"
+    },
+    "GSS_C_MA_MECH_GLUE": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_MECH_GLUE"
+    },
+    "GSS_C_MA_MECH_NEGO": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_MECH_NEGO"
+    },
+    "GSS_C_MA_MECH_PSEUDO": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_MECH_PSEUDO"
+    },
+    "GSS_C_MA_MIC": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_MIC"
+    },
+    "GSS_C_MA_NEGOEX_AND_SPNEGO": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_NEGOEX_AND_SPNEGO"
+    },
+    "GSS_C_MA_NOT_DFLT_MECH": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_NOT_DEFAULT_MECH"
+    },
+    "GSS_C_MA_NOT_MECH": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_NOT_MECH"
+    },
+    "GSS_C_MA_OOS_DET": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_SEQUENCE_DETECTION"
+    },
+    "GSS_C_MA_PFS": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_FORWARD_SECRECY"
+    },
+    "GSS_C_MA_PROT_READY": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_PROTECTION_READY"
+    },
+    "GSS_C_MA_REPLAY_DET": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_REPLAY_DETECTION"
+    },
+    "GSS_C_MA_WRAP": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_MA_WRAP"
+    },
+    "GSS_C_NT_ANONYMOUS": {
+      "facade": "cpkt_gss_name_type_anonymous"
+    },
+    "GSS_C_NT_COMPOSITE_EXPORT": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_COMPOSITE_EXPORT_NAME"
+    },
+    "GSS_C_NT_EXPORT_NAME": {
+      "facade": "cpkt_gss_name_type_exported_name"
+    },
+    "GSS_C_NT_HOSTBASED_SERVICE": {
+      "facade": "cpkt_gss_name_type_hostbased_service"
+    },
+    "GSS_C_NT_HOSTBASED_SERVICE_X": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_HOSTBASED_SERVICE_X"
+    },
+    "GSS_C_NT_MACHINE_UID_NAME": {
+      "facade": "cpkt_gss_name_type_machine_uid"
+    },
+    "GSS_C_NT_STRING_UID_NAME": {
+      "facade": "cpkt_gss_name_type_string_uid"
+    },
+    "GSS_C_NT_USER_NAME": {
+      "facade": "cpkt_gss_name_type_user"
+    },
+    "GSS_C_SEC_CONTEXT_SASL_SSF": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_SEC_CONTEXT_SASL_SSF"
+    },
+    "GSS_KRB5_CRED_NO_CI_FLAGS_X": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_KRB5_CRED_NO_CI_FLAGS"
+    },
+    "GSS_KRB5_GET_CRED_IMPERSONATOR": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_KRB5_GET_CRED_IMPERSONATOR"
+    },
+    "GSS_KRB5_NT_ENTERPRISE_NAME": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_KRB5_ENTERPRISE_NAME"
+    },
+    "GSS_KRB5_NT_PRINCIPAL_NAME": {
+      "facade": "cpkt_gss_krb5_principal_name_type"
+    },
+    "GSS_KRB5_NT_X509_CERT": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_KRB5_X509_CERT"
+    },
+    "gss_mech_iakerb": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_IAKERB_MECH"
+    },
+    "gss_mech_krb5": {
+      "facade": "cpkt_gss_krb5_mechanism"
+    },
+    "gss_mech_krb5_old": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_KRB5_MECH_OLD"
+    },
+    "gss_mech_krb5_wrong": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_KRB5_MECH_WRONG"
+    },
+    "gss_mech_set_krb5": {
+      "facade": "cpkt_gss_krb5_mechanism_set",
+      "selector": 0
+    },
+    "gss_mech_set_krb5_both": {
+      "facade": "cpkt_gss_krb5_mechanism_set",
+      "selector": 2
+    },
+    "gss_mech_set_krb5_old": {
+      "facade": "cpkt_gss_krb5_mechanism_set",
+      "selector": 1
+    },
+    "gss_nt_exported_name": {
+      "facade": "cpkt_gss_name_type_exported_name"
+    },
+    "gss_nt_krb5_name": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_KRB5_NAME"
+    },
+    "gss_nt_krb5_principal": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_KRB5_PRINCIPAL"
+    },
+    "gss_nt_machine_uid_name": {
+      "facade": "cpkt_gss_name_type_machine_uid"
+    },
+    "gss_nt_service_name": {
+      "facade": "cpkt_gss_name_type_hostbased_service"
+    },
+    "gss_nt_service_name_v2": {
+      "facade": "cpkt_gss_known_oid",
+      "selector": "CPKT_GSS_OID_HOSTBASED_SERVICE_X"
+    },
+    "gss_nt_string_uid_name": {
+      "facade": "cpkt_gss_name_type_string_uid"
+    },
+    "gss_nt_user_name": {
+      "facade": "cpkt_gss_name_type_user"
+    },
+    "krb5_gss_oid_array": {
+      "unavailable": "public declaration has no shared definition; static provider-internal OID table"
+    }
+  }
+}

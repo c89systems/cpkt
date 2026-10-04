@@ -1,0 +1,9 @@
+/.cache/
+/build/
+/dist/
+/package-assertions-*/
+/privacy-scan-*/
+/CMakeUserPresets.json
+/stash/
+/VERSION
+__pycache__/

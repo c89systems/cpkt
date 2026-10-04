@@ -1,0 +1,65 @@
+--- a/lib/Makefile.am
++++ b/lib/Makefile.am
+@@ -122 +122 @@
+-	-ln -s $(SASL_STATIC_SRCS) .
++	ln -sfn $(SASL_STATIC_SRCS) .
+--- a/lib/Makefile.in
++++ b/lib/Makefile.in
+@@ -933 +933 @@
+-	-ln -s $(SASL_STATIC_SRCS) .
++	ln -sfn $(SASL_STATIC_SRCS) .
+--- a/common/plugin_common.c
++++ b/common/plugin_common.c
+@@ -732 +732,2 @@
+-    char *r;
++    const char *r;
++    size_t user_length;
+@@ -734 +735 @@
+-    if(!user || !serverFQDN) {
++    if(!user || !realm || !serverFQDN || !input) {
+@@ -753,11 +754,13 @@
+-	r++;
+-	ret = _plug_strdup(utils, r, realm, NULL);
+-	*--r = '\0';
+-	*user = utils->malloc(r - input + 1);
+-	if (*user) {
+-	    strncpy(*user, input, r - input +1);
+-	} else {
+-	    MEMERROR( utils );
+-	    ret = SASL_NOMEM;
+-	}
+-	*r = '@';
++	ret = _plug_strdup(utils, r + 1, realm, NULL);
++	if (ret != SASL_OK)
++	    return ret;
++	user_length = (size_t)(r - input);
++	*user = utils->malloc(user_length + 1);
++	if (*user == NULL) {
++	    utils->free(*realm);
++	    *realm = NULL;
++	    MEMERROR( utils );
++	    return SASL_NOMEM;
++	}
++	memcpy(*user, input, user_length);
++	(*user)[user_length] = '\0';
+--- a/lib/saslutil.c
++++ b/lib/saslutil.c
+@@ -525,6 +525,10 @@
+     struct addrinfo hints;
+     struct addrinfo *result;
+ 
++    if (name == NULL || namelen <= 0) {
++        return (-1);
++    }
++
+     return_value = gethostname (name, namelen);
+     name[namelen-1] = '\0'; /* insure string is always 0 terminated*/
+     if (return_value != 0) {
+@@ -560,7 +564,7 @@
+ 
+     if (result == NULL || result->ai_canonname == NULL
+         || strchr (result->ai_canonname, '.') == NULL
+-        || strlen (result->ai_canonname) > namelen -1) {
++        || strlen (result->ai_canonname) >= (size_t)namelen) {
+ 	freeaddrinfo (result);
+         if (abort_if_no_fqdn) {
