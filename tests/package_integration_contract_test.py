@@ -148,6 +148,39 @@ class Fixtures(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'installed pkg-config consumer emitted warnings'):
                 consumer.run_consumers(prefix,'arm64-apple-darwin','fixture',['core'],['core'],composition=True)
 
+
+    def test_consumer_receipts_fingerprint_only_target_applicable_tools(self):
+        from cpkt_packages import consumer_context
+        tool=self.work/'selected tool';tool.write_bytes(b'selected tool bytes')
+        configured={key:str(tool) for key in ('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER',
+            'CMAKE_NM','CMAKE_AR','CMAKE_OTOOL')}
+        configured.update(CMAKE_READELF='CMAKE_READELF-NOTFOUND',
+            CPKT_CXX_STDLIB_STATIC_LIBRARY='CPKT_CXX_STDLIB_STATIC_LIBRARY-NOTFOUND',
+            CPKT_CXX_LIBGCC_STATIC_LIBRARY='CPKT_CXX_LIBGCC_STATIC_LIBRARY-NOTFOUND')
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
+        def context(target):
+            return consumer_context(ROOT,target,target+'-release',owner,{owner:'a'*64},configured)
+        with patch('cpkt_receipts.darwin_backend_inputs',return_value={}):
+            native=context('arm64-apple-darwin')
+            self.assertIn('CMAKE_OTOOL',native['tools'])
+            for key in ('CMAKE_READELF','CPKT_CXX_STDLIB_STATIC_LIBRARY','CPKT_CXX_LIBGCC_STATIC_LIBRARY'):
+                self.assertNotIn(key,native['tools'])
+            original=configured['CMAKE_OTOOL'];configured['CMAKE_OTOOL']='CMAKE_OTOOL-NOTFOUND'
+            self.fails(lambda:context('arm64-apple-darwin'))
+            configured['CMAKE_OTOOL']=original
+            self.fails(lambda:context('x86_64-linux-gnu'))
+            configured['CMAKE_READELF']=str(tool)
+            self.fails(lambda:context('x86_64-linux-gnu'))
+            configured['CPKT_CXX_STDLIB_STATIC_LIBRARY']=str(tool)
+            configured['CPKT_CXX_LIBGCC_STATIC_LIBRARY']=str(tool)
+            configured['CMAKE_OTOOL']='CMAKE_OTOOL-NOTFOUND'
+            linux=context('x86_64-linux-gnu')
+            self.assertNotIn('CMAKE_OTOOL',linux['tools'])
+            self.assertIn('CMAKE_READELF',linux['tools'])
+            self.assertIn('CPKT_CXX_STDLIB_STATIC_LIBRARY',linux['tools'])
+            tool.write_bytes(b'changed tool bytes')
+            self.assertNotEqual(linux['tools'],context('x86_64-linux-gnu')['tools'])
+
     def test_native_producer_and_consumer_share_selected_tools(self):
         import cpkt_sdk_consumer as consumer
         from cpkt_inventory import REPOSITORY_GROUP

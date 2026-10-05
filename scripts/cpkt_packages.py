@@ -541,7 +541,12 @@ def consumer_context(root,target,preset,group,archives,configured):
             if child not in inputs and (root/child).is_file():inputs.add(child);pending.append(child)
     inputs={p for p in inputs if (root/p).is_file()}
     settings={k:str(v) for k,v in configured.items() if k.endswith('_ABI_VERSION') or k in ('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR','CMAKE_READELF','CMAKE_OTOOL','CMAKE_SYSROOT','CMAKE_OSX_SYSROOT','CPKT_OSXCROSS_ROOT','CPKT_OSXCROSS_HOST','CPKT_DEPENDENCY_BUILD_JOBS','CMAKE_C_FLAGS','CMAKE_CXX_FLAGS','CMAKE_EXE_LINKER_FLAGS','CMAKE_SHARED_LINKER_FLAGS','CMAKE_OSX_DEPLOYMENT_TARGET','CPKT_MACOS_DEPLOYMENT_TARGET','CPKT_CXX_STDLIB_STATIC_LIBRARY','CPKT_CXX_LIBGCC_STATIC_LIBRARY')}
-    tools={k:file_identity(Path(v).resolve()) for k,v in settings.items() if k in ('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR','CMAKE_READELF','CMAKE_OTOOL','CPKT_CXX_STDLIB_STATIC_LIBRARY','CPKT_CXX_LIBGCC_STATIC_LIBRARY') and v}
+    # Fingerprint only tools used for this target. Native Darwin can legitimately
+    # cache CMAKE_READELF-NOTFOUND and has no packaged GNU C++ runtime archives.
+    tool_keys={'CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR'}
+    if target.endswith('darwin'):tool_keys.add('CMAKE_OTOOL')
+    else:tool_keys.update(('CMAKE_READELF','CPKT_CXX_STDLIB_STATIC_LIBRARY','CPKT_CXX_LIBGCC_STATIC_LIBRARY'))
+    tools={k:file_identity(Path(v).resolve()) for k,v in settings.items() if k in tool_keys and v}
     for name in ('cmake','pkg-config','make','ninja','codesign','xcrun'):
         path=shutil.which(name)
         if path:tools[name]=file_identity(Path(path).resolve())

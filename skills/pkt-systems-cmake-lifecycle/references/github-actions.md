@@ -114,8 +114,12 @@ when Apple ld reports them, while preserving static archive order and repetition
 that may be needed for resolution. Exercise installed examples through both
 CMake and pkg-config before and after SDK relocation.
 
-Record
-OS/architecture, runner image, compiler/Xcode/SDK, deployment target, dependency
+Tool identities in consumer receipts follow the target format: `otool` for
+Darwin, `readelf` and selected GNU runtime archives for Linux. An unused
+`CMAKE_READELF-NOTFOUND` cache value on Darwin is normal; it is not a file to
+fingerprint. Missing tools required for the selected target still fail closed.
+
+Record OS/architecture, runner image, compiler/Xcode/SDK, deployment target, dependency
 pins, and configured job limit. Keep the existing build-system parallelism;
 a larger host does not authorize increasing it. Serialize operational commands
 and test execution. Add older macOS or Intel coverage only when selected by
