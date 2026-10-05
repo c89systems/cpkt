@@ -259,6 +259,10 @@ cpkt_lua_runtime_set_traceback(cpkt_lua_runtime *runtime, int enabled);
  * invocation. Yielding or resuming a coroutine does not replenish it. A new
  * host invocation starts a fresh budget. While enabled, instruction accounting
  * runs a count hook for every VM instruction.
+ * Lua finalizers participate in the budget. Destruction uses a fresh budget
+ * for finalizers when the limit remains enabled; finalizer failures reach the
+ * configured warning callback. After exhaustion, xpcall skips the Lua error
+ * handler so it cannot run with instruction accounting suspended.
  */
 cpkt_lua_runtime_status
 cpkt_lua_runtime_set_instruction_limit(cpkt_lua_runtime *runtime,

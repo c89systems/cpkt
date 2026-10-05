@@ -46,6 +46,43 @@ static const struct runtime_case cases[] = {
      "while true do xpcall(function() while true do end end, "
      "function(err) return 'caught' end) end",
      1, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"xhandler_limit",
+     "xpcall(function() while true do end end, "
+     "function(err) while true do end end)",
+     1, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"xhandler_error_limit",
+     "xpcall(function() error('ordinary error') end, "
+     "function(err) while true do end end)",
+     1, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"xhandler_normal",
+     "local ok,err=xpcall(function(a,b) assert(a==7 and b==9); "
+     "error('ordinary error') end, function(err) "
+     "assert(err:match('ordinary error')); return 'handled' end,7,9); "
+     "assert(not ok and err=='handled')",
+     1, CPKT_LUA_RUNTIME_OK},
+    {"gc_limit",
+     "local t=setmetatable({}, {__gc=function() while true do end end}); "
+     "t=nil; collectgarbage()",
+     1, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"gc_coroutine_limit",
+     "local co=coroutine.create(function() "
+     "local t=setmetatable({}, {__gc=function() while true do end end}); "
+     "t=nil; collectgarbage() end); coroutine.resume(co)",
+     1, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"gc_finite",
+     "local finalized=false; "
+     "local t=setmetatable({}, {__gc=function() local n=0; "
+     "for i=1,10 do n=n+i end; assert(n==55); finalized=true end}); "
+     "t=nil; collectgarbage(); assert(finalized)",
+     1, CPKT_LUA_RUNTIME_OK},
+    {"gc_close_limit",
+     "saved_gc=setmetatable({}, {__gc=function() while true do end end})", 1,
+     CPKT_LUA_RUNTIME_OK},
+    {"gc_close_after_limit",
+     "saved_gc=setmetatable({}, {__gc=function() while true do end end}); "
+     "while true do end",
+     1, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"native_gc_hooks", "", 0, CPKT_LUA_RUNTIME_OK},
     {"registry_limit",
      "for k in pairs(debug.getregistry()) do "
      "if type(k)=='userdata' then debug.getregistry()[k]=nil end end; "
@@ -109,6 +146,45 @@ static const struct runtime_case cases[] = {
 struct failure_allocator {
   int reject_growth;
 };
+
+static int native_hook_calls;
+static int native_finalizer_hook_calls;
+
+static void native_hook(cpkt_lua_state *state, cpkt_lua_debug *record) {
+  (void)record;
+  native_hook_calls += 1;
+  cpkt_lua_getglobal(state, "inside_native_gc");
+  if (cpkt_lua_toboolean(state, -1)) {
+    native_finalizer_hook_calls += 1;
+  }
+  cpkt_lua_pop(state, 1);
+}
+
+static int exercise_native_gc_hooks(void) {
+  cpkt_lua_state *state;
+  const char *source;
+  int status;
+  state = cpkt_lua_l_newstate();
+  if (state == NULL) {
+    return 1;
+  }
+  cpkt_lua_l_openlibs(state);
+  native_hook_calls = 0;
+  native_finalizer_hook_calls = 0;
+  cpkt_lua_sethook(state, native_hook, CPKT_LUA_MASKCOUNT, 1);
+  source = "local t=setmetatable({}, {__gc=function() "
+           "inside_native_gc=true; local n=0; "
+           "for i=1,100 do n=n+i end; assert(n==5050); "
+           "inside_native_gc=false; native_finalized=true end}); "
+           "t=nil; collectgarbage(); assert(native_finalized)";
+  status = cpkt_lua_l_loadbuffer(state, source, strlen(source), "native-gc");
+  if (status == CPKT_LUA_OK) {
+    status = cpkt_lua_pcall(state, 0, 0, 0);
+  }
+  cpkt_lua_close(state);
+  return status != CPKT_LUA_OK || native_hook_calls == 0 ||
+         native_finalizer_hook_calls != 0;
+}
 
 static void *allocate(void *user, size_t size) {
   struct failure_allocator *allocator;
@@ -313,6 +389,9 @@ static int exercise(const struct runtime_case *item) {
   int conversion_case;
 
   runtime = NULL;
+  if (strcmp(item->name, "native_gc_hooks") == 0) {
+    return exercise_native_gc_hooks();
+  }
   if (strcmp(item->name, "construction_failure") == 0) {
     status = cpkt_lua_runtime_new_with_limit(&runtime, 512);
     if (status != CPKT_LUA_RUNTIME_ERR_ALLOC || runtime != NULL) {
@@ -413,6 +492,10 @@ static int exercise(const struct runtime_case *item) {
       fprintf(stderr, "numeric error conversion lost the original value\n");
       failed = 1;
     }
+  }
+  if (strncmp(item->name, "gc_close_", 9) == 0) {
+    cpkt_lua_runtime_free(runtime);
+    return failed;
   }
   if (!failed && (strcmp(item->name, "existing_wrap_limit") == 0 ||
                   strcmp(item->name, "native_upvalues") == 0)) {

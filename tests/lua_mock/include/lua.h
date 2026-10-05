@@ -11,6 +11,7 @@
 #define LUA_MASKCOUNT 1
 #define LUA_TLIGHTUSERDATA 2
 #define LUA_TSTRING 4
+#define LUA_TFUNCTION 6
 #define lua_islightuserdata(L, n) (lua_type((L), (n)) == LUA_TLIGHTUSERDATA)
 
 #define LUA_LOADLIBNAME "package"

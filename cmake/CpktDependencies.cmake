@@ -1255,6 +1255,10 @@ cpkt_cached_external_project_add(${project_name}
       TMP_DIR "${tmp_dir}"
       TIMEOUT ${CPKT_DEPENDENCY_DOWNLOAD_TIMEOUT}
       INACTIVITY_TIMEOUT ${CPKT_DEPENDENCY_DOWNLOAD_INACTIVITY_TIMEOUT}
+      PATCH_COMMAND ${CMAKE_COMMAND}
+        -DCPKT_LUA_SOURCE_DIR=${source_dir}
+        -DCPKT_LUA_HOOK_POLICY_HEADER=${CMAKE_SOURCE_DIR}/src/lua_runtime_hook_policy.h
+        -P ${CMAKE_SOURCE_DIR}/cmake/patch_lua_runtime_hooks.cmake
       CONFIGURE_COMMAND ${CMAKE_COMMAND} -E true
       BUILD_COMMAND
         ${CMAKE_COMMAND} -E env ${lua_env_args} MAKEFLAGS= make -C "${source_dir}/src" clean

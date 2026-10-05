@@ -15,6 +15,16 @@ code or alter VM policy. The counter is shared across all coroutine switches,
 including short yields. With a limit enabled, the VM calls the accounting hook
 for each instruction; unlimited execution does not install that hook.
 
+Lua error handlers and finalizers are included in this policy. After exhaustion,
+the runtime's `xpcall` handler returns the limit error without calling the Lua
+handler. Bundled Lua has an opt-in GC patch that preserves instruction hooks
+during finalizers for the runtime's private hook-mask bit. Ordinary native Lua
+hooks keep upstream finalizer suppression. The patch changes no public types or
+symbols, and its source and shared private header are tracked recipe inputs.
+`cpkt_lua_runtime_free()` grants finalizers a fresh configured budget while the
+limit remains enabled. Finalizer errors use the warning callback. Clearing the
+limit also removes accounting during finalization.
+
 The runtime handle lives in Lua's embedder extra space, outside the registry that
 `debug.getregistry()` exposes. Native C module openers borrow a VM state and must
 leave that extra space intact. Modules should use their own registry keys or
@@ -48,4 +58,6 @@ counts, coroutine error cleanup, protected calls and yields, registry/upvalue
 mutation, changed limits, shared budgets, protected error conversion under
 allocation failure and recovery, preload publication, replacement and loader
 argument forwarding, loader-upvalue substitution, reopened standard libraries
-and failed C registration recovery. A timeout or process abort is a failing result.
+and failed C registration recovery, bounded error handlers, finalization during
+collection and destruction, and ordinary native GC-hook behavior. A timeout or
+process abort is a failing result.

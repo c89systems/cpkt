@@ -1,4 +1,5 @@
 #include "cpkt/lua_runtime.h"
+#include "lua_runtime_hook_policy.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -458,7 +459,8 @@ static void cpkt_lua_runtime_apply_instruction_hook(cpkt_lua_runtime *runtime,
   }
   if (runtime->instruction_limit > 0) {
     /* One shared counter accounts for every thread, including short yields. */
-    lua_sethook(state, cpkt_lua_runtime_instruction_hook, LUA_MASKCOUNT, 1);
+    lua_sethook(state, cpkt_lua_runtime_instruction_hook,
+                LUA_MASKCOUNT | CPKT_LUA_RUNTIME_MASK_FINALIZERS, 1);
   } else {
     lua_sethook(state, NULL, 0, 0);
   }
@@ -492,9 +494,33 @@ static int cpkt_lua_runtime_pcall(lua_State *state) {
       state, runtime != NULL ? runtime->native_pcall : NULL);
 }
 
+static int cpkt_lua_runtime_xpcall_error(lua_State *state) {
+  cpkt_lua_runtime *runtime;
+  runtime = cpkt_lua_runtime_from_state(state);
+  if (runtime == NULL) {
+    return luaL_error(state, "missing protected-call runtime");
+  }
+  /* A hook error invokes this handler before Lua restores allowhook. Return
+   * that error unchanged; the outer guard will terminate the host run. */
+  if (runtime->instruction_limit_hit) {
+    return 1;
+  }
+  lua_pushvalue(state, lua_upvalueindex(1));
+  lua_insert(state, 1);
+  lua_call(state, 1, 1);
+  return 1;
+}
+
 static int cpkt_lua_runtime_xpcall(lua_State *state) {
   cpkt_lua_runtime *runtime;
   runtime = cpkt_lua_runtime_from_state(state);
+  if (runtime != NULL && runtime->instruction_limit > 0 &&
+      lua_type(state, 2) == LUA_TFUNCTION) {
+    lua_pushvalue(state, 2);
+    lua_pushcclosure(state, cpkt_lua_runtime_xpcall_error, 1);
+    lua_insert(state, 2);
+    lua_remove(state, 3);
+  }
   return cpkt_lua_runtime_guard_protected_call(
       state, runtime != NULL ? runtime->native_xpcall : NULL);
 }
@@ -1269,6 +1295,10 @@ void cpkt_lua_runtime_free(cpkt_lua_runtime *runtime) {
   allocator = runtime->allocator;
 
   if (runtime->state != NULL) {
+    /* Destruction is a separate host invocation with the configured budget. */
+    runtime->instruction_limit_hit = 0;
+    runtime->instruction_remaining = runtime->instruction_limit;
+    cpkt_lua_runtime_apply_instruction_hook(runtime, runtime->state);
     lua_close(runtime->state);
   }
   cpkt_lua_runtime_clear_chunks(runtime);
