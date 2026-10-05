@@ -26,13 +26,19 @@ Coroutine wrappers install the runtime's hook and delegate execution, stack
 growth, return/yield transfers and error closure to Lua's own coroutine library.
 An errored wrapped coroutine closes its `<close>` variables before propagating
 the resulting error. Wrappers created before a limit change receive the current
-policy on their next invocation.
+policy on their next invocation. Opening standard libraries again reinstalls
+these wrappers and the protected-call guards, including after clearing
+`package.loaded` entries; repeated opens preserve wrapper identity.
 
 C and Lua module registration writes directly to `package.preload`, bypassing
 its `__newindex` metamethod. This prevents an assignment callback from publishing
 a Lua loader and then raising an error while its copied source is being freed.
-The runtime keeps successful source copies until runtime destruction, including
-replaced registrations; failed registration releases its new copy. Lua loaders
+The runtime keeps successful source copies and C opener records until runtime
+destruction, including replaced registrations; failed registration releases its
+new record. Loaders check upvalue type and membership in their runtime-owned
+records before dereferencing data or calling an opener. Substituting foreign
+userdata, nil, or a record of the wrong kind raises a Lua error. Restoring a
+retained valid record remains safe after garbage collection. Lua loaders
 forward all arguments to the source chunk, including the module name and loader
 data from `require`. Compilation happens when the loader is invoked.
 
@@ -41,4 +47,5 @@ libraries on supported Linux runners and native Darwin. They cover large value
 counts, coroutine error cleanup, protected calls and yields, registry/upvalue
 mutation, changed limits, shared budgets, protected error conversion under
 allocation failure and recovery, preload publication, replacement and loader
-argument forwarding. A timeout or process abort is a failing result.
+argument forwarding, loader-upvalue substitution, reopened standard libraries
+and failed C registration recovery. A timeout or process abort is a failing result.

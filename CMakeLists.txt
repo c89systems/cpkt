@@ -1291,7 +1291,8 @@ if(CPKT_BUILD_TESTS)
       foreach(_cpkt_lua_policy_case IN ITEMS large_arguments large_results large_yields
               closed_error close_error_replaced protected_limit xprotected_limit
               registry_limit protected_yields yielded_protected_limit upvalue_limit existing_wrap_limit
-              native_upvalues shared_resume_budget shared_wrap_budget error_conversion_oom numeric_error preload_registration preload_arguments construction_failure)
+              native_upvalues shared_resume_budget shared_wrap_budget error_conversion_oom numeric_error preload_registration preload_arguments
+              preload_lua_upvalues preload_c_upvalues preload_c_allocation reopen_resume_limit reopen_wrap_limit reopen_library_identity construction_failure)
         cpkt_group_add_test(NAME lua_runtime_contract_${_cpkt_lua_policy_linkage}_${_cpkt_lua_policy_case}
               COMMAND cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test ${_cpkt_lua_policy_case})
         cpkt_group_set_tests_properties(lua_runtime_contract_${_cpkt_lua_policy_linkage}_${_cpkt_lua_policy_case}

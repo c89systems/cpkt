@@ -306,6 +306,9 @@ const char *lua_tostring(lua_State *state, int index) {
 int lua_type(lua_State *state, int index) {
   struct mock_value *value;
   value = mock_at(state, index);
+  if (value != NULL && value->type == MOCK_LIGHTUSERDATA) {
+    return LUA_TLIGHTUSERDATA;
+  }
   return value != NULL && value->type == MOCK_STRING ? LUA_TSTRING : 0;
 }
 

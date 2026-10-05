@@ -98,6 +98,12 @@ static const struct runtime_case cases[] = {
     {"numeric_error", "error(1729)", 0, CPKT_LUA_RUNTIME_ERR_RUNTIME},
     {"preload_registration", "", 0, CPKT_LUA_RUNTIME_OK},
     {"preload_arguments", "", 0, CPKT_LUA_RUNTIME_OK},
+    {"preload_lua_upvalues", "", 0, CPKT_LUA_RUNTIME_OK},
+    {"preload_c_upvalues", "", 0, CPKT_LUA_RUNTIME_OK},
+    {"preload_c_allocation", "", 0, CPKT_LUA_RUNTIME_OK},
+    {"reopen_resume_limit", "", 0, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"reopen_wrap_limit", "", 0, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"reopen_library_identity", "", 0, CPKT_LUA_RUNTIME_OK},
     {"construction_failure", "", 0, CPKT_LUA_RUNTIME_ERR_ALLOC}};
 
 struct failure_allocator {
@@ -147,6 +153,93 @@ static cpkt_lua_runtime_status run_text(cpkt_lua_runtime *runtime,
   return cpkt_lua_runtime_run_buffer(runtime, (const unsigned char *)text,
                                      strlen(text), "preload-contract", 0, NULL,
                                      0);
+}
+
+static cpkt_lua_runtime_status
+exercise_preload_upvalues(cpkt_lua_runtime *runtime, int c_module) {
+  cpkt_lua_runtime_status status;
+  const char *source;
+  source = "return true";
+  status = cpkt_lua_runtime_register_lua_module(runtime, "tamper_lua",
+                                                (const unsigned char *)source,
+                                                strlen(source), "tamper-lua");
+  if (status == CPKT_LUA_RUNTIME_OK) {
+    status = cpkt_lua_runtime_register_c_module(runtime, "tamper_c",
+                                                preload_c_module);
+  }
+  if (status != CPKT_LUA_RUNTIME_OK) {
+    return status;
+  }
+  status =
+      run_text(runtime, c_module ? "tamper_loader=package.preload.tamper_c; "
+                                   "tamper_other=package.preload.tamper_lua; "
+                                   "tamper_error='invalid C module opener'"
+                                 : "tamper_loader=package.preload.tamper_lua; "
+                                   "tamper_other=package.preload.tamper_c; "
+                                   "tamper_error='invalid Lua preload chunk'");
+  if (status != CPKT_LUA_RUNTIME_OK) {
+    return status;
+  }
+  status = run_text(
+      runtime,
+      "local _,saved=debug.getupvalue(tamper_loader,1); "
+      "local _,other=debug.getupvalue(tamper_other,1); "
+      "local function reject(value) "
+      "assert(debug.setupvalue(tamper_loader,1,value)); "
+      "collectgarbage('collect'); "
+      "local ok,err=pcall(tamper_loader); assert(not ok); "
+      "assert(tostring(err):match(tamper_error)) end; "
+      "reject(io.stdout); reject(nil); reject(17); reject('foreign'); "
+      "reject(other); "
+      "debug.setupvalue(tamper_loader,1,saved); assert(tamper_loader()==true)");
+  return status == CPKT_LUA_RUNTIME_OK
+             ? run_text(runtime, "assert(require('tamper_c')==true)")
+             : status;
+}
+
+static cpkt_lua_runtime_status
+exercise_reopened_libraries(cpkt_lua_runtime *runtime, const char *name) {
+  cpkt_lua_runtime_status status;
+  const char *preparation;
+  const char *execution;
+  if (strcmp(name, "reopen_library_identity") == 0) {
+    preparation =
+        "saved_create=coroutine.create; saved_resume=coroutine.resume; "
+        "saved_wrap=coroutine.wrap; saved_pcall=pcall; saved_xpcall=xpcall; "
+        "package.loaded.coroutine=nil; package.loaded._G=nil; "
+        "package.loaded.debug=nil";
+    execution = "assert(pcall==saved_pcall); assert(xpcall==saved_xpcall); "
+                "assert(coroutine.create==saved_create); "
+                "assert(coroutine.resume==saved_resume); "
+                "assert(coroutine.wrap==saved_wrap); "
+                "local ok,err=pcall(debug.sethook); assert(not ok and "
+                "tostring(err):match('unavailable'))";
+  } else {
+    preparation = "saved_thread=coroutine.create(function() local sum=0; "
+                  "for i=1,100000 do sum=sum+i end; return sum end); "
+                  "package.loaded.coroutine=nil";
+    execution = strcmp(name, "reopen_resume_limit") == 0
+                    ? "assert(coroutine.resume(saved_thread))"
+                    : "saved_reopened_wrap()";
+  }
+  status = run_text(runtime, preparation);
+  if (status == CPKT_LUA_RUNTIME_OK) {
+    status = cpkt_lua_runtime_openlibs(runtime);
+  }
+  if (status == CPKT_LUA_RUNTIME_OK) {
+    status = cpkt_lua_runtime_open_libs(
+        runtime, CPKT_LUA_RUNTIME_LIB_BASE | CPKT_LUA_RUNTIME_LIB_COROUTINE);
+  }
+  if (status == CPKT_LUA_RUNTIME_OK && strcmp(name, "reopen_wrap_limit") == 0) {
+    status = run_text(
+        runtime, "saved_reopened_wrap=coroutine.wrap(function() local sum=0; "
+                 "for i=1,100000 do sum=sum+i end; return sum end)");
+  }
+  if (status == CPKT_LUA_RUNTIME_OK &&
+      strcmp(name, "reopen_library_identity") != 0) {
+    status = cpkt_lua_runtime_set_instruction_limit(runtime, 1000);
+  }
+  return status == CPKT_LUA_RUNTIME_OK ? run_text(runtime, execution) : status;
 }
 
 static cpkt_lua_runtime_status exercise_preload(cpkt_lua_runtime *runtime,
@@ -239,7 +332,7 @@ static int exercise(const struct runtime_case *item) {
   config.alloc_fn = allocate;
   config.realloc_fn = resize;
   config.free_fn = release;
-  status = conversion_case
+  status = (conversion_case || strcmp(item->name, "preload_c_allocation") == 0)
                ? cpkt_lua_runtime_new_with_allocator(&runtime, &config)
                : cpkt_lua_runtime_new(&runtime);
   if (status != CPKT_LUA_RUNTIME_OK) {
@@ -257,6 +350,46 @@ static int exercise(const struct runtime_case *item) {
       status = cpkt_lua_runtime_require(runtime, "numeric_failure");
     }
     allocator.reject_growth = 0;
+  } else if (status == CPKT_LUA_RUNTIME_OK &&
+             (strcmp(item->name, "preload_lua_upvalues") == 0 ||
+              strcmp(item->name, "preload_c_upvalues") == 0)) {
+    status = exercise_preload_upvalues(
+        runtime, strcmp(item->name, "preload_c_upvalues") == 0);
+  } else if (status == CPKT_LUA_RUNTIME_OK &&
+             strcmp(item->name, "preload_c_allocation") == 0) {
+    allocator.reject_growth = 1;
+    status = cpkt_lua_runtime_register_c_module(runtime, "allocation_failed",
+                                                preload_c_module);
+    allocator.reject_growth = 0;
+    if (status == CPKT_LUA_RUNTIME_ERR_ALLOC) {
+      status = run_text(runtime,
+                        "assert(package.preload.allocation_failed==nil); "
+                        "saved_preload=package.preload; package.preload=nil");
+      if (status == CPKT_LUA_RUNTIME_OK) {
+        status = cpkt_lua_runtime_register_c_module(
+            runtime, "publication_failed", preload_c_module);
+        if (status == CPKT_LUA_RUNTIME_ERR_RUNTIME) {
+          status = run_text(runtime,
+                            "package.preload=saved_preload; "
+                            "assert(package.preload.publication_failed==nil)");
+          if (status == CPKT_LUA_RUNTIME_OK) {
+            status = cpkt_lua_runtime_register_c_module(
+                runtime, "allocation_recovery", preload_c_module);
+            if (status == CPKT_LUA_RUNTIME_OK) {
+              status = run_text(runtime,
+                                "assert(require('allocation_recovery')==true)");
+            }
+          }
+        } else {
+          status = CPKT_LUA_RUNTIME_ERR_RUNTIME;
+        }
+      }
+    } else {
+      status = CPKT_LUA_RUNTIME_ERR_RUNTIME;
+    }
+  } else if (status == CPKT_LUA_RUNTIME_OK &&
+             strncmp(item->name, "reopen_", 7) == 0) {
+    status = exercise_reopened_libraries(runtime, item->name);
   } else if (status == CPKT_LUA_RUNTIME_OK &&
              (strcmp(item->name, "preload_registration") == 0 ||
               strcmp(item->name, "preload_arguments") == 0)) {

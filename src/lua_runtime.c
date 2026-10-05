@@ -24,6 +24,11 @@ struct cpkt_lua_runtime_allocator {
   int failed;
 };
 
+struct cpkt_lua_runtime_c_module {
+  cpkt_lua_runtime_c_module_open_fn opener;
+  struct cpkt_lua_runtime_c_module *next;
+};
+
 struct cpkt_lua_runtime {
   lua_State *state;
   struct cpkt_lua_runtime_allocator allocator;
@@ -32,11 +37,11 @@ struct cpkt_lua_runtime {
   cpkt_lua_runtime_warning_fn warning_callback;
   void *warning_context;
   struct cpkt_lua_runtime_chunk *chunks;
+  struct cpkt_lua_runtime_c_module *c_modules;
   int traceback_enabled;
   int instruction_limit;
   int instruction_limit_hit;
   int instruction_remaining;
-  int coroutine_wrapped;
   lua_CFunction native_pcall;
   lua_CFunction native_xpcall;
   lua_CFunction native_create;
@@ -91,7 +96,7 @@ struct cpkt_lua_runtime_global_integer_context {
 
 struct cpkt_lua_runtime_c_module_context {
   const char *module_name;
-  cpkt_lua_runtime_c_module_open_fn opener;
+  struct cpkt_lua_runtime_c_module *module;
 };
 
 struct cpkt_lua_runtime_lua_module_context {
@@ -502,23 +507,30 @@ static int cpkt_lua_runtime_wrap_protected_calls(lua_State *state) {
   if (runtime == NULL) {
     return luaL_error(state, "missing Lua runtime");
   }
-  if (runtime->native_pcall != NULL && runtime->native_xpcall != NULL) {
-    return 0;
-  }
   lua_getglobal(state, "pcall");
   native_pcall = lua_tocfunction(state, -1);
-  if (native_pcall == NULL || lua_getupvalue(state, -1, 1) != NULL) {
+  if (native_pcall == NULL || lua_getupvalue(state, -1, 1) != NULL ||
+      (native_pcall != cpkt_lua_runtime_pcall &&
+       runtime->native_pcall != NULL &&
+       native_pcall != runtime->native_pcall)) {
     return luaL_error(state, "unsupported native pcall implementation");
   }
   lua_pop(state, 1);
   lua_getglobal(state, "xpcall");
   native_xpcall = lua_tocfunction(state, -1);
-  if (native_xpcall == NULL || lua_getupvalue(state, -1, 1) != NULL) {
+  if (native_xpcall == NULL || lua_getupvalue(state, -1, 1) != NULL ||
+      (native_xpcall != cpkt_lua_runtime_xpcall &&
+       runtime->native_xpcall != NULL &&
+       native_xpcall != runtime->native_xpcall)) {
     return luaL_error(state, "unsupported native xpcall implementation");
   }
   lua_pop(state, 1);
-  runtime->native_pcall = native_pcall;
-  runtime->native_xpcall = native_xpcall;
+  if (native_pcall != cpkt_lua_runtime_pcall) {
+    runtime->native_pcall = native_pcall;
+  }
+  if (native_xpcall != cpkt_lua_runtime_xpcall) {
+    runtime->native_xpcall = native_xpcall;
+  }
   lua_pushcfunction(state, cpkt_lua_runtime_pcall);
   lua_setglobal(state, "pcall");
   lua_pushcfunction(state, cpkt_lua_runtime_xpcall);
@@ -641,7 +653,12 @@ static void cpkt_lua_runtime_wrap_coroutine_function(
   state = runtime->state;
   lua_getfield(state, -1, name);
   native = lua_tocfunction(state, -1);
-  if (native == NULL || lua_getupvalue(state, -1, 1) != NULL) {
+  if (native == wrapper) {
+    lua_pop(state, 1);
+    return;
+  }
+  if (native == NULL || lua_getupvalue(state, -1, 1) != NULL ||
+      (*native_slot != NULL && native != *native_slot)) {
     luaL_error(state, "unsupported native coroutine entrypoint");
     return;
   }
@@ -654,7 +671,7 @@ static void cpkt_lua_runtime_wrap_coroutine_function(
 static void cpkt_lua_runtime_wrap_coroutine_library(cpkt_lua_runtime *runtime) {
   lua_State *state;
 
-  if (runtime == NULL || runtime->coroutine_wrapped) {
+  if (runtime == NULL) {
     return;
   }
 
@@ -674,7 +691,6 @@ static void cpkt_lua_runtime_wrap_coroutine_library(cpkt_lua_runtime *runtime) {
   cpkt_lua_runtime_wrap_coroutine_function(
       runtime, "wrap", cpkt_lua_runtime_coroutine_wrap, &runtime->native_wrap);
   lua_pop(state, 1);
-  runtime->coroutine_wrapped = 1;
 }
 
 static int cpkt_lua_runtime_wrap_coroutine_library_protected(lua_State *state) {
@@ -967,14 +983,13 @@ static int cpkt_lua_runtime_set_global_integer_protected(lua_State *state) {
 static int cpkt_lua_runtime_register_c_module_protected(lua_State *state) {
   struct cpkt_lua_runtime_protected_call *call;
   struct cpkt_lua_runtime_c_module_context *context;
-  cpkt_lua_runtime_c_module_open_fn *opener_slot;
 
   call = (struct cpkt_lua_runtime_protected_call *)lua_touserdata(state, 1);
   context = call != NULL
                 ? (struct cpkt_lua_runtime_c_module_context *)call->context
                 : NULL;
   if (context == NULL || context->module_name == NULL ||
-      context->opener == NULL) {
+      context->module == NULL || context->module->opener == NULL) {
     return luaL_error(state, "missing C module registration");
   }
   lua_getglobal(state, "package");
@@ -987,12 +1002,7 @@ static int cpkt_lua_runtime_register_c_module_protected(lua_State *state) {
   if (!lua_istable(state, -1)) {
     return luaL_error(state, "Lua package.preload table is unavailable");
   }
-  opener_slot = (cpkt_lua_runtime_c_module_open_fn *)lua_newuserdata(
-      state, sizeof(*opener_slot));
-  if (opener_slot == NULL) {
-    return luaL_error(state, "out of memory");
-  }
-  *opener_slot = context->opener;
+  lua_pushlightuserdata(state, context->module);
   lua_pushcclosure(state, cpkt_lua_runtime_c_module_loader, 1);
   lua_pushstring(state, context->module_name);
   lua_insert(state, -2);
@@ -1111,26 +1121,42 @@ static cpkt_lua_runtime_status cpkt_lua_runtime_prepend_package_field(
 }
 
 static int cpkt_lua_runtime_c_module_loader(lua_State *state) {
-  cpkt_lua_runtime_c_module_open_fn *opener;
+  cpkt_lua_runtime *runtime;
+  struct cpkt_lua_runtime_c_module *module;
+  void *candidate;
 
-  opener = (cpkt_lua_runtime_c_module_open_fn *)lua_touserdata(
-      state, lua_upvalueindex(1));
-  if (opener == NULL || *opener == NULL) {
-    return luaL_error(state, "missing C module opener");
+  runtime = cpkt_lua_runtime_from_state(state);
+  if (runtime == NULL || !lua_islightuserdata(state, lua_upvalueindex(1))) {
+    return luaL_error(state, "invalid C module opener");
   }
-
-  return (*opener)((void *)state);
+  candidate = lua_touserdata(state, lua_upvalueindex(1));
+  for (module = runtime->c_modules; module != NULL; module = module->next) {
+    if ((void *)module == candidate) {
+      return module->opener((void *)state);
+    }
+  }
+  return luaL_error(state, "invalid C module opener");
 }
 
 static int cpkt_lua_runtime_lua_module_loader(lua_State *state) {
   struct cpkt_lua_runtime_chunk *chunk;
+  cpkt_lua_runtime *runtime;
+  void *candidate;
   int result;
   int nargs;
 
-  chunk = (struct cpkt_lua_runtime_chunk *)lua_touserdata(state,
-                                                          lua_upvalueindex(1));
+  runtime = cpkt_lua_runtime_from_state(state);
+  if (runtime == NULL || !lua_islightuserdata(state, lua_upvalueindex(1))) {
+    return luaL_error(state, "invalid Lua preload chunk");
+  }
+  candidate = lua_touserdata(state, lua_upvalueindex(1));
+  for (chunk = runtime->chunks; chunk != NULL; chunk = chunk->next) {
+    if ((void *)chunk == candidate) {
+      break;
+    }
+  }
   if (chunk == NULL) {
-    return luaL_error(state, "missing Lua preload chunk");
+    return luaL_error(state, "invalid Lua preload chunk");
   }
 
   nargs = lua_gettop(state);
@@ -1234,6 +1260,8 @@ cpkt_lua_runtime_status cpkt_lua_runtime_new_with_allocator(
  * <cpkt/lua_runtime.h>. */
 void cpkt_lua_runtime_free(cpkt_lua_runtime *runtime) {
   struct cpkt_lua_runtime_allocator allocator;
+  struct cpkt_lua_runtime_c_module *module;
+  struct cpkt_lua_runtime_c_module *next;
 
   if (runtime == NULL) {
     return;
@@ -1244,6 +1272,13 @@ void cpkt_lua_runtime_free(cpkt_lua_runtime *runtime) {
     lua_close(runtime->state);
   }
   cpkt_lua_runtime_clear_chunks(runtime);
+  module = runtime->c_modules;
+  while (module != NULL) {
+    next = module->next;
+    cpkt_lua_runtime_allocator_free(&runtime->allocator, module,
+                                    sizeof(*module));
+    module = next;
+  }
   cpkt_lua_runtime_allocator_free(
       &runtime->allocator, runtime->last_error,
       runtime->last_error != NULL ? strlen(runtime->last_error) + 1 : 0);
@@ -1535,6 +1570,7 @@ cpkt_lua_runtime_register_c_module(cpkt_lua_runtime *runtime,
                                    const char *module_name,
                                    cpkt_lua_runtime_c_module_open_fn opener) {
   struct cpkt_lua_runtime_c_module_context context;
+  struct cpkt_lua_runtime_c_module *module;
   cpkt_lua_runtime_status status;
 
   if (runtime == NULL || runtime->state == NULL || module_name == NULL ||
@@ -1542,11 +1578,26 @@ cpkt_lua_runtime_register_c_module(cpkt_lua_runtime *runtime,
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
 
+  module = (struct cpkt_lua_runtime_c_module *)cpkt_lua_runtime_allocator_alloc(
+      &runtime->allocator, sizeof(*module));
+  if (module == NULL) {
+    return cpkt_lua_runtime_set_error(runtime, CPKT_LUA_RUNTIME_ERR_ALLOC,
+                                      "out of memory");
+  }
+  module->opener = opener;
+  module->next = NULL;
   context.module_name = module_name;
-  context.opener = opener;
+  context.module = module;
   status = cpkt_lua_runtime_protected_call(
       runtime, cpkt_lua_runtime_register_c_module_protected, &context, 0,
       CPKT_LUA_RUNTIME_ERR_RUNTIME);
+  if (status == CPKT_LUA_RUNTIME_OK) {
+    module->next = runtime->c_modules;
+    runtime->c_modules = module;
+  } else {
+    cpkt_lua_runtime_allocator_free(&runtime->allocator, module,
+                                    sizeof(*module));
+  }
   return status;
 }
 

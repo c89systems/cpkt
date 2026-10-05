@@ -338,7 +338,10 @@ cpkt_lua_runtime_set_global_integer(cpkt_lua_runtime *runtime, const char *name,
  * Registers a named C module opener in the runtime preload table.
  *
  * Requires the package library to be open before use. Writes directly to
- * package.preload, bypassing its __newindex metamethod.
+ * package.preload, bypassing its __newindex metamethod. The runtime retains
+ * opener records until destruction, including replaced registrations. Failed
+ * registration releases its new record. Loader upvalues are validated against
+ * runtime-owned records; foreign or wrong-kind values raise a Lua error.
  */
 cpkt_lua_runtime_status
 cpkt_lua_runtime_register_c_module(cpkt_lua_runtime *runtime,
@@ -352,6 +355,8 @@ cpkt_lua_runtime_register_c_module(cpkt_lua_runtime *runtime,
  * its __newindex metamethod. A failed registration releases the new copy.
  * The chunk receives all loader arguments, including the module name and
  * loader data supplied by require. Source compilation occurs on first load.
+ * The loader validates its upvalue against retained runtime-owned chunks;
+ * foreign or wrong-kind values raise a Lua error.
  *
  * Requires the package library to be open before use.
  */

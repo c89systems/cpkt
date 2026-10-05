@@ -5335,6 +5335,90 @@
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES"
           ]
+        },
+        {
+          "name": "lua_runtime_contract_static_preload_lua_upvalues",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_preload_c_upvalues",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_preload_c_allocation",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_reopen_resume_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_reopen_wrap_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_reopen_library_identity",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_preload_lua_upvalues",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_preload_c_upvalues",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_preload_c_allocation",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_reopen_resume_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_reopen_wrap_limit",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_reopen_library_identity",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
         }
       ],
       "target_sensitive": true
