@@ -895,10 +895,14 @@ static int cpkt_sasl_auxiliary_request(cpkt_sasl *self,
 static cpkt_sasl_property_context *
 cpkt_sasl_auxiliary_context(cpkt_sasl *self) {
   cpkt_sasl_state *state = cpkt_sasl_state_for(self);
+  struct propctx *native;
   if (state == NULL || state->native == NULL)
     return NULL;
-  cpkt_sasl_property_discard_borrowed_views(&state->auxiliary_context);
-  state->auxiliary_context.native = sasl_auxprop_getctx(state->native);
+  native = sasl_auxprop_getctx(state->native);
+  if (state->auxiliary_context.native != native) {
+    cpkt_sasl_property_discard_borrowed_views(&state->auxiliary_context);
+    state->auxiliary_context.native = native;
+  }
   state->auxiliary_context.borrowed = 1;
   return state->auxiliary_context.native == NULL ? NULL
                                                  : &state->auxiliary_context;

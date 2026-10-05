@@ -202,6 +202,13 @@ static int public_plugin_case(void) {
   state.first = cpkt_sasl_property_get(state.auxiliary, &count);
   again = cpkt_sasl_property_get(state.auxiliary, &count);
   CHECK(again == state.first && count == 1);
+  CHECK(server->auxiliary_context(server) == state.auxiliary);
+  CHECK(strcmp(state.first[0].name, "role") == 0);
+  CHECK(state.first[0].value_count == 1 &&
+        strcmp(state.first[0].values[0], "old") == 0);
+  again = cpkt_sasl_property_get(server->auxiliary_context(server), &count);
+  CHECK(again == state.first && count == 1);
+  CHECK(strcmp(state.first[0].values[0], "old") == 0);
   output = NULL;
   output_length = 0;
   status = server->server_start(server, "CPKTCOHERENCE", NULL, 0, &output,

@@ -344,6 +344,8 @@ struct cpkt_sasl {
   /** Precompute for this receiver; a null receiver uses global native hooks. */
   int (*idle)(cpkt_sasl *self);
   int (*auxiliary_request)(cpkt_sasl *self, const char *const *names);
+  /** Borrow the connection property context. Repeated lookups without a
+   * native-context change preserve existing property views. */
   cpkt_sasl_property_context *(*auxiliary_context)(cpkt_sasl *self);
   int (*auxiliary_store)(cpkt_sasl *self, cpkt_sasl_property_context *context,
                          const char *user);
