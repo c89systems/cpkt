@@ -50,6 +50,7 @@ void lua_pop(lua_State *state, int count);
 void lua_settable(lua_State *state, int index);
 void lua_createtable(lua_State *state, int narr, int nrec);
 void lua_pushstring(lua_State *state, const char *value);
+void lua_rawset(lua_State *state, int index);
 void lua_rawseti(lua_State *state, int index, int n);
 int luaL_error(lua_State *state, const char *message);
 const char *lua_tostring(lua_State *state, int index);

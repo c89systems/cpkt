@@ -95,7 +95,9 @@ static const struct runtime_case cases[] = {
      "for j=1,10 do assert(f()) end",
      1, CPKT_LUA_RUNTIME_ERR_LIMIT},
     {"error_conversion_oom", "", 0, CPKT_LUA_RUNTIME_ERR_ALLOC},
-    {"numeric_error", "error(1729)", 0, CPKT_LUA_RUNTIME_ERR_RUNTIME}};
+    {"numeric_error", "error(1729)", 0, CPKT_LUA_RUNTIME_ERR_RUNTIME},
+    {"preload_registration", "", 0, CPKT_LUA_RUNTIME_OK},
+    {"preload_arguments", "", 0, CPKT_LUA_RUNTIME_OK}};
 
 struct failure_allocator {
   int reject_growth;
@@ -132,6 +134,78 @@ static int failing_numeric_module(void *state) {
   cpkt_lua_pushinteger((cpkt_lua_state *)state, value);
   allocator->reject_growth = 1;
   return cpkt_lua_error((cpkt_lua_state *)state);
+}
+
+static int preload_c_module(void *state) {
+  cpkt_lua_pushboolean((cpkt_lua_state *)state, 1);
+  return 1;
+}
+
+static cpkt_lua_runtime_status run_text(cpkt_lua_runtime *runtime,
+                                        const char *text) {
+  return cpkt_lua_runtime_run_buffer(runtime, (const unsigned char *)text,
+                                     strlen(text), "preload-contract", 0, NULL,
+                                     0);
+}
+
+static cpkt_lua_runtime_status exercise_preload(cpkt_lua_runtime *runtime,
+                                                int registration_case) {
+  cpkt_lua_runtime_status status;
+  const char *source;
+
+  if (registration_case) {
+    status = run_text(
+        runtime, "preload_calls=0; setmetatable(package.preload, "
+                 "{__newindex=function(t,k,v) preload_calls=preload_calls+1; "
+                 "rawset(t,k,v); error('published loader then raised') end})");
+    if (status != CPKT_LUA_RUNTIME_OK) {
+      return status;
+    }
+  }
+  source =
+      "local name,data=...; return {name=name,data=data,count=select('#',...)}";
+  status = cpkt_lua_runtime_register_lua_module(
+      runtime, "preload_contract", (const unsigned char *)source,
+      strlen(source), "preload-contract-module");
+  if (status != CPKT_LUA_RUNTIME_OK) {
+    return status;
+  }
+  if (registration_case) {
+    status = cpkt_lua_runtime_register_c_module(runtime, "preload_c_contract",
+                                                preload_c_module);
+    if (status != CPKT_LUA_RUNTIME_OK) {
+      return status;
+    }
+    status = run_text(runtime, "assert(preload_calls==0); "
+                               "assert(require('preload_contract').count==2); "
+                               "assert(require('preload_c_contract')==true); "
+                               "assert(preload_calls==0)");
+    if (status != CPKT_LUA_RUNTIME_OK) {
+      return status;
+    }
+    source = "return {replacement=true}";
+    status = cpkt_lua_runtime_register_lua_module(
+        runtime, "preload_contract", (const unsigned char *)source,
+        strlen(source), "preload-contract-replacement");
+    if (status != CPKT_LUA_RUNTIME_OK) {
+      return status;
+    }
+    return run_text(runtime,
+                    "package.loaded.preload_contract=nil; "
+                    "assert(require('preload_contract').replacement); "
+                    "collectgarbage('collect'); assert(preload_calls==0)");
+  }
+  return run_text(
+      runtime,
+      "local value,data=require('preload_contract'); "
+      "assert(value.name=='preload_contract'); "
+      "assert(value.data==':preload:' and data==':preload:'); "
+      "assert(value.count==2); "
+      "assert(require('preload_contract')==value); "
+      "local direct=package.preload.preload_contract('direct',17,nil); "
+      "assert(direct.name=='direct' and direct.data==17); "
+      "assert(direct.count==3); "
+      "assert(package.preload.preload_contract().count==0)");
 }
 
 static int exercise(const struct runtime_case *item) {
@@ -171,6 +245,11 @@ static int exercise(const struct runtime_case *item) {
       status = cpkt_lua_runtime_require(runtime, "numeric_failure");
     }
     allocator.reject_growth = 0;
+  } else if (status == CPKT_LUA_RUNTIME_OK &&
+             (strcmp(item->name, "preload_registration") == 0 ||
+              strcmp(item->name, "preload_arguments") == 0)) {
+    status = exercise_preload(runtime,
+                              strcmp(item->name, "preload_registration") == 0);
   } else if (status == CPKT_LUA_RUNTIME_OK) {
     status = cpkt_lua_runtime_run_buffer(
         runtime, (const unsigned char *)item->source, strlen(item->source),

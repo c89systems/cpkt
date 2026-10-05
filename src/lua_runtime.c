@@ -994,7 +994,9 @@ static int cpkt_lua_runtime_register_c_module_protected(lua_State *state) {
   }
   *opener_slot = context->opener;
   lua_pushcclosure(state, cpkt_lua_runtime_c_module_loader, 1);
-  lua_setfield(state, -2, context->module_name);
+  lua_pushstring(state, context->module_name);
+  lua_insert(state, -2);
+  lua_rawset(state, -3);
   lua_pop(state, 1);
   return 0;
 }
@@ -1024,7 +1026,11 @@ static int cpkt_lua_runtime_register_lua_module_protected(lua_State *state) {
   }
   lua_pushlightuserdata(state, chunk);
   lua_pushcclosure(state, cpkt_lua_runtime_lua_module_loader, 1);
-  lua_setfield(state, -2, chunk->module_name);
+  lua_pushstring(state, chunk->module_name);
+  lua_insert(state, -2);
+  /* Publish without invoking a metamethod that could retain the loader and
+   * then raise an error before runtime ownership is committed. */
+  lua_rawset(state, -3);
   lua_pop(state, 1);
   return 0;
 }
@@ -1119,6 +1125,7 @@ static int cpkt_lua_runtime_c_module_loader(lua_State *state) {
 static int cpkt_lua_runtime_lua_module_loader(lua_State *state) {
   struct cpkt_lua_runtime_chunk *chunk;
   int result;
+  int nargs;
 
   chunk = (struct cpkt_lua_runtime_chunk *)lua_touserdata(state,
                                                           lua_upvalueindex(1));
@@ -1126,6 +1133,7 @@ static int cpkt_lua_runtime_lua_module_loader(lua_State *state) {
     return luaL_error(state, "missing Lua preload chunk");
   }
 
+  nargs = lua_gettop(state);
   result = luaL_loadbuffer(
       state, (const char *)chunk->source, chunk->source_size,
       chunk->chunk_name != NULL ? chunk->chunk_name : chunk->module_name);
@@ -1133,7 +1141,8 @@ static int cpkt_lua_runtime_lua_module_loader(lua_State *state) {
     return lua_error(state);
   }
 
-  lua_call(state, 0, 1);
+  lua_insert(state, 1);
+  lua_call(state, nargs, 1);
   return 1;
 }
 

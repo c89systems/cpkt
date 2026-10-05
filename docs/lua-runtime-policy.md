@@ -28,8 +28,17 @@ An errored wrapped coroutine closes its `<close>` variables before propagating
 the resulting error. Wrappers created before a limit change receive the current
 policy on their next invocation.
 
+C and Lua module registration writes directly to `package.preload`, bypassing
+its `__newindex` metamethod. This prevents an assignment callback from publishing
+a Lua loader and then raising an error while its copied source is being freed.
+The runtime keeps successful source copies until runtime destruction, including
+replaced registrations; failed registration releases its new copy. Lua loaders
+forward all arguments to the source chunk, including the module name and loader
+data from `require`. Compilation happens when the loader is invoked.
+
 The bounded `lua_runtime_contract_*` tests exercise both static and shared
 libraries on supported Linux runners and native Darwin. They cover large value
 counts, coroutine error cleanup, protected calls and yields, registry/upvalue
 mutation, changed limits, shared budgets, protected error conversion under
-allocation failure and recovery. A timeout or process abort is a failing result.
+allocation failure and recovery, preload publication, replacement and loader
+argument forwarding. A timeout or process abort is a failing result.

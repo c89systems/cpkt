@@ -276,6 +276,11 @@ void lua_pushstring(lua_State *state, const char *value) {
   state->stack[state->top - 1].text = value != 0 ? value : "";
 }
 
+void lua_rawset(lua_State *state, int index) {
+  (void)index;
+  lua_pop(state, 2);
+}
+
 void lua_rawseti(lua_State *state, int index, int n) {
   (void)index;
   (void)n;

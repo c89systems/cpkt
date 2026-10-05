@@ -5275,6 +5275,34 @@
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES"
           ]
+        },
+        {
+          "name": "lua_runtime_contract_static_preload_registration",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_static_preload_arguments",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_preload_registration",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_preload_arguments",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
         }
       ],
       "target_sensitive": true
