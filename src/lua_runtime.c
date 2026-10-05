@@ -1205,8 +1205,8 @@ cpkt_lua_runtime_status cpkt_lua_runtime_new_with_allocator(
 
   state = lua_newstate(cpkt_lua_runtime_lua_alloc, &runtime->allocator, 0);
   if (state == NULL) {
-    cpkt_lua_runtime_allocator_free(&runtime->allocator, runtime,
-                                    sizeof(*runtime));
+    allocator = runtime->allocator;
+    cpkt_lua_runtime_allocator_free(&allocator, runtime, sizeof(*runtime));
     return CPKT_LUA_RUNTIME_ERR_ALLOC;
   }
 
@@ -1221,8 +1221,8 @@ cpkt_lua_runtime_status cpkt_lua_runtime_new_with_allocator(
     cpkt_lua_runtime_allocator_free(
         &runtime->allocator, runtime->last_error,
         runtime->last_error != NULL ? strlen(runtime->last_error) + 1 : 0);
-    cpkt_lua_runtime_allocator_free(&runtime->allocator, runtime,
-                                    sizeof(*runtime));
+    allocator = runtime->allocator;
+    cpkt_lua_runtime_allocator_free(&allocator, runtime, sizeof(*runtime));
     return status;
   }
   *out = runtime;

@@ -95,6 +95,38 @@ test_new_with_allocator(cpkt_lua_runtime **runtime,
   return cpkt_lua_runtime_new_with_allocator(runtime, &config);
 }
 
+static void test_constructor_allocation_failures_release_storage(void **state) {
+  struct test_allocator allocator;
+  cpkt_lua_runtime *runtime;
+  size_t baseline;
+  size_t allowed;
+  cpkt_lua_runtime_status status;
+
+  (void)state;
+  memset(&allocator, 0, sizeof(allocator));
+  runtime = NULL;
+  assert_int_equal(test_new_with_allocator(&runtime, &allocator),
+                   CPKT_LUA_RUNTIME_OK);
+  baseline = test_allocator_call_count(&allocator);
+  cpkt_lua_runtime_free(runtime);
+  assert_int_equal(allocator.bytes_live, 0);
+  assert_true(baseline > 1);
+  for (allowed = 1; allowed < baseline; ++allowed) {
+    memset(&allocator, 0, sizeof(allocator));
+    allocator.fail_after_calls = allowed;
+    runtime = NULL;
+    status = test_new_with_allocator(&runtime, &allocator);
+    assert_int_equal(status, CPKT_LUA_RUNTIME_ERR_ALLOC);
+    assert_null(runtime);
+    assert_int_equal(allocator.bytes_live, 0);
+    allocator.fail_after_calls = 0;
+    assert_int_equal(test_new_with_allocator(&runtime, &allocator),
+                     CPKT_LUA_RUNTIME_OK);
+    cpkt_lua_runtime_free(runtime);
+    assert_int_equal(allocator.bytes_live, 0);
+  }
+}
+
 static void test_invalid_allocator_config(void **state) {
   cpkt_lua_runtime_allocator_config config;
   cpkt_lua_runtime *runtime;
@@ -641,6 +673,7 @@ static void test_warning_callback_lifetime_and_replacement(void **state) {
 int main(void) {
   const struct CMUnitTest tests[] = {
       cmocka_unit_test(test_invalid_allocator_config),
+      cmocka_unit_test(test_constructor_allocation_failures_release_storage),
       cmocka_unit_test(test_custom_allocator_balances_on_free),
       cmocka_unit_test(test_open_libs_reports_allocator_failure),
       cmocka_unit_test(test_run_with_open_libs_reports_allocator_failure),

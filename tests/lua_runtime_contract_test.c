@@ -97,7 +97,8 @@ static const struct runtime_case cases[] = {
     {"error_conversion_oom", "", 0, CPKT_LUA_RUNTIME_ERR_ALLOC},
     {"numeric_error", "error(1729)", 0, CPKT_LUA_RUNTIME_ERR_RUNTIME},
     {"preload_registration", "", 0, CPKT_LUA_RUNTIME_OK},
-    {"preload_arguments", "", 0, CPKT_LUA_RUNTIME_OK}};
+    {"preload_arguments", "", 0, CPKT_LUA_RUNTIME_OK},
+    {"construction_failure", "", 0, CPKT_LUA_RUNTIME_ERR_ALLOC}};
 
 struct failure_allocator {
   int reject_growth;
@@ -219,6 +220,17 @@ static int exercise(const struct runtime_case *item) {
   int conversion_case;
 
   runtime = NULL;
+  if (strcmp(item->name, "construction_failure") == 0) {
+    status = cpkt_lua_runtime_new_with_limit(&runtime, 512);
+    if (status != CPKT_LUA_RUNTIME_ERR_ALLOC || runtime != NULL) {
+      cpkt_lua_runtime_free(runtime);
+      fprintf(stderr, "limited construction did not fail safely\n");
+      return 1;
+    }
+    status = cpkt_lua_runtime_new(&runtime);
+    cpkt_lua_runtime_free(runtime);
+    return status != CPKT_LUA_RUNTIME_OK;
+  }
   failed = 0;
   conversion_case = strcmp(item->name, "error_conversion_oom") == 0;
   allocator.reject_growth = 0;

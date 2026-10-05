@@ -5303,6 +5303,20 @@
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES"
           ]
+        },
+        {
+          "name": "lua_runtime_contract_static_construction_failure",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "lua_runtime_contract_shared_construction_failure",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
         }
       ],
       "target_sensitive": true
