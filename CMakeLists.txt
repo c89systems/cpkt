@@ -854,6 +854,14 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   cpkt_group_set_target_properties(cpkt_sasl_shared PROPERTIES BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON)
 endif()
 if(CPKT_BUILD_TESTS)
+  if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    cpkt_group_add_test(NAME sdk_runtime_loader
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/sdk_runtime_loader_test.py"
+          --scratch "${CMAKE_BINARY_DIR}" --target "${CPKT_TARGET_ID}"
+          --compiler "${CMAKE_C_COMPILER}" --readelf "${CMAKE_READELF}"
+          --sysroot "${CMAKE_SYSROOT}")
+    cpkt_group_set_tests_properties(sdk_runtime_loader PROPERTIES LABELS "packaging;smoke" TIMEOUT 30)
+  endif()
   cpkt_group_add_test(NAME package_isolation_build
       COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/package_isolation_build_test.py")
   cpkt_group_add_test(NAME package_producer_reuse

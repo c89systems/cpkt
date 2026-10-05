@@ -518,6 +518,16 @@ from their own ELF metadata. Fully static executables need no dynamic loader.
 Foreign targets retain QEMU and the matching sysroot; do not apply a native
 loader path to foreign executables. Never apply ELF flags to Darwin targets.
 
+Probe installed-consumer runtime resolution with a tiny dynamically linked
+program during each Linux target's standalone preflight, before dependency
+builds. Use the same selected-loader inspection and execution as SDK verification.
+For musl, its `libc.so` self-alias may report the guest ELF interpreter
+path. Accept that alias only when it resolves inside the selected sysroot to the
+exact loader already invoked; reject missing or escaping files, foreign runtimes,
+and delivered libraries resolved outside the SDK prefix. Test both ARM widths
+and native musl, and execute the probe with the actual selected toolchain and
+QEMU where required.
+
 Keep these settings private to executable targets. Account for indirect
 runtime dependencies: ELF DT_RUNPATH alone does not propagate to grandchildren;
 local-executable DT_RPATH can provide this coverage. Include required compiler,
@@ -535,9 +545,11 @@ their CMake targets with the same helper; non-CMake/pkg-config verification link
 use that helper's compiler/linker settings as well. Apply these settings only to
 the generated verification project or its local build flags, never to installed
 SDK metadata or example sources. Execute the resulting binaries directly.
-Do not retain a generic runtime launcher, wrapper-specific tests, or a parallel
-execution mode. Direct ELF interpreter selection preserves normal child exec
-and `/proc/self/exe` behavior.
+Direct ELF interpreter selection preserves normal child exec and
+`/proc/self/exe` behavior. Installed-archive verification may invoke its verified
+loader explicitly for both resolution inspection and execution to control the
+complete dependency search path. Keep this confined to verification; shipped
+metadata and ordinary development execution retain direct ELF selection.
 
 Do not export collection or project dependency library paths into native test
 or example environments: even a bundled libcurl can contaminate a host child

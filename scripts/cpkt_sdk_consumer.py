@@ -263,6 +263,13 @@ def validate_runtime_resolution(binary,target,configured,runner,invocation=None)
         link=re.match(r'\s*(\S+)\s+=>\s+(\S+)',line)
         if not link:continue
         name,path=link.groups()
+        # musl's self-libc alias can report the ELF interpreter's guest path.
+        # Resolve only that alias to the loader already selected for execution.
+        if target.endswith('-musl') and name=='libc.so' and Path(path).is_absolute():
+            guest_loader=sysroot/path.lstrip('/')
+            selected_loader=Path(invocation[len(runner)]).resolve()
+            if guest_loader.is_file() and guest_loader.resolve().is_relative_to(sysroot) and guest_loader.resolve()==selected_loader:
+                path=str(selected_loader)
         if name in delivered and (not Path(path).is_file() or not Path(path).resolve().is_relative_to(prefix)):
             raise ValueError('consumer loaded a delivered library outside selected prefix: '+name+' => '+path)
         if Path(path).is_absolute() and not (Path(path).resolve().is_relative_to(prefix) or Path(path).resolve().is_relative_to(sysroot)):

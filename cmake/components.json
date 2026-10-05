@@ -5402,6 +5402,42 @@
         }
       ],
       "target_sensitive": false
+    },
+    "sdk_runtime_loader": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/sdk_runtime_loader_test.py"
+      ],
+      "execution": "helper",
+      "requires": [],
+      "registrations": [
+        {
+          "name": "sdk_runtime_loader",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": true,
+      "preflight": true,
+      "helper_environment": [
+        "PATH",
+        "CPKT_TOOLCHAIN_CACHE",
+        "CPKT_TOOLCHAIN_ROOT",
+        "CPKT_TOOLCHAIN_TARGET",
+        "CPKT_QEMU_AARCH64",
+        "CPKT_QEMU_ARM"
+      ],
+      "helper_inputs": [
+        "scripts/cpkt_sdk_consumer.py",
+        "scripts/cpkt_packages.py",
+        "scripts/cpkt_package_command.py",
+        "scripts/cpkt_inventory.py",
+        "scripts/cpkt_operation.py",
+        "scripts/cpkt_receipts.py",
+        "scripts/validate-sdk.py"
+      ]
     }
   },
   "tooling": {
@@ -5436,6 +5472,7 @@
   "preflight": {
     "native-linux": {
       "required": [
+        "sdk_runtime_loader",
         "krb5_trace_prototypes",
         "patch_series_portability",
         "static_archive_member_cleanup",
@@ -5447,6 +5484,7 @@
     },
     "linux-runner": {
       "required": [
+        "sdk_runtime_loader",
         "krb5_trace_prototypes",
         "patch_series_portability",
         "static_archive_member_cleanup",

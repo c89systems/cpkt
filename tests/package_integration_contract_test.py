@@ -436,6 +436,42 @@ class Fixtures(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'host runtime outside verified'):
                 validate_runtime_resolution('consumer','x86_64-linux-gnu',configured,[])
 
+    def test_qemu_musl_libc_alias_is_only_the_selected_loader(self):
+        import cpkt_sdk_consumer as consumer
+        for arch,loader_name in (('aarch64','ld-musl-aarch64.so.1'),('armhf','ld-musl-armhf.so.1')):
+            with self.subTest(arch=arch):
+                prefix=self.work/arch/'sdk';(prefix/'lib').mkdir(parents=True)
+                sysroot=self.work/arch/'sysroot';(sysroot/'lib').mkdir(parents=True)
+                libc=sysroot/'lib/libc.so';libc.write_bytes(b'selected musl')
+                loader=sysroot/'lib'/loader_name;loader.symlink_to('libc.so')
+                guest='/lib/'+loader_name
+                config={'CMAKE_SYSROOT':str(sysroot),'CPKT_INSTALLED_PREFIX':str(prefix)}
+                runner=['qemu-'+arch,'-L',str(sysroot)]
+                invocation=(runner+[str(loader),'--library-path',str(prefix/'lib'),'consumer'],True)
+                def resolve(line,target=arch+'-linux-musl',selected=invocation,emulator=runner):
+                    with patch.object(consumer,'command',return_value=line):
+                        return consumer.validate_runtime_resolution('consumer',target,config,emulator,selected)
+                self.assertEqual(resolve('libc.so => '+guest),[{'name':'libc.so','path':str(libc)}])
+                self.assertEqual(resolve('libc.so => '+guest,emulator=[],selected=([str(loader),'consumer'],True)),[{'name':'libc.so','path':str(libc)}])
+                with self.assertRaisesRegex(ValueError,'host runtime outside verified'):
+                    resolve('libc.so => '+guest,target=arch+'-linux-gnu')
+                with self.assertRaisesRegex(ValueError,'host runtime outside verified'):
+                    resolve('libc.so => /host/'+loader_name)
+                other=sysroot/'lib/other-loader';other.write_bytes(b'other loader')
+                with self.assertRaisesRegex(ValueError,'host runtime outside verified'):
+                    resolve('libc.so => '+guest,selected=(runner+[str(other),'consumer'],True))
+                delivered=prefix/'lib/libcrypto.so.3';delivered.write_bytes(b'delivered')
+                (sysroot/'lib/libcrypto.so.3').write_bytes(b'wrong dependency')
+                with self.assertRaisesRegex(ValueError,'delivered library outside selected'):
+                    resolve('libcrypto.so.3 => /lib/libcrypto.so.3')
+                loader.unlink()
+                with self.assertRaisesRegex(ValueError,'host runtime outside verified'):
+                    resolve('libc.so => '+guest)
+                outside=self.work/arch/'foreign-libc';outside.write_bytes(b'foreign')
+                loader.symlink_to(outside)
+                with self.assertRaisesRegex(ValueError,'host runtime outside verified'):
+                    resolve('libc.so => '+guest)
+
     def test_runtime_execution_and_inspection_share_verified_loader_path(self):
         from cpkt_sdk_consumer import execute
         prefix=self.work/'execution-sdk';(prefix/'lib').mkdir(parents=True)
