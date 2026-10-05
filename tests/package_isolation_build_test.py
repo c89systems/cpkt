@@ -582,13 +582,18 @@ include(cmake/CpktPackage.cmake)
 
     def test_stable_inode_bounded_wait_and_owner_interruption(self):
         script = self.root / 'hold.py'
-        script.write_text('import os,time\nfrom pathlib import Path\nPath("' + str(self.root / 'ready') + '").write_text("yes")\ntime.sleep(2)\n')
+        ready = self.root / 'ready'
+        # The parent's pipe keeps the child alive until explicitly released.
+        # EOF also releases it if an assertion or the test process fails.
+        script.write_text('import sys\nfrom pathlib import Path\nPath(' + repr(str(ready)) + ').write_text("yes")\nsys.stdin.buffer.read(1)\n')
         owner = subprocess.Popen([sys.executable, str(self.root / 'scripts/cpkt_operation.py'),
-                    '--root', str(self.root), '--group', 'all', '--', sys.executable, str(script)],env=self.environment)
+                    '--root', str(self.root), '--group', 'all', '--', sys.executable, str(script)],
+                    env=self.environment, stdin=subprocess.PIPE)
         try:
-            deadline = time.monotonic()+2
-            while not (self.root / 'ready').exists() and time.monotonic()<deadline:
+            deadline = time.monotonic()+30
+            while not ready.exists() and time.monotonic()<deadline:
                 time.sleep(0.01)
+            self.assertTrue(ready.exists(), 'operation child did not become ready')
             lock = self.root / 'build/control/operation.lock'
             inode = lock.stat().st_ino
             result = self.command('core', sys.executable, '-c', 'raise SystemExit(0)')
@@ -596,18 +601,53 @@ include(cmake/CpktPackage.cmake)
             self.assertIn('owner:',result.stderr)
             self.assertEqual(inode,lock.stat().st_ino)
             owner.terminate()
-            owner.wait()
-            # The child still owns the inherited description after interruption.
+            owner.wait(timeout=10)
+            # The explicitly held child retains the inherited lock description.
             result = self.command('core', sys.executable, '-c', 'raise SystemExit(0)',timeout='0.05')
             self.assertNotEqual(0,result.returncode)
-            time.sleep(2)
-            result = self.command('core', sys.executable, '-c', 'raise SystemExit(0)')
+            owner.stdin.write(b'x')
+            owner.stdin.flush()
+            owner.stdin.close()
+            result = self.command('core', sys.executable, '-c', 'raise SystemExit(0)',timeout='5')
             self.assertEqual(0,result.returncode,result.stderr)
             self.assertEqual(inode,lock.stat().st_ino)
         finally:
+            if not owner.stdin.closed:
+                owner.stdin.close()
             if owner.poll() is None:
                 owner.terminate()
-                owner.wait()
+                owner.wait(timeout=10)
+
+    def test_ctest_failure_stops_later_cases_and_rejects_readiness(self):
+        spec=importlib.util.spec_from_file_location('fail_fast_backend',ROOT/'scripts/group-build.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        directory=self.root/'build/fail-fast';directory.mkdir(parents=True)
+        marker=directory/'later-case'
+        (directory/'CMakeCache.txt').write_text('CPKT_TARGET_ID:STRING=x86_64-linux-gnu\n')
+        (directory/'CTestTestfile.cmake').write_text(
+            'add_test(first_failure '+json.dumps(sys.executable)+' "-c" "raise SystemExit(1)")\n'
+            'add_test(later_case '+json.dumps(sys.executable)+' "-c" '+
+            json.dumps('from pathlib import Path; Path('+repr(str(marker))+').write_text("ran")')+')\n')
+        selection={'tests':{'first_failure':{'group':'tooling'},'later_case':{'group':'tooling'}}}
+        def execute(arguments, *args, **kwargs):
+            result=subprocess.run(list(map(str,arguments)),capture_output=True,text=True,env=self.environment)
+            result.check_returncode()
+            return result.stdout
+        receipt=self.root/'build/verification/x86_64-linux-gnu/core/Debug-development.json'
+        receipt.parent.mkdir(parents=True);receipt.write_text('stale success')
+        with patch.dict(os.environ), patch.object(module,'ROOT',self.root), patch.object(module,'build',return_value=directory), \
+                patch.object(module,'preset_info',return_value=('debug','x86_64-linux-gnu','Debug')), \
+                patch.object(module,'load',return_value=selection), patch.object(module,'command',side_effect=execute), \
+                patch.object(module,'publish') as publish:
+            with self.assertRaises(subprocess.CalledProcessError):
+                module.test('debug','core')
+            self.assertFalse(marker.exists(), 'selected CTest continued after failure')
+            self.assertFalse(receipt.exists(), 'failed suite retained successful readiness')
+            publish.assert_not_called()
+            with self.assertRaises(subprocess.CalledProcessError):
+                module.composition_tests(directory,'x86_64-linux-gnu')
+            self.assertFalse(marker.exists(), 'composition CTest continued after failure')
+            publish.assert_not_called()
 
     def test_cmake_descriptor_inheritance_and_direct_rejection(self):
         source = self.root / 'source'

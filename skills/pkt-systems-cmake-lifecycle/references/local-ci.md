@@ -10,6 +10,13 @@ selected tests or reuse across the two clean release runs.
 
 ## Build And Test Gates
 
+Required CTest gates use `--stop-on-failure`, including selected suites,
+composition suites and Memcheck. A failed or partial suite revokes readiness.
+Verify this behavior with a failing first case and a later observable case that
+must remain unexecuted. Synchronize subprocess and lock tests with readiness
+and explicit release signals; fixed sleeps must not determine whether a child
+is still alive. Bound startup waits and provide cleanup on assertion failure.
+
 Fast local confidence:
 
 1. `make build`

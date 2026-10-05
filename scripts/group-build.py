@@ -338,7 +338,7 @@ def test(preset, group, regex=None, label=None, fresh=False):
         expected.append(item['name'])
     junit = directory / 'cpkt-test-results.xml'
     junit.unlink(missing_ok=True)
-    arguments = [CTEST, '--test-dir', directory, '--no-tests=error', '--output-on-failure',
+    arguments = [CTEST, '--test-dir', directory, '--no-tests=error', '--stop-on-failure', '--output-on-failure',
                  '--output-junit', junit]
     if regex:
         arguments += ['-R', regex]
@@ -374,7 +374,7 @@ def composition_tests(directory, target):
     junit = directory/'cpkt-test-results.xml'
     junit.unlink(missing_ok=True)
     os.environ.update(CPKT_CONFIGURED_BINARY_DIR=str(directory),CPKT_CONFIGURED_GROUP='all')
-    command([CTEST,'--test-dir',directory,'--no-tests=error','--output-on-failure',
+    command([CTEST,'--test-dir',directory,'--no-tests=error','--stop-on-failure','--output-on-failure',
              '--output-junit',junit],'all',target,'tooling-and-composition-tests')
     import xml.etree.ElementTree as ET
     results=ET.parse(junit).getroot()
