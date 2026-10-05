@@ -253,6 +253,9 @@ def verification_inputs(root, group, configured):
                 files.update(item.get('source_inputs', []))
                 files.update(item.get('helper_inputs', []))
     files.update(data['groups'][group].get('verification_inputs', []))
+    hardening=data['groups'][group].get('hardening',{})
+    if hardening.get('memcheck_suppression'):files.add(hardening['memcheck_suppression'])
+    files.update(hardening.get('fuzz_seeds',[]))
     identities = {}
     pending = sorted(files)
     while pending:

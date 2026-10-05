@@ -125,6 +125,13 @@ def validate_inputs(root, data=None, group='all'):
                 files.add(item['source']);files.update(item.get('extra_sources',[]))
         for owner,item in data['groups'].items():
             if group == 'all' or owner == group:
+                hardening=item.get('hardening',{})
+                if hardening.get('memcheck_suppression'):files.add(hardening['memcheck_suppression'])
+                for seed in hardening.get('fuzz_seeds',[]):
+                    files.add(seed)
+                    path=Path(root)/seed
+                    if path.is_file() and path.stat().st_size==0:
+                        raise RuntimeError('fuzz seed must be nonempty: '+seed)
                 files.update(item.get('verification_inputs',[]));files.update(item['package']['docs']);files.update(item['package']['examples']);files.update(f['source'] for f in item['package']['files'])
                 for notice in item['package'].get('extra_notices',[]):
                     directory=Path(root)/notice

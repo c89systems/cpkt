@@ -386,6 +386,32 @@ include(cmake/CpktPackage.cmake)
         with self.assertRaisesRegex(RuntimeError,'verification input missing: tests/fixture.c'):
             verification_inputs(self.root,owner,configured)
 
+    def test_verification_tracks_owned_hardening_data(self):
+        from cpkt_receipts import verification_inputs
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
+        suppression=self.root/'tests/check.supp'
+        seed=self.root/'fuzz/seeds/input.bin'
+        suppression.parent.mkdir(exist_ok=True);seed.parent.mkdir(parents=True)
+        suppression.write_text('# no suppressions\n');seed.write_bytes(b'initial')
+        data={'schema_version':1,'repository_group':owner,
+              'groups':{owner:{'requires':[] if owner=='core' else ['core'],
+                              'hardening':{'memcheck_suppression':'tests/check.supp',
+                                           'fuzz_seeds':['fuzz/seeds/input.bin']}}},
+              'components':{},'targets':{},'tests':{}}
+        (self.root/'cmake/components.json').write_text(json.dumps(data))
+        (self.root/'CMakeLists.txt').write_text('')
+        configured={'CPKT_TARGET_ID':'synthetic','CMAKE_BUILD_TYPE':'Debug'}
+        before=verification_inputs(self.root,owner,configured)
+        for path in (suppression,seed):
+            original=path.read_bytes();path.write_bytes(original+b' changed')
+            self.assertNotEqual(before,verification_inputs(self.root,owner,configured))
+            path.write_bytes(original)
+            self.assertEqual(before,verification_inputs(self.root,owner,configured))
+            path.unlink()
+            with self.assertRaisesRegex(RuntimeError,'verification input missing'):
+                verification_inputs(self.root,owner,configured)
+            path.write_bytes(original)
+
     def test_managed_graph_directory_cannot_be_a_symlink(self):
         module_spec=importlib.util.spec_from_file_location('group_build_path_fixture',ROOT/'scripts/group-build.py')
         module=importlib.util.module_from_spec(module_spec);module_spec.loader.exec_module(module)

@@ -77,6 +77,12 @@
         ],
         "extra_notices": [],
         "files": []
+      },
+      "hardening": {
+        "memcheck_suppression": "tests/valgrind.supp",
+        "fuzz_seeds": [
+          "fuzz/seeds/lua/empty.lua"
+        ]
       }
     }
   },
@@ -2895,7 +2901,8 @@
           "name": "static_archive_pic_link",
           "conditions": [
             "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "NOT CPKT_FACADE_ONLY"
           ]
         }
       ],

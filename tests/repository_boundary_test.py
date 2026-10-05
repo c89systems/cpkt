@@ -63,6 +63,57 @@ class Repository(unittest.TestCase):
             self.assertFalse((root/'.cache').exists())
             self.assertFalse((root/'build').exists())
 
+    def test_hardening_inputs_fail_before_build_when_missing_or_empty(self):
+        from cpkt_inventory import validate_inputs
+        data=load(ROOT)
+        policy=data['groups'][REPOSITORY_GROUP]['hardening']
+        paths=[policy['memcheck_suppression'],*policy['fuzz_seeds']]
+        self.assertEqual(REPOSITORY_GROUP!='db',bool(policy['fuzz_seeds']))
+        (ROOT/'build').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='hardening-input-preflight-',dir=ROOT/'build') as temporary:
+            root=Path(temporary)
+            for name in validate_inputs(ROOT,data):
+                path=root/name;path.parent.mkdir(parents=True,exist_ok=True)
+                shutil.copy2(ROOT/name,path)
+            for name in paths:
+                with self.subTest(missing=name):
+                    path=root/name;original=path.read_bytes();path.unlink()
+                    with self.assertRaisesRegex(RuntimeError,name):validate_inputs(root,data)
+                    self.assertFalse((root/'.cache').exists())
+                    self.assertFalse((root/'build').exists())
+                    path.write_bytes(original)
+            for name in policy['fuzz_seeds']:
+                with self.subTest(empty=name):
+                    path=root/name;original=path.read_bytes();path.write_bytes(b'')
+                    with self.assertRaisesRegex(RuntimeError,'fuzz seed must be nonempty'):
+                        validate_inputs(root,data)
+                    path.write_bytes(original)
+
+    def test_pic_requirement_distinguishes_packaging_from_hardening(self):
+        data=load(ROOT)
+        (ROOT/'build').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='pic-coverage-policy-',dir=ROOT/'build') as temporary:
+            root=Path(temporary);(root/'cmake').mkdir()
+            (root/'cmake/components.json').write_text(json.dumps({
+                'tests':{'static_archive_pic_link':data['tests']['static_archive_pic_link']}}))
+            assertion=root/'required.cmake'
+            subprocess.run([sys.executable,str(ROOT/'scripts/cpkt_expected_tests.py'),
+                '--root',str(root),'--group',REPOSITORY_GROUP,'--output',str(assertion)],check=True)
+            for name,facade_only,registered,success in (
+                    ('hardening','ON',False,True),
+                    ('ordinary-missing','OFF',False,False),
+                    ('ordinary-covered','OFF',True,True)):
+                source=root/name;source.mkdir()
+                source.joinpath('CMakeLists.txt').write_text(
+                    'cmake_minimum_required(VERSION 3.21)\nproject(coverage NONE)\nenable_testing()\n'
+                    'set(CPKT_BUILD_TESTS ON)\nset(CPKT_CAN_RUN_TARGET_EXECUTABLES ON)\n'
+                    'set(CPKT_FACADE_ONLY '+facade_only+')\n'+
+                    ('add_test(NAME static_archive_pic_link COMMAND cmake -E true)\n' if registered else '')+
+                    'include("'+str(assertion)+'")\n')
+                result=subprocess.run(['cmake','-S',str(source),'-B',str(root/(name+'-build'))],capture_output=True,text=True)
+                self.assertEqual(success,result.returncode==0,result.stdout+result.stderr)
+                if not success:self.assertIn('Missing required inventory case: static_archive_pic_link',result.stderr)
+
     def test_release_asset_inventory_is_one_producer(self):
         data=load(ROOT);project=data['project']
         expected={project+'-1.2.3-'+target+'.tar.gz' for target in data['package_targets']}

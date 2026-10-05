@@ -387,10 +387,12 @@ def memcheck(group, regex=None):
         raise RuntimeError('selected group has no supported Memcheck cases: ' + group)
     junit = directory/'cpkt-memcheck-results.xml'
     junit.unlink(missing_ok=True)
+    suppression=load(ROOT)['groups'][group].get('hardening',{}).get('memcheck_suppression')
+    suppression_options=['--overwrite','MemoryCheckSuppressionFile='+str(ROOT/suppression)] if suppression else []
     command([CTEST,'--test-dir',directory,'-T','memcheck','-L','memcheck','--no-tests=error',
              '--stop-on-failure','--output-on-failure','--output-junit',junit,'--overwrite',
              'MemoryCheckCommandOptions=--error-exitcode=1 --leak-check=full --track-origins=yes --show-leak-kinds=definite,indirect',
-             '--overwrite','MemoryCheckSuppressionFile='+str(ROOT/'tests/valgrind.supp')]+selection,group,target,'group-memcheck')
+             ]+suppression_options+selection,group,target,'group-memcheck')
     import xml.etree.ElementTree as ET
     results = ET.parse(junit).getroot()
     actual = [item.attrib['name'] for item in results.iter('testcase')]

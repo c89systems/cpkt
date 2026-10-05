@@ -40,7 +40,9 @@ own identity for project metadata, archive names and GitHub publication.
 Complete structural separation in every destination before starting production
 builds when requested. Validate all owned source and helper inputs, including
 files inside fixture directories, script executable permissions and source-archive
-closure. Prove missing inputs fail before acquisition/compilation. Syntax checks
+closure, including Memcheck suppression policy and nonempty fuzz seed corpora.
+Preserve auxiliary data files regardless of filename extension. Prove missing
+inputs fail before acquisition/compilation. Syntax checks
 alone cannot certify a moved pipeline.
 
 Use synthetic verified SDK fixtures for early import/scope regressions while the
