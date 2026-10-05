@@ -94,9 +94,12 @@ the selected Xcode compiler can have different paths; do not mix those selection
 routes or weaken mismatch checks to conceal a real toolchain change. Propagate
 the selected SDK to external builds too: CMake subprojects receive
 `CMAKE_OSX_SYSROOT`, while direct C/C++ and Make/Autotools invocations receive
-the selected SDK through `-isysroot` and `SDKROOT`. Preserve SDK paths containing
-spaces as one argument and verify these routes independently of CMake's own
-compiler probes. Record
+`SDKROOT` in their configure, build and install environments. Clang's Darwin
+driver uses an absolute existing `SDKROOT` as its default sysroot. Avoid embedding
+shell quotes in scalar `CFLAGS`/`CXXFLAGS`: Autoconf can expand them without
+reinterpreting those quotes. Preserve SDK paths containing spaces through the
+environment or separate argument APIs, and test actual header lookup after the
+external build's flag expansion, independently of CMake's compiler probes. Record
 OS/architecture, runner image, compiler/Xcode/SDK, deployment target, dependency
 pins, and configured job limit. Keep the existing build-system parallelism;
 a larger host does not authorize increasing it. Serialize operational commands

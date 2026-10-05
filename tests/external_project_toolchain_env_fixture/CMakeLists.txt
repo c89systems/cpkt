@@ -116,7 +116,21 @@ endforeach()
 # Direct Apple compiler invocations need the selected SDK even when a
 # system compiler dispatcher would have supplied it implicitly.
 set(CMAKE_OSX_SYSROOT "${CMAKE_BINARY_DIR}/selected SDK/MacOSX.sdk")
-file(MAKE_DIRECTORY "${CMAKE_OSX_SYSROOT}")
+find_program(sdk_test_clang NAMES clang REQUIRED)
+file(MAKE_DIRECTORY "${CMAKE_OSX_SYSROOT}/usr/include/sys")
+file(WRITE "${CMAKE_OSX_SYSROOT}/usr/include/stdint.h" "")
+file(WRITE "${CMAKE_OSX_SYSROOT}/usr/include/sys/types.h" "")
+file(WRITE "${CMAKE_OSX_SYSROOT}/usr/include/cpkt_sdk_probe.h"
+  "#define CPKT_SDK_PROBE cpkt_selected_sdk_header\n")
+file(WRITE "${CMAKE_BINARY_DIR}/sdk-probe.c"
+  "#include <cpkt_sdk_probe.h>\nCPKT_SDK_PROBE\n")
+file(WRITE "${CMAKE_BINARY_DIR}/sdk-probe.sh" [=[
+set -eu
+# Match Autoconf's unquoted scalar flag expansion, without eval.
+exec "$CPKT_TEST_CLANG" --target=arm64-apple-macos15 -Werror -E -P \
+  -x "$CPKT_TEST_LANGUAGE" $CPKT_TEST_FLAGS "$CPKT_TEST_SOURCE"
+]=])
+
 foreach(cross IN ITEMS FALSE TRUE)
   set(CMAKE_CROSSCOMPILING ${cross})
   set(sdk_env_args "")
@@ -130,18 +144,18 @@ foreach(cross IN ITEMS FALSE TRUE)
   if(sdk_cmake_index LESS 0)
     message(FATAL_ERROR "Darwin external CMake builds omit the selected SDK")
   endif()
-  cpkt_get_external_c_flags(sdk_c_flags)
-  set(sdk_compiler_flags "${sdk_c_flags}")
-  foreach(flags IN LISTS sdk_compiler_flags)
-    separate_arguments(arguments UNIX_COMMAND "${flags}")
-    list(FIND arguments "-isysroot" sdk_flag_index)
-    if(sdk_flag_index LESS 0)
-      message(FATAL_ERROR "Darwin external compiler flags omit the selected SDK")
-    endif()
-    math(EXPR sdk_path_index "${sdk_flag_index} + 1")
-    list(GET arguments ${sdk_path_index} sdk_path)
-    if(NOT sdk_path STREQUAL CMAKE_OSX_SYSROOT)
-      message(FATAL_ERROR "Darwin external compiler split or changed the SDK path")
+  set(sdk_languages c)
+  foreach(language IN LISTS sdk_languages)
+    cpkt_get_external_c_flags(flags)
+    execute_process(COMMAND "${CMAKE_COMMAND}" -E env ${sdk_env_args}
+      "CPKT_TEST_CLANG=${sdk_test_clang}" "CPKT_TEST_FLAGS=${flags}"
+      "CPKT_TEST_LANGUAGE=${language}"
+      "CPKT_TEST_SOURCE=${CMAKE_BINARY_DIR}/sdk-probe.c"
+      sh "${CMAKE_BINARY_DIR}/sdk-probe.sh"
+      RESULT_VARIABLE sdk_result OUTPUT_VARIABLE sdk_output ERROR_VARIABLE sdk_error)
+    string(STRIP "${sdk_output}" sdk_output)
+    if(NOT sdk_result EQUAL 0 OR NOT sdk_output STREQUAL "cpkt_selected_sdk_header")
+      message(FATAL_ERROR "Darwin external ${language} cannot read the selected SDK after scalar flag expansion: ${sdk_error}")
     endif()
   endforeach()
 endforeach()
