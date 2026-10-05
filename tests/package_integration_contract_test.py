@@ -149,6 +149,35 @@ class Fixtures(unittest.TestCase):
                 consumer.run_consumers(prefix,'arm64-apple-darwin','fixture',['core'],['core'],composition=True)
 
 
+    def test_installed_auth_discovery_uses_target_toolchain(self):
+        import cpkt_sdk_consumer as consumer
+        configured={'CMAKE_C_COMPILER':'/selected/compiler'}
+        records={'fixture':{'group':'core'}}
+        class DiscoveryObserved(Exception):pass
+        targets=[(arch+'-linux-'+libc,'linux','cmake/CpktReadOnlyToolchain.cmake')
+            for arch in ('x86_64','aarch64','armhf') for libc in ('gnu','musl')]
+        targets += [('arm64-apple-darwin','linux','cmake/toolchains/arm64-apple-darwin.cmake'),
+                    ('arm64-apple-darwin','darwin','')]
+        for target,platform,toolchain in targets:
+            with self.subTest(target=target,platform=platform):
+                root=self.work/(target+'-'+platform);root.mkdir()
+                prefix=root/'sdk';prefix.mkdir()
+                observed=[]
+                def invoke(args,**kwargs):
+                    observed.append((args,kwargs))
+                    raise DiscoveryObserved()
+                with patch.object(consumer,'ROOT',root),patch.object(consumer,'load',return_value={'installed_consumers':records}),patch.object(consumer,'configuration',return_value=configured.copy()),patch.object(consumer,'inspect'),patch.object(consumer,'file_records',return_value={}),patch.object(consumer.validator,'validate'),patch.object(consumer,'command',side_effect=invoke),patch.object(consumer.sys,'platform',platform),patch.object(consumer,'configure_consumer') as linked:
+                    with self.assertRaises(DiscoveryObserved):
+                        consumer.run_consumers(prefix,target,'fixture',['core'],['core'])
+                linked.assert_not_called()
+                self.assertEqual(len(observed),1)
+                args,kwargs=observed[0]
+                self.assertEqual(args[:3],[sys.executable,root/'tests/auth_package_discovery_test.py',root])
+                self.assertIn('--toolchain='+str(root/toolchain if toolchain else ''),args)
+                self.assertEqual(args[args.index('--compiler')+1],configured['CMAKE_C_COMPILER'])
+                self.assertEqual(args[args.index('--sdk-prefix')+1],prefix)
+                self.assertEqual(kwargs['env'],{'CPKT_RESOLVED_TARGET':target})
+
     def test_consumer_receipts_fingerprint_only_target_applicable_tools(self):
         from cpkt_packages import consumer_context
         tool=self.work/'selected tool';tool.write_bytes(b'selected tool bytes')

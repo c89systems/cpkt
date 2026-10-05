@@ -348,7 +348,10 @@ def run_consumers(prefix,target,preset,groups,owners,composition=False):
         phase=workspace/('relocated' if relocation else 'initial');phase.mkdir()
         inspect(prefix,target,configured,data,owners,phase)
         if 'core' in owners and not composition:
-            command([sys.executable,ROOT/'tests/auth_package_discovery_test.py',ROOT,'--scratch',phase,'--compiler',configured['CMAKE_C_COMPILER'],'--sdk-prefix',prefix],env={'CPKT_RESOLVED_TARGET':target})
+            # A cross compiler alone leaves CMake's processor at the host ABI.
+            # Use the same discovery-only target setup as the linked consumers.
+            toolchain=ROOT/'cmake/CpktReadOnlyToolchain.cmake' if target.endswith(('gnu','musl')) else ROOT/'cmake/toolchains/arm64-apple-darwin.cmake' if sys.platform!='darwin' else ''
+            command([sys.executable,ROOT/'tests/auth_package_discovery_test.py',ROOT,'--scratch',phase,'--compiler',configured['CMAKE_C_COMPILER'],'--toolchain='+str(toolchain),'--sdk-prefix',prefix],env={'CPKT_RESOLVED_TARGET':target})
             if target.endswith('darwin') and sys.platform=='darwin':command(['bash',ROOT/'tests/darwin_curl_package_test.sh',prefix],group='core')
         build=configure_consumer(prefix,phase,target,configured,records,data)
         if 'cpkt_cmake_lua_runtime_strict' in records:
