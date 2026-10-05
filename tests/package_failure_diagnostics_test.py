@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Observe selected package phase failures and interruption in real children."""
 import os
+import fcntl
 from pathlib import Path
 import signal
 import subprocess
@@ -83,3 +84,96 @@ if phase==os.environ['DIAG_PHASE']:
     run('success')
     assert len(cases)==14
     print('Package phase/status/sender/signal/fail-fast diagnostics passed: '+', '.join(cases))
+
+# Observe descendant ownership through an advisory lock instead of a host-wide
+# process search. The leaf ignores TERM and can retain both captured pipes.
+with tempfile.TemporaryDirectory(prefix='package cancellation-',dir=source/'build') as temporary:
+    root=Path(temporary)
+    leaf=root/'leaf.py';launcher=root/'launcher.py';driver=root/'driver.py'
+    leaf.write_text("""import fcntl,os,signal,time
+from pathlib import Path
+for signum in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):signal.signal(signum,signal.SIG_IGN)
+with open(os.environ['TREE_LEASE'],'w') as lease:
+    fcntl.flock(lease,fcntl.LOCK_EX)
+    Path(os.environ['TREE_READY']).write_text(str(os.getpid()))
+    time.sleep(4)
+    Path(os.environ['TREE_LATE']).write_text('orphan changed outputs')
+    time.sleep(30)
+""")
+    launcher.write_text("""import os,subprocess,sys,time
+from pathlib import Path
+sys.path.insert(0,os.environ['TREE_SOURCE']+'/scripts')
+from cpkt_package_command import run
+level=int(sys.argv[1])
+if level:
+    run([sys.executable,__file__,str(level-1)],root=os.environ['TREE_ROOT'],phase='build',env=os.environ,pass_fds=(),capture=os.environ['TREE_CAPTURE']=='1')
+else:
+    subprocess.Popen([sys.executable,os.environ['TREE_LEAF']])
+    while not Path(os.environ['TREE_READY']).exists():time.sleep(.01)
+    if os.environ['TREE_EXIT_LEADER']=='1':sys.exit(0)
+    if os.environ['TREE_EXIT_LEADER']=='fail':sys.exit(23)
+    time.sleep(30)
+""")
+    driver.write_text("""import os,sys
+sys.path.insert(0,os.environ['TREE_SOURCE']+'/scripts')
+from cpkt_package_command import run
+run([sys.executable,os.environ['TREE_LAUNCHER'],os.environ['TREE_DEPTH']],root=os.environ['TREE_ROOT'],phase='build',env=os.environ,pass_fds=(),capture=os.environ['TREE_CAPTURE']=='1')
+""")
+    cases=[]
+    for capture,depth,exit_leader in ((False,0,False),(True,0,True),(True,2,False)):
+        for signum in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):
+            name=str(int(capture))+'-'+str(depth)+'-'+str(int(exit_leader))+'-'+signal.Signals(signum).name
+            ready=root/(name+'.ready');lease=root/(name+'.lease');late=root/(name+'.late')
+            env=dict(os.environ,TREE_SOURCE=str(source),TREE_ROOT=str(root),TREE_LEAF=str(leaf),TREE_LAUNCHER=str(launcher),TREE_DEPTH=str(depth),TREE_CAPTURE=str(int(capture)),TREE_EXIT_LEADER=str(int(exit_leader)),TREE_READY=str(ready),TREE_LEASE=str(lease),TREE_LATE=str(late),_CPKT_PACKAGE_TERMINATION_GRACE_SECONDS='.5')
+            for key in list(env):
+                if key.startswith('CPKT_OPERATION_') or key in ('MAKEFLAGS','MFLAGS','MAKELEVEL'):env.pop(key,None)
+            process=subprocess.Popen([sys.executable,str(driver)],cwd=root,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,start_new_session=True)
+            try:
+                deadline=time.monotonic()+5
+                while not ready.exists():
+                    assert process.poll() is None and time.monotonic()<deadline,'descendant never acquired its lease'
+                    time.sleep(.01)
+                started=time.monotonic()
+                os.kill(process.pid,signum)
+                output,_=process.communicate(timeout=3)
+                assert process.returncode==128+signum,(name,process.returncode,output)
+                assert time.monotonic()-started<3,(name,output)
+                with lease.open('r+') as probe:
+                    fcntl.flock(probe,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                assert not late.exists(),(name,'descendant modified outputs',output)
+            except BaseException:
+                # Kill only groups created by this fixture. A negative run of
+                # the old helper inherits the fixture's original group.
+                if ready.exists():
+                    try:os.killpg(os.getpgid(int(ready.read_text())),signal.SIGKILL)
+                    except ProcessLookupError:pass
+                try:os.killpg(process.pid,signal.SIGKILL)
+                except ProcessLookupError:pass
+                process.communicate(timeout=5)
+                raise
+            cases.append(name)
+    for capture in (False,True):
+        name='failed-leader-'+str(int(capture))
+        ready=root/(name+'.ready');lease=root/(name+'.lease');late=root/(name+'.late')
+        env=dict(os.environ,TREE_SOURCE=str(source),TREE_ROOT=str(root),TREE_LEAF=str(leaf),TREE_LAUNCHER=str(launcher),TREE_DEPTH='0',TREE_CAPTURE=str(int(capture)),TREE_EXIT_LEADER='fail',TREE_READY=str(ready),TREE_LEASE=str(lease),TREE_LATE=str(late),_CPKT_PACKAGE_TERMINATION_GRACE_SECONDS='.5')
+        for key in list(env):
+            if key.startswith('CPKT_OPERATION_') or key in ('MAKEFLAGS','MFLAGS','MAKELEVEL'):env.pop(key,None)
+        process=subprocess.Popen([sys.executable,str(driver)],cwd=root,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,start_new_session=True)
+        try:
+            output,_=process.communicate(timeout=3)
+            assert process.returncode==23,(name,output)
+            assert '[package] FAILED' in output and 'status=23' in output,(name,output)
+            assert ready.exists(),(name,'leaf did not start')
+            with lease.open('r+') as probe:fcntl.flock(probe,fcntl.LOCK_EX|fcntl.LOCK_NB)
+            assert not late.exists(),(name,'failed command retained a writer')
+        except BaseException:
+            if ready.exists():
+                try:os.killpg(os.getpgid(int(ready.read_text())),signal.SIGKILL)
+                except ProcessLookupError:pass
+            try:os.killpg(process.pid,signal.SIGKILL)
+            except ProcessLookupError:pass
+            process.communicate(timeout=5)
+            raise
+        cases.append(name)
+    assert len(cases)==11
+    print('Cancellation reaps owned descendants and closes captured pipes: '+', '.join(cases))

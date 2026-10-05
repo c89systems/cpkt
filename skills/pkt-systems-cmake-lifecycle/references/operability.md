@@ -12,6 +12,14 @@ Rules:
 
 - Prefer fast, abundant local feedback. Remote CI/CD is not part of the default lifecycle.
 - After code edits, run the narrowest relevant local gate first.
+- Package/build command wrappers must own isolated process groups. On interruption
+  or command failure, terminate and escalate that group, including descendants
+  whose immediate parent has exited, before returning or releasing operation
+  ownership. Keep nested cleanup grace periods shorter than their callers and
+  bound pipe draining after escalation. Verify direct TERM/INT/HUP delivery,
+  signal-resistant grandchildren, exited leaders, captured output pipes and
+  nested wrappers through observable cancellation tests; never kill unrelated
+  host processes or infer ownership from a machine-wide process search.
 - After public API edits, run header, C-only consumer, install-tree, and package checks relevant to the changed surface.
 - After package, dependency, release, RPATH/RUNPATH, install-name, or artifact layout edits, run package verification or the closest available local packaging gate.
 - After e2e service edits, run `dev-reset`, `dev-up`, and `test-e2e` or the closest project-specific local e2e gate.
