@@ -83,6 +83,10 @@ static const struct runtime_case cases[] = {
      "while true do end",
      1, CPKT_LUA_RUNTIME_ERR_LIMIT},
     {"native_gc_hooks", "", 0, CPKT_LUA_RUNTIME_OK},
+    {"coroutine_close_existing_limit", "", 0, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"coroutine_close_reopen_limit", "", 0, CPKT_LUA_RUNTIME_ERR_LIMIT},
+    {"coroutine_close_cleared_limit", "", 0, CPKT_LUA_RUNTIME_OK},
+    {"coroutine_close_normal_results", "", 0, CPKT_LUA_RUNTIME_OK},
     {"registry_limit",
      "for k in pairs(debug.getregistry()) do "
      "if type(k)=='userdata' then debug.getregistry()[k]=nil end end; "
@@ -318,6 +322,72 @@ exercise_reopened_libraries(cpkt_lua_runtime *runtime, const char *name) {
   return status == CPKT_LUA_RUNTIME_OK ? run_text(runtime, execution) : status;
 }
 
+static cpkt_lua_runtime_status
+exercise_coroutine_close(cpkt_lua_runtime *runtime, const char *name) {
+  cpkt_lua_runtime_status status;
+  const char *closer;
+  const char *finish;
+  int cleared;
+  cleared = strcmp(name, "coroutine_close_cleared_limit") == 0;
+  closer = "while true do end";
+  if (cleared) {
+    status = cpkt_lua_runtime_set_instruction_limit(runtime, 1000);
+    if (status != CPKT_LUA_RUNTIME_OK) {
+      return status;
+    }
+    closer = "local n=0; for i=1,10000 do n=n+i end; "
+             "assert(n==50005000); close_finished=true";
+  } else if (strcmp(name, "coroutine_close_normal_results") == 0) {
+    closer = "error('native close error')";
+  }
+  status = run_text(runtime, "close_source=nil");
+  if (status == CPKT_LUA_RUNTIME_OK) {
+    status =
+        cpkt_lua_runtime_set_global_string(runtime, "close_source", closer);
+  }
+  if (status == CPKT_LUA_RUNTIME_OK) {
+    status = run_text(
+        runtime, "local closer=assert(load(close_source)); "
+                 "close_thread=coroutine.create(function() "
+                 "local resource <close> = setmetatable({}, {__close=closer}); "
+                 "coroutine.yield('ready') end); "
+                 "local ok,value=coroutine.resume(close_thread); "
+                 "assert(ok and value=='ready')");
+  }
+  if (status == CPKT_LUA_RUNTIME_OK &&
+      strcmp(name, "coroutine_close_reopen_limit") == 0) {
+    status = run_text(
+        runtime, "saved_close=coroutine.close; package.loaded.coroutine=nil");
+    if (status == CPKT_LUA_RUNTIME_OK) {
+      status =
+          cpkt_lua_runtime_open_libs(runtime, CPKT_LUA_RUNTIME_LIB_COROUTINE);
+    }
+    if (status == CPKT_LUA_RUNTIME_OK) {
+      status = run_text(runtime, "assert(coroutine.close==saved_close)");
+    }
+  }
+  if (status == CPKT_LUA_RUNTIME_OK) {
+    status = cleared ? cpkt_lua_runtime_clear_instruction_limit(runtime)
+                     : cpkt_lua_runtime_set_instruction_limit(runtime, 1000);
+  }
+  finish = "coroutine.close(close_thread)";
+  if (cleared) {
+    finish = "assert(coroutine.close(close_thread)); assert(close_finished)";
+  } else if (strcmp(name, "coroutine_close_normal_results") == 0) {
+    finish = "local ok,err=coroutine.close(close_thread); "
+             "assert(not ok and err:match('native close error')); "
+             "assert(coroutine.status(close_thread)=='dead'); "
+             "assert(coroutine.close(close_thread))";
+  }
+  if (status == CPKT_LUA_RUNTIME_OK) {
+    status = run_text(runtime, finish);
+  }
+  if (status == CPKT_LUA_RUNTIME_OK && cleared) {
+    status = cpkt_lua_runtime_set_instruction_limit(runtime, 1000);
+  }
+  return status;
+}
+
 static cpkt_lua_runtime_status exercise_preload(cpkt_lua_runtime *runtime,
                                                 int registration_case) {
   cpkt_lua_runtime_status status;
@@ -467,6 +537,9 @@ static int exercise(const struct runtime_case *item) {
       status = CPKT_LUA_RUNTIME_ERR_RUNTIME;
     }
   } else if (status == CPKT_LUA_RUNTIME_OK &&
+             strncmp(item->name, "coroutine_close_", 16) == 0) {
+    status = exercise_coroutine_close(runtime, item->name);
+  } else if (status == CPKT_LUA_RUNTIME_OK &&
              strncmp(item->name, "reopen_", 7) == 0) {
     status = exercise_reopened_libraries(runtime, item->name);
   } else if (status == CPKT_LUA_RUNTIME_OK &&
@@ -513,7 +586,8 @@ static int exercise(const struct runtime_case *item) {
       failed = 1;
     }
   }
-  if (!failed && item->limited) {
+  if (!failed &&
+      (item->limited || strncmp(item->name, "coroutine_close_", 16) == 0)) {
     recovery = "local total=0; for i=1,20 do total=total+i end; "
                "assert(total==210); assert(pcall(function() return true end))";
     status = cpkt_lua_runtime_run_buffer(

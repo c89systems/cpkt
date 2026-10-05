@@ -263,6 +263,8 @@ cpkt_lua_runtime_set_traceback(cpkt_lua_runtime *runtime, int enabled);
  * for finalizers when the limit remains enabled; finalizer failures reach the
  * configured warning callback. After exhaustion, xpcall skips the Lua error
  * handler so it cannot run with instruction accounting suspended.
+ * coroutine.close applies the current budget to its target before executing
+ * Lua close handlers, including coroutines created before the limit changed.
  */
 cpkt_lua_runtime_status
 cpkt_lua_runtime_set_instruction_limit(cpkt_lua_runtime *runtime,

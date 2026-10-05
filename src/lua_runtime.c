@@ -47,6 +47,7 @@ struct cpkt_lua_runtime {
   lua_CFunction native_xpcall;
   lua_CFunction native_create;
   lua_CFunction native_resume;
+  lua_CFunction native_close;
   lua_CFunction native_wrap;
   lua_CFunction native_auxwrap;
 };
@@ -629,6 +630,21 @@ static int cpkt_lua_runtime_coroutine_resume(lua_State *state) {
   return runtime->native_resume(state);
 }
 
+static int cpkt_lua_runtime_coroutine_close(lua_State *state) {
+  cpkt_lua_runtime *runtime;
+  lua_State *coroutine;
+  runtime = cpkt_lua_runtime_from_state(state);
+  if (runtime == NULL || runtime->native_close == NULL) {
+    return luaL_error(state, "missing coroutine runtime");
+  }
+  coroutine = lua_tothread(state, 1);
+  if (coroutine != NULL) {
+    cpkt_lua_runtime_store_state(coroutine, runtime);
+    cpkt_lua_runtime_apply_instruction_hook(runtime, coroutine);
+  }
+  return runtime->native_close(state);
+}
+
 static int cpkt_lua_runtime_coroutine_auxwrap(lua_State *state) {
   lua_State *coroutine;
   cpkt_lua_runtime *runtime;
@@ -714,6 +730,9 @@ static void cpkt_lua_runtime_wrap_coroutine_library(cpkt_lua_runtime *runtime) {
   cpkt_lua_runtime_wrap_coroutine_function(runtime, "resume",
                                            cpkt_lua_runtime_coroutine_resume,
                                            &runtime->native_resume);
+  cpkt_lua_runtime_wrap_coroutine_function(runtime, "close",
+                                           cpkt_lua_runtime_coroutine_close,
+                                           &runtime->native_close);
   cpkt_lua_runtime_wrap_coroutine_function(
       runtime, "wrap", cpkt_lua_runtime_coroutine_wrap, &runtime->native_wrap);
   lua_pop(state, 1);

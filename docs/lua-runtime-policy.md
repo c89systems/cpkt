@@ -34,6 +34,9 @@ embedding context without changing ownership. C89 module callbacks can use
 
 Coroutine wrappers install the runtime's hook and delegate execution, stack
 growth, return/yield transfers and error closure to Lua's own coroutine library.
+`coroutine.close` applies the current policy to a suspended thread before its
+Lua `<close>` handlers run, including threads created before the limit changed.
+Clearing the limit removes the thread's accounting hook on its next close.
 An errored wrapped coroutine closes its `<close>` variables before propagating
 the resulting error. Wrappers created before a limit change receive the current
 policy on their next invocation. Opening standard libraries again reinstalls

@@ -1298,6 +1298,7 @@ if(CPKT_BUILD_TESTS)
       foreach(_cpkt_lua_policy_case IN ITEMS large_arguments large_results large_yields
               closed_error close_error_replaced protected_limit xprotected_limit
               xhandler_limit xhandler_error_limit xhandler_normal gc_limit gc_coroutine_limit gc_finite gc_close_limit gc_close_after_limit native_gc_hooks
+              coroutine_close_existing_limit coroutine_close_reopen_limit coroutine_close_cleared_limit coroutine_close_normal_results
               registry_limit protected_yields yielded_protected_limit upvalue_limit existing_wrap_limit
               native_upvalues shared_resume_budget shared_wrap_budget error_conversion_oom numeric_error preload_registration preload_arguments
               preload_lua_upvalues preload_c_upvalues preload_c_allocation reopen_resume_limit reopen_wrap_limit reopen_library_identity construction_failure)
