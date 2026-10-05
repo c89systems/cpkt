@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 OWNER = json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
@@ -161,6 +162,12 @@ endif()
             assert not (root/'build'/TARGET/'core').exists()
             assert not (root/'.cache/deps-build'/TARGET/'coredep').exists()
     def events():return (root/'events').read_text().splitlines()
+    def rewrite_source(text):
+        # Old Make implementations observe whole-second mtimes. Ensure each
+        # deliberate source edit is newer than its previously compiled output.
+        previous=int(time.time())
+        while int(time.time())<=previous:time.sleep(0.02)
+        (root/'main.c').write_text(text)
     invoke(root,'build','--preset','debug',env=env)
     assert events()==PHASES
     binary=root/'build'/TARGET/OWNER/'Debug'/('cpkt_'+OWNER+'_probe')
@@ -190,10 +197,10 @@ endif()
     assert artifact.read_bytes()==value and events()[len(before):]==PHASES
     unchanged_core()
     before=events()
-    (root/'main.c').write_text('int main(void) { return 1; }\n')
+    rewrite_source('int main(void) { return 1; }\n')
     invoke(root,'test','--preset','debug',success=False,env=env)
     assert not receipt.exists() and events()==before
-    (root/'main.c').write_text('int main(void) { return 0; }\n')
+    rewrite_source('int main(void) { return 0; }\n')
     for selection in (('--regex','behavior'),('--label','example')):
         invoke(root,'test','--group','all','--preset','debug',*selection,env=env)
         assert not receipt.exists()

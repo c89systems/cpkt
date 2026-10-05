@@ -96,19 +96,48 @@ function(cpkt_group_add_test)
   cmake_parse_arguments(PARSE_ARGV 0 _test "" "NAME;WORKING_DIRECTORY" "COMMAND;CONFIGURATIONS")
   cpkt_inventory_selected(tests "${_test_NAME}" _selected)
   if(_selected)
+    list(GET _test_COMMAND 0 _command)
+    if(_command MATCHES "^cpkt_" AND NOT TARGET "${_command}")
+      message(FATAL_ERROR "Required test target is missing: ${_test_NAME}: ${_command}")
+    endif()
     get_property(_key GLOBAL PROPERTY "CPKT_KEY_tests_${_test_NAME}")
     string(JSON _preflight ERROR_VARIABLE _missing GET "${CPKT_INVENTORY}" tests "${_key}" preflight)
-    if(NOT _missing AND _preflight)
-      add_test(NAME "${_test_NAME}" COMMAND "${CPKT_OPERATION_PYTHON}"
-        "${CMAKE_SOURCE_DIR}/scripts/cpkt_helper_dispatch.py" --root "${CMAKE_SOURCE_DIR}"
-        --group "${CPKT_GROUP}" --target "${CPKT_TARGET_ID}" --test "${_test_NAME}"
-        --binary "${CMAKE_BINARY_DIR}" -- ${_test_COMMAND})
-    else()
-      add_test(${ARGV})
-    endif()
+    # Unquoted list forwarding discards empty arguments and splits semicolons.
+    # Reconstruct the call with literal bracket arguments, including the empty
+    # native sysroot. Choose delimiters absent from each value before EVAL.
+    set(_registration "add_test(")
+    set(_wrapped OFF)
+    math(EXPR _last "${ARGC} - 1")
+    foreach(_index RANGE 0 ${_last})
+      set(_argument "${ARGV${_index}}")
+      cpkt_literal_argument(_literal "${_argument}")
+      string(APPEND _registration " ${_literal}")
+      if(_argument STREQUAL "COMMAND" AND NOT _wrapped AND NOT _missing AND _preflight)
+        foreach(_prefix IN ITEMS "${CPKT_OPERATION_PYTHON}"
+            "${CMAKE_SOURCE_DIR}/scripts/cpkt_helper_dispatch.py" --root "${CMAKE_SOURCE_DIR}"
+            --group "${CPKT_GROUP}" --target "${CPKT_TARGET_ID}" --test "${_test_NAME}"
+            --binary "${CMAKE_BINARY_DIR}" --)
+          cpkt_literal_argument(_literal "${_prefix}")
+          string(APPEND _registration " ${_literal}")
+        endforeach()
+        set(_wrapped ON)
+      endif()
+    endforeach()
+    cmake_language(EVAL CODE "${_registration})")
     cpkt_inventory_owner(tests "${_test_NAME}" _owner)
     set_property(TEST "${_test_NAME}" APPEND PROPERTY LABELS "group:${_owner}")
   endif()
+endfunction()
+function(cpkt_literal_argument output value)
+  set(_equals "")
+  string(FIND "${value}" "]${_equals}]" _closing)
+  while(NOT _closing EQUAL -1)
+    string(APPEND _equals "=")
+    string(FIND "${value}" "]${_equals}]" _closing)
+  endwhile()
+  # CMake ignores the first newline after a bracket opener. Supply that newline
+  # ourselves so a value beginning with a newline retains it too.
+  set(${output} "[${_equals}[\n${value}]${_equals}]" PARENT_SCOPE)
 endfunction()
 function(cpkt_group_set_tests_properties)
   set(_tests "")

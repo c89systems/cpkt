@@ -532,9 +532,11 @@ include(cmake/CpktPackage.cmake)
         result = self.command('core', sys.executable, check, '--root', str(self.root), '--group', 'db', '--check')
         self.assertNotEqual(0, result.returncode)
         closed=self.root/'closed-scope.py'
-        closed.write_text('import os,subprocess,sys\n'
+        closed.write_text('import errno,os,subprocess,sys\n'
             'for key in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"):\n'
-            '  os.close(int(os.environ[key]))\n'
+            '  try:os.close(int(os.environ[key]))\n'
+            '  except OSError as error:\n'
+            '    if error.errno != errno.EBADF:raise\n'
             'raise SystemExit(subprocess.call([sys.executable,*sys.argv[1:]]))\n')
         result=self.command('core',sys.executable,str(closed),check,'--root',str(self.root),
                             '--group','db','--check')
@@ -611,9 +613,11 @@ include(cmake/CpktPackage.cmake)
         source = self.root / 'source'
         source.mkdir()
         closed=self.root/'closed-descriptors.py'
-        closed.write_text('import os,subprocess,sys\n'
+        closed.write_text('import errno,os,subprocess,sys\n'
             'for key in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"):\n'
-            '  os.close(int(os.environ[key]))\n'
+            '  try:os.close(int(os.environ[key]))\n'
+            '  except OSError as error:\n'
+            '    if error.errno != errno.EBADF:raise\n'
             'raise SystemExit(subprocess.call([sys.executable,*sys.argv[1:]]))\n')
         (source / 'CMakeLists.txt').write_text('cmake_minimum_required(VERSION 3.21)\nproject(lock NONE)\n'
             'execute_process(COMMAND "' + sys.executable + '" "' + str(self.root / 'scripts/cpkt_operation.py') +
@@ -630,6 +634,55 @@ include(cmake/CpktPackage.cmake)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         result = subprocess.run(['cmake','-S',str(source),'-B',str(self.root/'direct')],capture_output=True,text=True)
         self.assertNotEqual(0,result.returncode)
+
+    def test_cmake_test_arguments_and_missing_target_fail_before_build(self):
+        shutil.copy(ROOT/'cmake/CpktGroups.cmake',self.root/'cmake/CpktGroups.cmake')
+        inventory={'repository_group':'core','targets':{
+            'cpkt_probe':{'group':'core','public':False}},'tests':{
+            name:{'group':'core','preflight':guarded}
+            for name,guarded in (('plain',False),('guarded',True))}}
+        (self.root/'cmake/components.json').write_text(json.dumps(inventory))
+        working=self.root/'working directory';working.mkdir()
+        arguments=['','semi;colon','quote"slash\\dollar${unexpanded}',
+                   'brackets ]] ]=] ]==]','\nleading newline','']
+        (self.root/'expected.json').write_text(json.dumps(arguments))
+        checker=self.root/'argv-check.py'
+        checker.write_text('import json,sys\nfrom pathlib import Path\n'
+            'root=Path(__file__).resolve().parent\n'
+            'assert sys.argv[2:]==json.loads((root/"expected.json").read_text()),repr(sys.argv)\n'
+            'assert Path.cwd()==root/"working directory"\n'
+            '(root/sys.argv[1]).write_text("passed")\n')
+        (self.root/'scripts/cpkt_helper_dispatch.py').write_text(
+            'import subprocess,sys\n'
+            'assert sys.argv[1:2]==["--root"]\n'
+            'raise SystemExit(subprocess.call(sys.argv[sys.argv.index("--")+1:]))\n')
+        def literal(value):
+            equals=''
+            while ']'+equals+']' in value:equals+='='
+            return '['+equals+'[\n'+value+']'+equals+']'
+        source='cmake_minimum_required(VERSION 3.21)\nproject(arguments NONE)\nenable_testing()\n'
+        source+='include(cmake/CpktGroups.cmake)\nset(CPKT_OPERATION_PYTHON '+literal(sys.executable)+')\n'
+        source+='set(CPKT_TARGET_ID synthetic)\n'
+        header=source
+        for name in ('plain','guarded'):
+            source+='cpkt_group_add_test(NAME '+name+' COMMAND '
+            source+=' '.join(literal(value) for value in [sys.executable,str(checker),name,*arguments])
+            source+=' WORKING_DIRECTORY '+literal(str(working))+' CONFIGURATIONS Release)\n'
+        (self.root/'CMakeLists.txt').write_text(source)
+        binary=self.root/'test-arguments'
+        result=subprocess.run(['cmake','-S',str(self.root),'-B',str(binary)],
+                              env=self.environment,capture_output=True,text=True)
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+        result=subprocess.run(['ctest','--test-dir',str(binary),'-C','Release','--output-on-failure'],
+                              env=self.environment,capture_output=True,text=True)
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+        self.assertEqual('passed',(self.root/'plain').read_text())
+        self.assertEqual('passed',(self.root/'guarded').read_text())
+        (self.root/'CMakeLists.txt').write_text(header+'\ncpkt_group_add_test(NAME plain COMMAND cpkt_probe)\n')
+        result=subprocess.run(['cmake','-S',str(self.root),'-B',str(self.root/'missing-target')],
+                              env=self.environment,capture_output=True,text=True)
+        self.assertNotEqual(0,result.returncode)
+        self.assertIn('Required test target is missing: plain: cpkt_probe',result.stderr)
 
     def test_clean_retains_live_broker_for_later_children(self):
         runner=self.root/'clean-broker.py'
@@ -654,9 +707,11 @@ include(cmake/CpktPackage.cmake)
         extracted.mkdir()
         self.assertGreater(len(str(extracted/'build/control/.operation.sock').encode()),107)
         closed=self.root/'close-long-root.py'
-        closed.write_text('import os,subprocess,sys\n'
+        closed.write_text('import errno,os,subprocess,sys\n'
             'for key in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"):\n'
-            '  os.close(int(os.environ[key]))\n'
+            '  try:os.close(int(os.environ[key]))\n'
+            '  except OSError as error:\n'
+            '    if error.errno != errno.EBADF:raise\n'
             'raise SystemExit(subprocess.call([sys.executable,*sys.argv[1:]]))\n')
         operation=str(self.root/'scripts/cpkt_operation.py')
         result=subprocess.run([sys.executable,operation,'--root',str(extracted),

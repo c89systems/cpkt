@@ -12,6 +12,12 @@ Rules:
 
 - Prefer fast, abundant local feedback. Remote CI/CD is not part of the default lifecycle.
 - After code edits, run the narrowest relevant local gate first.
+- CMake command/test registration wrappers must preserve argument boundaries,
+  including empty native-tool arguments, semicolons and literal quoting. Unquoted
+  list forwarding can silently change the invocation. Test observable arguments
+  for both direct and delegated commands, including working-directory and
+  configuration options. Reject a registered project test whose executable
+  target is missing during configuration, before building dependencies.
 - Package/build command wrappers must own isolated process groups. On interruption
   or command failure, terminate and escalate that group, including descendants
   whose immediate parent has exited, before returning or releasing operation
