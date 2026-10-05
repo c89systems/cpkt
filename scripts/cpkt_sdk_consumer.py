@@ -310,6 +310,21 @@ def composition_records(data,groups):
     return {name:copy.deepcopy(data['installed_consumers'][name]) for name in probes[owner]}
 
 
+def darwin_link_libraries(words):
+    """Keep the last shared/system library flag; retain repeated static archives.
+
+    Apple ld warns about repeated -l flags. Static SDK inputs are already explicit
+    archive paths here, and their order/repetition can be required for resolution.
+    """
+    seen=set();result=[]
+    for word in reversed(words):
+        if word.startswith('-l'):
+            if word in seen:continue
+            seen.add(word)
+        result.append(word)
+    return list(reversed(result))
+
+
 def run_consumers(prefix,target,preset,groups,owners,composition=False):
     data=load(ROOT);configured=configuration(target,preset)
     records={k:v for k,v in data['installed_consumers'].items() if v['group'] in owners or v['group']=='all' and set(groups)==set(data['groups']) and set(owners)==set(data['groups'])}
@@ -386,6 +401,7 @@ if arg[1] ~= 'one' or arg[2] ~= 'two' then error('bad argv') end
                         words+=['-lm','-pthread']
                 if static:
                     words=[str(prefix/'lib'/('lib'+w[2:]+'.a')) if w.startswith('-l') and (prefix/'lib'/('lib'+w[2:]+'.a')).is_file() else w for w in words]
+                if target.endswith('darwin'):words=darwin_link_libraries(words)
                 binary=phase/(name+'-pc-'+('static' if static else 'shared'))
                 inputs=[ROOT/item['source']]
                 if item.get('extra_sources'):
@@ -398,7 +414,7 @@ if arg[1] ~= 'one' or arg[2] ~= 'two' then error('bad argv') end
                 arguments=[configured['CMAKE_C_COMPILER'],'-std=c'+str(item['standard']),'-Wall','-Wextra','-Werror']+(['-pedantic-errors'] if item['standard']==89 else [])+inputs+['-o',binary]+compile_flags+flags+words
                 if target.endswith('musl') and static:arguments+=['-static']
                 if target.endswith('darwin'):arguments+=['-mmacosx-version-min=15.0','-Wl,-rpath,'+str(prefix/'lib')]
-                command(arguments,env=command_env)
+                command(['bash',ROOT/'scripts/run-no-warnings.sh','installed pkg-config consumer',*arguments],env=command_env)
                 statuses.append(execute(binary,[],target,configured))
         if 'core' in owners and target.endswith('gnu') and not composition:
             item=next(v for v in records.values() if v.get('pc')=='cpkt-sasl' and v['kind']!='pic')

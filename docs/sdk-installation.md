@@ -31,3 +31,11 @@ facade APIs keep their existing library names and `<cpkt/...>` headers.
 Each repository ships its own upstream notices under
 `share/doc/cpkt/<group>/third_party/`. cmocka is delivered by core for downstream
 tests and is never an implicit production-facade dependency.
+
+Installed examples live under `share/doc/cpkt/<group>/examples/`. Their
+`build-pkg-config.sh` scripts accept an output path followed by individual link
+flags. Set `CC` to the selected target compiler and `CPKT_SDK_PREFIX` to the
+validated SDK prefix. For Darwin, pass the SDK library runtime path as one
+argument, for example `"-Wl,-rpath,$CPKT_SDK_PREFIX/lib"`; CMake's automatic build
+RPATH does not apply to these direct compiler links. These are local example
+executables; SDK library install names remain relative.

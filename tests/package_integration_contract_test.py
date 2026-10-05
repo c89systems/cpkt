@@ -64,6 +64,90 @@ class Fixtures(unittest.TestCase):
             manifest=dict(manifest);manifest.pop('package_id',None);manifest['package_id']=digest(encoded(manifest))
         path=prefix/'share/cpkt/packages'/f'{group}.json';path.parent.mkdir(exist_ok=True);path.write_bytes(encoded(manifest));path.chmod(0o644);return manifest
 
+
+    def test_installed_pkg_config_example_preserves_darwin_runtime_arguments(self):
+        import cpkt_sdk_examples as examples
+        root=self.work/'example root';root.mkdir()
+        prefix=root/'SDK with spaces';relative='examples/fixture'
+        delivered=prefix/'share/doc/cpkt/core'/relative;delivered.mkdir(parents=True)
+        (delivered/'CMakeLists.txt').write_text('fixture')
+        scripts=sorted((ROOT/'examples').glob('*/build-pkg-config.sh'))
+        if scripts:shutil.copy2(scripts[0],delivered/'build-pkg-config.sh')
+        else:
+            (delivered/'build-pkg-config.sh').write_text(
+                '#!/bin/sh\nset -eu\noutput=$1; shift\nexec "$CC" -o "$output" "$@"\n')
+            (delivered/'build-pkg-config.sh').chmod(0o755)
+        compiler=root/'selected compiler'
+        compiler.write_text('#!'+sys.executable+'\nimport json,pathlib,sys\n'
+            'args=sys.argv[1:]\npathlib.Path(args[args.index("-o")+1]).write_text(json.dumps(args))\n')
+        compiler.chmod(0o755)
+        pkg=root/'pkg-config';pkg.write_text('#!/bin/sh\nexit 0\n');pkg.chmod(0o755)
+        data={'components':{},'installed_examples':{relative:{'group':'core',
+            'target':'fixture_example','runtime_args':[],'pkg_config_script':'build-pkg-config.sh'}}}
+        configured={'CMAKE_C_COMPILER':str(compiler),'CMAKE_CXX_COMPILER':str(compiler),
+            'CPKT_DEPENDENCY_BUILD_JOBS':'1'}
+        phase=root/'phase';phase.mkdir();calls=[]
+        def invoke(args,env=None,**kwargs):
+            calls.append(list(map(str,args)))
+            if 'installed example configure' in args:
+                build=Path(args[args.index('-B')+1]);build.mkdir()
+                (build/'runtime-flags.txt').write_text('')
+            elif 'installed pkg-config example' in args:
+                environment=dict(os.environ,**env,PKG_CONFIG=str(pkg))
+                result=subprocess.run(list(map(str,args)),env=environment,capture_output=True,text=True)
+                self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            return ''
+        def execute(binary,args,target,config):
+            if binary.name.endswith('-pkg'):
+                words=json.loads(binary.read_text())
+                self.assertIn('-Wl,-rpath,'+str(prefix/'lib'),words)
+                self.assertIn('-mmacosx-version-min=15.0',words)
+                self.assertFalse(any(word.startswith("'") for word in words))
+            return {'status':'passed'}
+        with patch.object(examples,'command',side_effect=invoke),patch.object(sys,'platform','darwin'):
+            results=examples.run_examples(prefix,'arm64-apple-darwin',configured,data,['core'],phase,execute)
+        self.assertEqual(len(results),2)
+        self.assertEqual(len([call for call in calls if 'installed pkg-config example' in call]),1)
+
+    def test_darwin_library_duplicates_preserve_static_archive_order(self):
+        from cpkt_sdk_consumer import darwin_link_libraries
+        words=['-L/sdk/lib','-lcpkt_lua','/sdk/lib/backend.a','-ldl','-lm',
+            '/sdk/lib/backend.a','-lcpkt_lua','-ldl','-pthread','-lm']
+        self.assertEqual(darwin_link_libraries(words),['-L/sdk/lib','/sdk/lib/backend.a',
+            '/sdk/lib/backend.a','-lcpkt_lua','-ldl','-pthread','-lm'])
+
+    def test_warning_gate_rejects_successful_compiler_link_warnings(self):
+        warning=self.work/'linker.py'
+        warning.write_text('import sys\nprint("ld: warning: ignoring duplicate libraries: -ldl",file=sys.stderr)\n')
+        result=subprocess.run(['bash',str(ROOT/'scripts/run-no-warnings.sh'),
+            'installed pkg-config consumer',sys.executable,str(warning)],capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('installed pkg-config consumer emitted warnings',result.stderr)
+
+
+    def test_raw_pkg_config_consumer_stops_before_execution_on_link_warning(self):
+        import cpkt_sdk_consumer as consumer
+        compiler=self.work/'compiler'
+        compiler.write_text('#!'+sys.executable+'\nimport sys\n'
+            'print("ld: warning: ignoring duplicate libraries: -ldl",file=sys.stderr)\n')
+        compiler.chmod(0o755)
+        root=self.work/'consumer';root.mkdir();prefix=root/'sdk';prefix.mkdir()
+        (root/'scripts').mkdir();shutil.copy2(ROOT/'scripts/run-no-warnings.sh',root/'scripts/run-no-warnings.sh')
+        build=root/'compiled';build.mkdir();(build/'runtime-flags.txt').write_text('')
+        configured={'CMAKE_C_COMPILER':str(compiler),'CMAKE_OSX_SYSROOT':'/selected/SDK'}
+        records={'fixture':{'group':'core','kind':'shared','pc':'fixture',
+            'standard':89,'source':'fixture.c','runtime_args':[]}}
+        def invoke(args,**kwargs):
+            if args[0]=='pkg-config':return '-lcpkt_lua -ldl -ldl'
+            if 'installed pkg-config consumer' in args or args[0]==str(compiler):
+                result=subprocess.run(list(map(str,args)),capture_output=True,text=True)
+                if result.returncode:raise ValueError(result.stdout+result.stderr)
+            return ''
+        # CMake execution is stubbed; exercise the real raw-link warning gate.
+        with patch.object(consumer,'ROOT',root),patch.object(consumer,'load',return_value={'installed_consumers':{}}),patch.object(consumer,'configuration',return_value=configured),patch.object(consumer,'composition_records',return_value=records),patch.object(consumer,'inspect'),patch.object(consumer,'configure_consumer',return_value=build),patch.object(consumer,'execute'),patch.object(consumer,'file_records',return_value={}),patch.object(consumer.validator,'validate'),patch.object(consumer,'command',side_effect=invoke),patch.object(sys,'platform','darwin'):
+            with self.assertRaisesRegex(ValueError,'installed pkg-config consumer emitted warnings'):
+                consumer.run_consumers(prefix,'arm64-apple-darwin','fixture',['core'],['core'],composition=True)
+
     def test_native_producer_and_consumer_share_selected_tools(self):
         import cpkt_sdk_consumer as consumer
         from cpkt_inventory import REPOSITORY_GROUP

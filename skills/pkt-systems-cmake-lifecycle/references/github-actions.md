@@ -103,7 +103,18 @@ external build's flag expansion, independently of CMake's compiler probes.
 Export that same selected `SDKROOT` to native test and verification subprocesses
 too; direct header, archive and export probes must not depend on a system
 compiler dispatcher supplying an implicit SDK. Keep osxcross-only CMake inputs
-out of native upstream projects, where they are unused. Record
+out of native upstream projects, where they are unused.
+
+Give direct/pkg-config verification executables the selected SDK library search
+path explicitly; CMake's automatic build RPATH does not apply to a raw compiler
+link. Pass link flags as separate arguments, including paths containing spaces,
+rather than shell-quoted scalar environment strings. Run these links through the
+same warning gate as CMake consumers. Remove duplicate shared/system `-l` flags
+when Apple ld reports them, while preserving static archive order and repetitions
+that may be needed for resolution. Exercise installed examples through both
+CMake and pkg-config before and after SDK relocation.
+
+Record
 OS/architecture, runner image, compiler/Xcode/SDK, deployment target, dependency
 pins, and configured job limit. Keep the existing build-system parallelism;
 a larger host does not authorize increasing it. Serialize operational commands

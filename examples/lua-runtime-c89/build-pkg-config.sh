@@ -9,6 +9,8 @@ fi
 cc=${CC:-cc}
 pkg_config=${PKG_CONFIG:-pkg-config}
 output=${1:-./cpkt_lua_runtime_c89_example}
+# Remaining arguments are individual link flags, including paths with spaces.
+if [ "$#" -gt 0 ]; then shift; fi
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 output_dir=$(dirname -- "$output")
 main_object="$output_dir/cpkt_lua_runtime_c89_main.o"
@@ -37,4 +39,4 @@ pkg_config_libs=$(
 
 "$cc" "$main_object" "$module_object" -o "$output" \
   $pkg_config_libs \
-  ${CPKT_EXAMPLE_LDFLAGS:-}
+  "$@"

@@ -39,11 +39,11 @@ def run_examples(prefix,target,configured,data,owners,phase,execute):
             compile_flags=['-Werror'];link_flags=flags
             if target.endswith('musl'):link_flags+=['-static']
             if target.endswith('darwin'):
-                compile_flags+=['-mmacosx-version-min=15.0'];link_flags+=['-mmacosx-version-min=15.0']
+                compile_flags+=['-mmacosx-version-min=15.0'];link_flags+=['-mmacosx-version-min=15.0','-Wl,-rpath,'+str(prefix/'lib')]
                 if __import__('sys').platform!='darwin':
                     linker=command([configured['CMAKE_C_COMPILER'],'-print-prog-name=ld'],capture=True).strip()
                     if not Path(linker).is_file():raise ValueError('selected Darwin linker unavailable')
                     link_flags+=['--ld-path='+linker]
-            command(['bash',ROOT/'scripts/run-no-warnings.sh','installed pkg-config example',delivered/item['pkg_config_script'],output],env={'CC':configured['CMAKE_C_COMPILER'],'CPKT_SDK_PREFIX':str(prefix),'CPKT_EXAMPLE_CFLAGS':shlex.join(compile_flags),'CPKT_EXAMPLE_LDFLAGS':shlex.join(link_flags),'PKG_CONFIG_PATH':'','PKG_CONFIG_LIBDIR':str(prefix/'lib/pkgconfig')})
+            command(['bash',ROOT/'scripts/run-no-warnings.sh','installed pkg-config example',delivered/item['pkg_config_script'],output,*link_flags],env={'CC':configured['CMAKE_C_COMPILER'],'CPKT_SDK_PREFIX':str(prefix),'CPKT_EXAMPLE_CFLAGS':shlex.join(compile_flags),'PKG_CONFIG_PATH':'','PKG_CONFIG_LIBDIR':str(prefix/'lib/pkgconfig')})
             statuses.append(execute(output,arguments,target,configured))
     return statuses
