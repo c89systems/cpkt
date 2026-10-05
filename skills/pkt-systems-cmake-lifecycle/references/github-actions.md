@@ -7,6 +7,14 @@ repository is hosted on GitHub and a suitable runner is available. Inspect the
 existing workflows and project policy first. Availability, public visibility,
 and a `.github/` directory do not constitute opt-in.
 
+Release archives are built, verified and published locally through the lifecycle.
+On a Linux release host, the configured osxcross toolchain produces the Darwin
+release archives. GitHub macOS Actions builds and tests provide native verification
+evidence only; their SDK archives are diagnostic artifacts, never release assets.
+Run the native build, runtime tests and installed-SDK checks together in the
+existing workflow. The opt-in does not require a draft release, a draft-read
+secret, or a second lane to transport local release archives to the runner.
+
 An explicit engineer opt-in authorizes the lifecycle to push the development
 branch normally, create it on the selected remote if absent, set its upstream,
 and trigger the declared verification workflow. This authority persists across
@@ -81,7 +89,7 @@ Repository Make targets, CMake presets/labels, and scripts own dependency
 resolution, builds, tests, packaging checks, and cleanup. A workflow supplies
 the native machine, checkout, cache transport, and evidence. When creating or
 migrating a workflow, expose its selected proof through documented Make
-targets such as `test-darwin-native`, `test-darwin-sdk` when implemented, and
+targets such as `test-darwin-native` and
 `test-github-actions-contracts`; describe them in `make help`. Preserve an
 existing workflow's behavior while moving recipes behind these targets.
 Do not introduce an arbitrary-command input or a second release pipeline.
@@ -126,13 +134,14 @@ and test execution. Add older macOS or Intel coverage only when selected by
 project policy; a newer arm64 run proves only its declared platform coverage.
 Keep Linux Podman service e2e on its existing execution route.
 
-Distinguish native source tests from execution of supplied distribution bytes.
-Source verification records the tested commit and exact selected test inventory.
-Artifact verification additionally records producer commit, manifest digest,
-and archive digests, and exercises consumers against those exact bytes without
-rebuilding/replacing SDK libraries. Neither lane substitutes for the other when
-both are required. PR merge revisions and source heads must be identified
-separately; a tested merge revision does not prove the source head was run.
+Native verification records the tested commit and exact selected test inventory,
+including installed-SDK checks against the archives built in that run. This
+proves the native build and consumers; it does not prove execution of the local
+osxcross archive bytes. Report that distinction without adding a separate archive
+handoff gate. Testing supplied local archives is additional work only when the
+engineer explicitly requests it; establish its transport and evidence contract
+then. PR merge revisions and source heads must be identified separately; a tested
+merge revision does not prove the source head was run.
 
 Track a specific run ID and attempt for the declared repository, workflow,
 event/ref, and expected commit. When dispatch returns no run ID, discover it
@@ -175,9 +184,8 @@ and restrict cache writes to the intended trusted context.
 New/migrated verification workflows use least privilege (`contents: read` for
 source verification), checkout without persisted credentials, and verified
 full-SHA action pins with version comments. Do not execute untrusted PR code
-in privileged `pull_request_target` jobs. Artifact-input draft access requires
-its own declared credential/permission contract; a read-only source workflow
-token is not assumed to provide it. Preserve existing workflow compatibility;
+in privileged `pull_request_target` jobs. Native source verification needs no
+release-asset credential. Preserve existing workflow compatibility;
 permission/action migrations need their own verification.
 
 ## Release-ref boundary
@@ -201,14 +209,11 @@ pre-squash candidate evidence cannot satisfy an exact-final-commit requirement.
 Once refs have been pushed, a remote failure leaves them visible: stop, report
 that state, and leave any release unpublished. No automatic remote rewind.
 
-Where exact cross-built archive execution is a declared gate, stage only the
-verified manifest-selected bytes through the project's approved handoff (for
-example an unpublished GitHub draft release after local proof), run the native
-artifact lane, then publish that same verified set. Draft staging requires
-release authority, authenticated access preflight, and complete digest/identity
-checks. Do not invent temporary tags, alter artifacts after proof, or treat a
-native rebuild as verification of the producer's bytes. If the workflow lacks
-the required lane, report a lifecycle gap rather than claim it exists.
+After required source checks pass, publish only the local checksum-selected
+release artifacts under [release.md](release.md). Do not wait for a draft handoff
+or launch an additional hosted archive lane as part of the normal lifecycle.
+Keep any explicitly requested local-archive execution separate from native
+source proof, and never replace the local archives with a native rebuild.
 
 ## Local verification when implementing this extension
 
@@ -222,13 +227,11 @@ on the exact implementation commit. Verify cold and restored archive-cache
 paths when adding cache transport. A local fixture or YAML lint is not native
 runtime evidence.
 
-In cpkt, `test-darwin-native`, `test-darwin-sdk`, and
-`test-github-actions-contracts` are the implemented recipe surfaces. The native
-source lane covers all owned runtime suites and installation combinations. The
-artifact lane uses an actual final tag and an explicit authenticated draft-read
-credential with pinned producer commit, draft/asset IDs, sizes and API digests.
-The transport helper accepts a verified cache hit without probes or network calls.
-Source and exact producer-artifact evidence stay separate; neither an offline
-fixture nor an earlier source run supplies final native artifact proof. Automatic
-gates do not stage or publish drafts. Staging requires an explicitly authorized
-final release operation after full local proof and the existing remote final tag.
+In cpkt, `test-darwin-native` builds and tests all owned runtime suites and
+installation combinations in the same native source run;
+`test-github-actions-contracts` checks workflow contracts locally. Existing
+`test-darwin-sdk` and hosted artifact transport helpers are additional facilities,
+not prerequisites for native opt-in or release. Do not invoke them automatically.
+The source workflow's diagnostic archives remain distinct from the locally
+produced release assets. An offline fixture or an earlier source run does not
+supply exact-current-commit native source evidence.

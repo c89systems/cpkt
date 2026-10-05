@@ -55,7 +55,7 @@ scope during warm rehearsal; do not delete them or let them satisfy its proof.
 Unexpected/missing binary artifacts within the selected scope are failures.
 Final clean `make release` assembles all surfaces and replaces the final manifest
 only with the complete verified release set. A binary manifest cannot authorize
-uploads, native final-artifact handoff or publication.
+uploads or publication.
 
 Selected package operations stage artifacts/checksums/evidence only in their owned
 workspace under `build/`, leaving `dist/` and complete-release evidence unchanged.
@@ -192,7 +192,7 @@ Per-target SDK smoke contract:
 - Run consumers and shipped CLI binaries when executable on the host or through an explicitly supported runner. Otherwise record compile/link proof and deferred runtime cases; this is local package readiness only. Required release runtime evidence must still pass through the declared native/runner gate; unsupported local execution cannot waive it.
 - For CLI binaries, run `--version` or the project equivalent when execution is supported.
 - Verify runtime paths after extraction.
-- For shipped Darwin artifacts, inspect install names, dependency paths, rpaths, and code-signature load-command presence with the discovered target-correct `otool`. Optional Darwin targets may be skipped before packaging when the toolchain is unavailable, but a mandatory target or required runtime gate cannot be skipped. A packaged Darwin artifact must not skip Mach-O metadata verification. Run Darwin smoke bundles when the required runtime/toolchain exists; required deferred native cases remain release blockers until proven.
+- For shipped Darwin artifacts, inspect install names, dependency paths, rpaths, and code-signature load-command presence with the discovered target-correct `otool`. Optional Darwin targets may be skipped before packaging when the toolchain is unavailable, but a mandatory target or explicitly required runtime gate cannot be skipped. A packaged Darwin artifact must not skip Mach-O metadata verification. Run Darwin smoke bundles when the required runtime/toolchain exists. GitHub macOS Actions tests its native build in the same run; its archives are diagnostics, not release assets or proof of executing the local osxcross bytes. Hosted execution of local archives is additional work only when explicitly requested, not an automatic deferred release blocker; see [github-actions.md](github-actions.md).
 
 Runtime path invariant:
 

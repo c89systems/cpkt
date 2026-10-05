@@ -71,9 +71,11 @@ and arm64 Darwin. Each release ships:
 
 `make release` starts clean and runs the complete owning repository's required
 gates. A candidate rehearsal cannot satisfy the tagged clean release. Native
-macOS verification uses the exact development commit through GitHub Actions;
-final producer archive bytes have a separate native verification lane. Trunk
-and release tags are pushed only after the verified release boundary.
+macOS verification builds and tests the exact development commit in one GitHub
+Actions run. Its archives are diagnostics only; release assets are built and
+published locally, with Darwin built through osxcross on Linux. A separate
+hosted check of local archive bytes is optional, not a release prerequisite.
+Trunk and release tags are pushed only after the verified release boundary.
 
 Shared dependency archives use
 `${CPKT_DEPENDENCY_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cpkt/deps}`;
