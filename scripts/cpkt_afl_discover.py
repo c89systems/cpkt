@@ -20,7 +20,8 @@ try:
     installed = cache/'roots'/('aflplusplus-'+version+'-x86_64-linux-gnu-'+collection)
     tools = {'afl_fuzz':installed/'bin/afl-fuzz','afl_showmap':installed/'bin/afl-showmap',
              'cc':installed/'bin/cpkt-afl-gcc','cxx':installed/'bin/cpkt-afl-g++'}
-    if (not all(os.access(path,os.X_OK) for path in tools.values())
+    internal = [installed/'bin'/name for name in ('afl-cc','afl-gcc-fast','afl-g++-fast')]
+    if (not all(os.access(path,os.X_OK) for path in [*tools.values(),*internal])
             or not (installed/('.cpkt-aflpp-revision-'+revision+'-'+collection)).is_file()
             or not (installed/'lib/afl/afl-gcc-pass.so').is_file()
             or not (installed/'lib/afl/afl-compiler-rt.o').is_file()):

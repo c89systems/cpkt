@@ -61,8 +61,10 @@ bootlin_value() {
 
 bootlin_description() {
   [[ -x "$toolchain_resolver" ]] || die "Bootlin resolver is missing: $toolchain_resolver"
-  "$toolchain_resolver" ensure x86_64-linux-gnu >/dev/null
-  "$toolchain_resolver" discover x86_64-linux-gnu
+  local description
+  description=$("$toolchain_resolver" discover x86_64-linux-gnu) || die 'unable to inspect pinned Bootlin collection'
+  [[ "$(bootlin_value status "$description")" = ready ]] || die "Bootlin collection is not ready; run: $toolchain_resolver ensure x86_64-linux-gnu"
+  printf '%s\n' "$description"
 }
 
 afl_ready() {
@@ -71,6 +73,9 @@ afl_ready() {
     [[ -x "$root/bin/afl-showmap" ]] &&
     [[ -x "$root/bin/cpkt-afl-gcc" ]] &&
     [[ -x "$root/bin/cpkt-afl-g++" ]] &&
+    [[ -x "$root/bin/afl-cc" ]] &&
+    [[ -x "$root/bin/afl-gcc-fast" ]] &&
+    [[ -x "$root/bin/afl-g++-fast" ]] &&
     [[ -f "$root/.cpkt-aflpp-revision-${build_revision}-${collection_id}" ]] &&
     [[ -f "$root/lib/afl/afl-gcc-pass.so" ]] &&
     [[ -f "$root/lib/afl/afl-compiler-rt.o" ]]
@@ -165,18 +170,35 @@ build_afl() {
   mv "$temporary" "$root"
 }
 
-ensure() {
-  local cache root description bootlin_root collection_id
+require_native_host() {
   [[ "$(uname -s)" = Linux ]] || die 'AFL++ GCC-plugin fuzzing is supported only on native Linux hosts'
   case "$(uname -m)" in
     x86_64|amd64) ;;
     *) die "AFL++ GCC-plugin fuzzing requires an x86_64 Linux host, got: $(uname -m)" ;;
   esac
-  cache=$(cache_root)
-  description=$(bootlin_description)
+}
+
+prepared_description() {
+  local description bootlin_root collection_id root
+  require_native_host
+  description=$(bootlin_description) || return "$?"
   bootlin_root=$(bootlin_value root "$description")
-  collection_id=$(bootlin_collection_id "$bootlin_root")
-  root=$(afl_root "$collection_id")
+  collection_id=$(bootlin_collection_id "$bootlin_root") || return "$?"
+  root=$(afl_root "$collection_id") || return "$?"
+  afl_ready "$root" "$collection_id" || die "pinned AFL++ collection is unavailable; run: $repo_root/scripts/cpkt-aflpp.sh ensure"
+  printf '%s\n' "$description"
+}
+
+ensure() {
+  local cache root description bootlin_root collection_id
+  require_native_host
+  [[ -x "$toolchain_resolver" ]] || die "Bootlin resolver is missing: $toolchain_resolver"
+  "$toolchain_resolver" ensure x86_64-linux-gnu >/dev/null
+  cache=$(cache_root)
+  description=$(bootlin_description) || return "$?"
+  bootlin_root=$(bootlin_value root "$description")
+  collection_id=$(bootlin_collection_id "$bootlin_root") || return "$?"
+  root=$(afl_root "$collection_id") || return "$?"
   afl_ready "$root" "$collection_id" && return
   with_cache_lock "$cache/locks/aflplusplus-${version}-x86_64-linux-gnu.lock" ensure_locked "$cache"
 }
@@ -185,12 +207,12 @@ ensure_locked() {
   local cache=$1 archive_root archive root description cc cxx bootlin_root collection_id extract source temporary
   archive_root="$cache/archives"
   archive="$archive_root/$archive_name"
-  description=$(bootlin_description)
+  description=$(bootlin_description) || return "$?"
   cc=$(bootlin_value cc "$description")
   cxx=$(bootlin_value cxx "$description")
   bootlin_root=$(bootlin_value root "$description")
-  collection_id=$(bootlin_collection_id "$bootlin_root")
-  root=$(afl_root "$collection_id")
+  collection_id=$(bootlin_collection_id "$bootlin_root") || return "$?"
+  root=$(afl_root "$collection_id") || return "$?"
   afl_ready "$root" "$collection_id" && return
   [[ -x "$cc" && -x "$cxx" && -d "$bootlin_root/include" ]] || die 'Bootlin GCC collection is incomplete for AFL++'
   download_archive "$archive_root" "$archive"
@@ -209,11 +231,10 @@ ensure_locked() {
 
 report() {
   local root description bootlin_root collection_id
-  ensure
-  description=$(bootlin_description)
+  description=$(prepared_description) || return "$?"
   bootlin_root=$(bootlin_value root "$description")
-  collection_id=$(bootlin_collection_id "$bootlin_root")
-  root=$(afl_root "$collection_id")
+  collection_id=$(bootlin_collection_id "$bootlin_root") || return "$?"
+  root=$(afl_root "$collection_id") || return "$?"
   printf 'version=%s\ncache=%s\nsource=aflplusplus\nroot=%s\n' "$version" "$(cache_root)" "$root"
   printf 'afl_fuzz=%s\nafl_showmap=%s\ncc=%s\ncxx=%s\nhelper=%s\n' \
     "$root/bin/afl-fuzz" "$root/bin/afl-showmap" "$root/bin/cpkt-afl-gcc" "$root/bin/cpkt-afl-g++" "$root/lib/afl"
@@ -221,11 +242,10 @@ report() {
 
 print_env() {
   local description root bootlin_cc bootlin_cxx bootlin_root collection_id
-  ensure
-  description=$(bootlin_description)
+  description=$(prepared_description) || return "$?"
   bootlin_root=$(bootlin_value root "$description")
-  collection_id=$(bootlin_collection_id "$bootlin_root")
-  root=$(afl_root "$collection_id")
+  collection_id=$(bootlin_collection_id "$bootlin_root") || return "$?"
+  root=$(afl_root "$collection_id") || return "$?"
   bootlin_cc=$(bootlin_value cc "$description")
   bootlin_cxx=$(bootlin_value cxx "$description")
   printf 'export AFL_PATH=%q\n' "$root/lib/afl"

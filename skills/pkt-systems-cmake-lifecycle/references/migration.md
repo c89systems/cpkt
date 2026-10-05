@@ -43,7 +43,12 @@ files inside fixture directories, script executable permissions and source-archi
 closure, including Memcheck suppression policy and nonempty fuzz seed corpora.
 Preserve auxiliary data files regardless of filename extension. Prove missing
 inputs fail before acquisition/compilation. Syntax checks
-alone cannot certify a moved pipeline.
+alone cannot certify a moved pipeline. Audit copied tool resolvers against the
+core-owned skill helpers: `discover`/`env` must remain read-only, only explicit
+`ensure` may provision, and callers must check the resolver status before `eval`.
+Test absent and partially prepared collections without creating caches, downloading
+or repairing tools, as well as complete existing collections and runner refusal
+after failed environment resolution.
 
 Use synthetic verified SDK fixtures for early import/scope regressions while the
 first core release is unpublished. Keep real prerequisite pins visibly unresolved

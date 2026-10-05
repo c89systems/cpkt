@@ -7,7 +7,8 @@ if [[ $# -ne 1 ]]; then
 fi
 
 source_dir=$1
-work_dir=$(mktemp -d)
+mkdir -p "$source_dir/build/fixtures"
+work_dir=$(mktemp -d "$source_dir/build/fixtures/afl-resolver.XXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 fake_repo="$work_dir/repo"
 fake_bin="$work_dir/bin"
@@ -30,8 +31,9 @@ grep -Fq 'afl_ready "$root" "$collection_id" && return' "$fake_repo/scripts/cpkt
 cat > "$fake_repo/scripts/cpkt-toolchains.sh" <<EOF
 #!/bin/sh
 case "\$1" in
-  ensure) exit 0 ;;
+  ensure) printf 'ensure\\n' >> "$work_dir/bootlin-calls"; exit 0 ;;
   discover)
+    printf 'status=%s\\n' "\${CPKT_TEST_BOOTLIN_STATUS:-ready}"
     printf 'cc=%s\\n' '$fake_bin/cc'
     printf 'cxx=%s\\n' '$fake_bin/cxx'
     printf 'root=%s\\n' '$bootlin_root'
@@ -72,6 +74,55 @@ exit 73
 EOF
 printf '#!/bin/sh\nexit 0\n' > "$fake_bin/cxx"
 chmod +x "$fake_bin/sha256sum" "$fake_bin/tar" "$fake_bin/make" "$fake_bin/cc" "$fake_bin/cxx"
+
+# Discovery and environment inspection fail without provisioning or downloads.
+cat > "$fake_bin/curl" <<EOF
+#!/bin/sh
+: > "$work_dir/download-called"
+exit 89
+EOF
+cp "$fake_bin/curl" "$fake_bin/wget"
+chmod +x "$fake_bin/curl" "$fake_bin/wget"
+missing_cache="$work_dir/missing-cache"
+for mode in discover env; do
+  if output=$(PATH="$fake_bin:$PATH" CPKT_TOOLCHAIN_CACHE="$missing_cache" "$fake_repo/scripts/cpkt-aflpp.sh" "$mode" 2>&1); then
+    printf 'AFL++ %s accepted missing tools\n' "$mode" >&2; exit 1
+  fi
+  case "$output" in *'cpkt-aflpp.sh ensure'*) ;; *) printf '%s\n' "$output" >&2; exit 1 ;; esac
+  if [[ -e "$missing_cache" || -e "$work_dir/bootlin-calls" || -e "$work_dir/download-called" ]]; then
+    printf 'AFL++ inspection provisioned tools\n' >&2; exit 1
+  fi
+  if output=$(PATH="$fake_bin:$PATH" CPKT_TEST_BOOTLIN_STATUS=missing CPKT_TOOLCHAIN_CACHE="$missing_cache" "$fake_repo/scripts/cpkt-aflpp.sh" "$mode" 2>&1); then
+    printf 'AFL++ %s accepted missing Bootlin\n' "$mode" >&2; exit 1
+  fi
+  case "$output" in *'cpkt-toolchains.sh ensure'*) ;; *) printf '%s\n' "$output" >&2; exit 1 ;; esac
+  case "$output" in
+    *'collection identity contains'*|*'pinned AFL++ collection is unavailable'*)
+      printf 'inspection continued after failed Bootlin discovery\n%s\n' "$output" >&2; exit 1 ;;
+  esac
+  [[ ! -e "$missing_cache" && ! -e "$work_dir/bootlin-calls" && ! -e "$work_dir/download-called" ]]
+done
+prepared="$missing_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-v1"
+mkdir -p "$prepared/bin" "$prepared/lib/afl"
+for executable in afl-fuzz afl-showmap cpkt-afl-gcc cpkt-afl-g++ afl-cc afl-gcc-fast afl-g++-fast; do
+  printf '#!/bin/sh\nexit 0\n' > "$prepared/bin/$executable"
+  chmod +x "$prepared/bin/$executable"
+done
+touch "$prepared/.cpkt-aflpp-revision-1-bootlin-v1" "$prepared/lib/afl/afl-gcc-pass.so" "$prepared/lib/afl/afl-compiler-rt.o"
+for mode in discover env; do
+  output=$(PATH="$fake_bin:$PATH" CPKT_TOOLCHAIN_CACHE="$missing_cache" "$fake_repo/scripts/cpkt-aflpp.sh" "$mode")
+  case "$output" in *"$prepared"*) ;; *) printf 'inspection selected wrong collection\n' >&2; exit 1 ;; esac
+done
+for required in bin/afl-fuzz bin/afl-showmap bin/cpkt-afl-gcc bin/cpkt-afl-g++ bin/afl-cc bin/afl-gcc-fast bin/afl-g++-fast lib/afl/afl-gcc-pass.so lib/afl/afl-compiler-rt.o .cpkt-aflpp-revision-1-bootlin-v1; do
+  mv "$prepared/$required" "$work_dir/removed-tool"
+  for mode in discover env; do
+    if PATH="$fake_bin:$PATH" CPKT_TOOLCHAIN_CACHE="$missing_cache" "$fake_repo/scripts/cpkt-aflpp.sh" "$mode" >/dev/null 2>&1; then
+      printf 'inspection accepted incomplete collection: %s\n' "$required" >&2; exit 1
+    fi
+  done
+  mv "$work_dir/removed-tool" "$prepared/$required"
+done
+[[ ! -e "$work_dir/bootlin-calls" && ! -e "$work_dir/download-called" ]]
 
 old_root="$cache_root/roots/aflplusplus-5.02c-x86_64-linux-gnu"
 mkdir -p "$old_root/bin" "$old_root/lib/afl"

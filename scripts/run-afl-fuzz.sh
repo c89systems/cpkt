@@ -29,7 +29,8 @@ esac
 [ -x "$target" ] || { printf 'AFL++ target is not executable: %s\n' "$target" >&2; exit 1; }
 [ -d "$seed_dir" ] || { printf 'AFL++ seed directory is missing: %s\n' "$seed_dir" >&2; exit 1; }
 
-eval "$("$repo_root/scripts/cpkt-aflpp.sh" env)"
+resolved_aflpp_env=$("$repo_root/scripts/cpkt-aflpp.sh" env) || exit "$?"
+eval "$resolved_aflpp_env"
 output_dir=$(mktemp -d "${target}.afl-output.XXXXXX")
 cleanup_output_dir() {
   local status=$?

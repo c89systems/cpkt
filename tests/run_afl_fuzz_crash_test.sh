@@ -7,7 +7,8 @@ if [[ $# -ne 1 ]]; then
 fi
 
 source_dir=$1
-work_dir=$(mktemp -d)
+mkdir -p "$source_dir/build/fixtures"
+work_dir=$(mktemp -d "$source_dir/build/fixtures/afl-runner.XXXXXXXX")
 trap 'rm -rf "$work_dir"' EXIT HUP INT TERM
 fake_repo="$work_dir/repo"
 fake_afl_root="$work_dir/afl"
@@ -18,12 +19,14 @@ cp "$source_dir/scripts/require-native-hardening-host.sh" "$fake_repo/scripts/re
 cat > "$fake_repo/scripts/cpkt-aflpp.sh" <<EOF
 #!/usr/bin/env bash
 printf 'export CPKT_AFLPP_ROOT=%q\n' '$fake_afl_root'
+if [[ \${CPKT_FAKE_ENV_FAILURE:-0} = 1 ]]; then exit 73; fi
 EOF
 chmod +x "$fake_repo/scripts/cpkt-aflpp.sh"
 
 cat > "$fake_afl_root/bin/afl-fuzz" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ -n ${CPKT_FAKE_AFL_STARTED:-} ]]; then : > "$CPKT_FAKE_AFL_STARTED"; fi
 output_dir=
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -95,5 +98,16 @@ fi
 
 if ! find "$work_dir" -type f -path '*/hangs/id:*' -print -quit | grep -q .; then
   printf 'AFL++ hang gate removed the recorded hanging input\n' >&2
+  exit 1
+fi
+
+# A failed resolver can print valid exports; the runner must preserve its exit
+# rather than eval those exports and start a fuzzer with stale/incomplete tools.
+set +e
+CPKT_FAKE_ENV_FAILURE=1 CPKT_FAKE_AFL_FINDING_KIND=none CPKT_FAKE_AFL_STARTED="$work_dir/fuzzer-started" PATH="$work_dir/bin:$PATH" bash "$fake_repo/scripts/run-afl-fuzz.sh" smoke "$work_dir/fuzz-target" "$work_dir/seeds"
+resolver_status=$?
+set -e
+if [[ "$resolver_status" != 73 || -e "$work_dir/fuzzer-started" ]]; then
+  printf 'AFL++ runner did not preserve failed discovery before execution\n' >&2
   exit 1
 fi
