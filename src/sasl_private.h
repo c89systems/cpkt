@@ -46,7 +46,10 @@ __attribute__((visibility("hidden"))) void *
 cpkt_sasl_global_option_application_context(int is_server);
 __attribute__((visibility("hidden"))) void
 cpkt_sasl_plugin_utils_set_global_option_context(const sasl_utils_t *native,
-                                                 void *context);
+                                                 int is_server, void *context);
+__attribute__((visibility("hidden"))) void
+cpkt_sasl_plugin_utils_update_global_context(int is_server, void *context,
+                                             int select_shared);
 __attribute__((visibility("hidden"))) int
 cpkt_sasl_connection_set_text(cpkt_sasl *self, int property, const char *value);
 __attribute__((visibility("hidden"))) int

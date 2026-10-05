@@ -2338,6 +2338,24 @@
       "source_inputs": [
         "tests/lua_runtime_contract_test.c"
       ]
+    },
+    "cpkt_sasl_plugin_roundtrip_static_test": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [],
+      "source_inputs": [
+        "tests/sasl_plugin_roundtrip_test.c"
+      ]
+    },
+    "cpkt_sasl_plugin_roundtrip_shared_test": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [],
+      "source_inputs": [
+        "tests/sasl_plugin_roundtrip_test.c"
+      ]
     }
   },
   "tests": {
@@ -5320,6 +5338,70 @@
         }
       ],
       "target_sensitive": true
+    },
+    "sasl_plugin_roundtrip_static_global_options": {
+      "group": "core",
+      "command_inputs": [],
+      "execution": "runtime",
+      "requires": [],
+      "registrations": [
+        {
+          "name": "sasl_plugin_roundtrip_static_global_options",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "sasl_plugin_roundtrip_static_security_callbacks": {
+      "group": "core",
+      "command_inputs": [],
+      "execution": "runtime",
+      "requires": [],
+      "registrations": [
+        {
+          "name": "sasl_plugin_roundtrip_static_security_callbacks",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "sasl_plugin_roundtrip_shared_global_options": {
+      "group": "core",
+      "command_inputs": [],
+      "execution": "runtime",
+      "requires": [],
+      "registrations": [
+        {
+          "name": "sasl_plugin_roundtrip_shared_global_options",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "sasl_plugin_roundtrip_shared_security_callbacks": {
+      "group": "core",
+      "command_inputs": [],
+      "execution": "runtime",
+      "requires": [],
+      "registrations": [
+        {
+          "name": "sasl_plugin_roundtrip_shared_security_callbacks",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ],
+      "target_sensitive": false
     }
   },
   "tooling": {

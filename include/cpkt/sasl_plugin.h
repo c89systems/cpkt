@@ -85,6 +85,9 @@ void cpkt_sasl_hmac_md5_import(cpkt_sasl_hmac_md5_context *context,
 /** Utility slots take the record as their first argument. The table identity
  * is stable for its native lifetime. option_context is the configured option
  * callback's application context when one exists; otherwise it is NULL.
+ * Mechanism factories use their client/server role's context. Auxiliary and
+ * canonicalizer factories share the most recently initialized role's context;
+ * retained shared tables follow later role initialization and shutdown.
  * Call option() for native configuration fallback. get_callbacks returns the
  * actual selected callback and context, or the provider's no-handler status. */
 struct cpkt_sasl_plugin_utils {
@@ -208,7 +211,9 @@ struct cpkt_sasl_plugin_utils {
 };
 
 /** Mutable output fields from a mechanism; the facade converts each field
- * and retains callback bridges until the connection is disposed. */
+ * and retains callback bridges until the connection is disposed. Subsequent
+ * steps receive the original facade callbacks and application contexts; each
+ * callback may be changed independently without replacing the other. */
 struct cpkt_sasl_plugin_output {
   unsigned long done;
   const char *user;

@@ -1170,8 +1170,12 @@ int cpkt_sasl_client_initialize(const cpkt_sasl_callbacks *callbacks) {
                                     cpkt_sasl_client_callbacks.references != 0
                                 ? NULL
                                 : cpkt_sasl_client_callbacks.native);
-  if (status == SASL_OK)
+  if (status == SASL_OK) {
+    if (cpkt_sasl_client_callbacks.references == 0)
+      cpkt_sasl_plugin_utils_update_global_context(
+          0, cpkt_sasl_global_option_application_context(0), 1);
     ++cpkt_sasl_client_callbacks.references;
+  }
   return status;
 }
 
@@ -1192,8 +1196,12 @@ int cpkt_sasl_server_initialize(const cpkt_sasl_callbacks *callbacks,
                                 ? NULL
                                 : cpkt_sasl_server_callbacks.native,
                             application_name);
-  if (status == SASL_OK)
+  if (status == SASL_OK) {
+    if (cpkt_sasl_server_callbacks.references == 0)
+      cpkt_sasl_plugin_utils_update_global_context(
+          1, cpkt_sasl_global_option_application_context(1), 1);
     ++cpkt_sasl_server_callbacks.references;
+  }
   return status;
 }
 
@@ -1207,6 +1215,13 @@ int cpkt_sasl_client_finish(void) {
     --cpkt_sasl_client_callbacks.references;
   if (status == SASL_OK && cpkt_sasl_client_callbacks.references == 0)
     cpkt_sasl_client_plugins_cleanup();
+  if (status == SASL_OK && cpkt_sasl_client_callbacks.references == 0) {
+    /* Shared Cyrus utilities can retain this role's native callback record.
+     * Retire the application callbacks at their documented finish boundary. */
+    memset(&cpkt_sasl_client_callbacks.callback_owner.callbacks, 0,
+           sizeof(cpkt_sasl_client_callbacks.callback_owner.callbacks));
+    cpkt_sasl_plugin_utils_update_global_context(0, NULL, 0);
+  }
   if (status == SASL_OK && cpkt_sasl_client_callbacks.references == 0 &&
       cpkt_sasl_server_callbacks.references == 0)
     cpkt_sasl_canonicalizers_cleanup();
@@ -1225,6 +1240,13 @@ int cpkt_sasl_server_finish(void) {
     --cpkt_sasl_server_callbacks.references;
   if (status == SASL_OK && cpkt_sasl_server_callbacks.references == 0)
     cpkt_sasl_auxiliary_plugins_cleanup();
+  if (status == SASL_OK && cpkt_sasl_server_callbacks.references == 0) {
+    /* Shared Cyrus utilities can retain this role's native callback record.
+     * Retire the application callbacks at their documented finish boundary. */
+    memset(&cpkt_sasl_server_callbacks.callback_owner.callbacks, 0,
+           sizeof(cpkt_sasl_server_callbacks.callback_owner.callbacks));
+    cpkt_sasl_plugin_utils_update_global_context(1, NULL, 0);
+  }
   if (status == SASL_OK && cpkt_sasl_server_callbacks.references == 0)
     cpkt_sasl_server_plugins_cleanup();
   if (status == SASL_OK && cpkt_sasl_client_callbacks.references == 0 &&
@@ -1245,10 +1267,12 @@ void cpkt_sasl_finish_all(void) {
   if (cpkt_sasl_server_callbacks.references != 0)
     --cpkt_sasl_server_callbacks.references;
   if (cpkt_sasl_client_callbacks.references == 0) {
+    cpkt_sasl_plugin_utils_update_global_context(0, NULL, 0);
     cpkt_sasl_client_plugins_cleanup();
     memset(&cpkt_sasl_client_callbacks, 0, sizeof(cpkt_sasl_client_callbacks));
   }
   if (cpkt_sasl_server_callbacks.references == 0) {
+    cpkt_sasl_plugin_utils_update_global_context(1, NULL, 0);
     cpkt_sasl_auxiliary_plugins_cleanup();
     cpkt_sasl_server_plugins_cleanup();
     memset(&cpkt_sasl_server_callbacks, 0, sizeof(cpkt_sasl_server_callbacks));

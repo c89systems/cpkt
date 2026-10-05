@@ -46,7 +46,7 @@ typedef struct cpkt_sasl_selected_callback {
 typedef struct cpkt_sasl_utils_entry {
   const sasl_utils_t *native;
   sasl_conn_t *connection;
-  void *global_option_context;
+  int option_role;
   cpkt_sasl_plugin_utils public_utils;
   cpkt_sasl_selected_callback selected[17];
   struct cpkt_sasl_utils_entry *next;
@@ -54,6 +54,31 @@ typedef struct cpkt_sasl_utils_entry {
 
 static pthread_mutex_t cpkt_sasl_utils_lock = PTHREAD_MUTEX_INITIALIZER;
 static cpkt_sasl_utils_entry *cpkt_sasl_utils_entries;
+static void *cpkt_sasl_global_option_contexts[2];
+static int cpkt_sasl_shared_option_role = -1;
+
+static void *cpkt_sasl_utils_option_context(int role) {
+  if (role < 0)
+    role = cpkt_sasl_shared_option_role;
+  return role < 0 ? NULL : cpkt_sasl_global_option_contexts[role];
+}
+
+/** Cyrus auxiliary and canonicalizer utilities share the last initialized
+ * role's global options; mechanism utilities retain their own role. */
+void cpkt_sasl_plugin_utils_update_global_context(int is_server, void *context,
+                                                  int select_shared) {
+  cpkt_sasl_utils_entry *entry;
+  (void)pthread_mutex_lock(&cpkt_sasl_utils_lock);
+  cpkt_sasl_global_option_contexts[is_server] = context;
+  if (select_shared)
+    cpkt_sasl_shared_option_role = is_server;
+  for (entry = cpkt_sasl_utils_entries; entry != NULL; entry = entry->next) {
+    if (entry->connection == NULL)
+      entry->public_utils.option_context =
+          cpkt_sasl_utils_option_context(entry->option_role);
+  }
+  (void)pthread_mutex_unlock(&cpkt_sasl_utils_lock);
+}
 
 cpkt_sasl_plugin_utils *
 cpkt_sasl_plugin_utils_for_native(const sasl_utils_t *native) {
@@ -69,6 +94,7 @@ cpkt_sasl_plugin_utils_for_native(const sasl_utils_t *native) {
     entry = (cpkt_sasl_utils_entry *)calloc(1, sizeof(*entry));
     if (entry != NULL) {
       entry->native = native;
+      entry->option_role = -1;
       entry->connection = native->conn;
       cpkt_sasl_plugin_utils_initialize(&entry->public_utils, native);
       entry->next = cpkt_sasl_utils_entries;
@@ -79,7 +105,8 @@ cpkt_sasl_plugin_utils_for_native(const sasl_utils_t *native) {
     cpkt_sasl_plugin_utils_initialize(&entry->public_utils, native);
   }
   if (entry != NULL && native->conn == NULL)
-    entry->public_utils.option_context = entry->global_option_context;
+    entry->public_utils.option_context =
+        cpkt_sasl_utils_option_context(entry->option_role);
   (void)pthread_mutex_unlock(&cpkt_sasl_utils_lock);
   return entry == NULL ? NULL : &entry->public_utils;
 }
@@ -87,12 +114,13 @@ cpkt_sasl_plugin_utils_for_native(const sasl_utils_t *native) {
 /** Retains the application option context on the persistent native utility
  * table before a client or server plugin initializer receives it. */
 void cpkt_sasl_plugin_utils_set_global_option_context(
-    const sasl_utils_t *native, void *context) {
+    const sasl_utils_t *native, int is_server, void *context) {
   cpkt_sasl_utils_entry *entry;
   (void)pthread_mutex_lock(&cpkt_sasl_utils_lock);
   for (entry = cpkt_sasl_utils_entries; entry != NULL; entry = entry->next) {
     if (entry->native == native && entry->connection == NULL) {
-      entry->global_option_context = context;
+      entry->option_role = is_server;
+      cpkt_sasl_global_option_contexts[is_server] = context;
       entry->public_utils.option_context = context;
       break;
     }
@@ -126,6 +154,9 @@ void cpkt_sasl_plugin_utils_cleanup(void) {
   (void)pthread_mutex_lock(&cpkt_sasl_utils_lock);
   entry = cpkt_sasl_utils_entries;
   cpkt_sasl_utils_entries = NULL;
+  cpkt_sasl_global_option_contexts[0] = NULL;
+  cpkt_sasl_global_option_contexts[1] = NULL;
+  cpkt_sasl_shared_option_role = -1;
   (void)pthread_mutex_unlock(&cpkt_sasl_utils_lock);
   while (entry != NULL) {
     next = entry->next;

@@ -1250,6 +1250,25 @@ if(CPKT_BUILD_TESTS)
         cpkt_lua_runtime_static
         cpkt::cmocka
       )
+  foreach(_cpkt_sasl_roundtrip_linkage IN ITEMS static shared)
+    cpkt_group_add_executable(cpkt_sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_test
+          tests/sasl_plugin_roundtrip_test.c)
+    cpkt_configure_c89_target(cpkt_sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_test)
+    cpkt_add_repo_warning_errors(cpkt_sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_test)
+    cpkt_group_use_local_runtime(cpkt_sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_test)
+    cpkt_group_target_command(target_link_libraries
+          cpkt_sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_test PRIVATE
+          cpkt_sasl_${_cpkt_sasl_roundtrip_linkage})
+    if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
+      foreach(_cpkt_sasl_roundtrip_case IN ITEMS global_options security_callbacks)
+        cpkt_group_add_test(NAME sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_${_cpkt_sasl_roundtrip_case}
+              COMMAND cpkt_sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_test
+                ${_cpkt_sasl_roundtrip_case})
+        cpkt_group_set_tests_properties(sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_${_cpkt_sasl_roundtrip_case}
+              PROPERTIES LABELS "facade;memcheck" TIMEOUT 30)
+      endforeach()
+    endif()
+  endforeach()
   foreach(_cpkt_lua_policy_linkage IN ITEMS static shared)
     cpkt_group_add_executable(cpkt_lua_runtime_contract_${_cpkt_lua_policy_linkage}_test
           tests/lua_runtime_contract_test.c)

@@ -34,6 +34,12 @@ void cpkt_sasl_plugin_utils_forget_connection(sasl_conn_t *native) {
   (void)native;
 }
 void cpkt_sasl_plugin_utils_cleanup(void) {}
+void cpkt_sasl_plugin_utils_update_global_context(int is_server, void *context,
+                                                  int select_shared) {
+  (void)is_server;
+  (void)context;
+  (void)select_shared;
+}
 
 typedef union mock_callback_bridge {
   int (*generic)(void);

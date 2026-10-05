@@ -106,31 +106,6 @@ static int cpkt_sasl_plugin_native_decode(cpkt_sasl_plugin_output *self,
   return status;
 }
 
-/** C89 facade contract for cpkt_sasl_plugin_output_from_native; see the public
- * header for ownership and callback lifetime. */
-void cpkt_sasl_plugin_output_from_native(cpkt_sasl_plugin_output *out,
-                                         sasl_out_params_t *native) {
-  memset(out, 0, sizeof(*out));
-  out->done = native->doneflag;
-  out->user = native->user;
-  out->authentication_identity = native->authid;
-  out->user_length = native->ulen;
-  out->authentication_length = native->alen;
-  out->maximum_output_bytes = native->maxoutbuf;
-  out->mechanism_ssf = native->mech_ssf;
-  out->encode_context = native->encode_context;
-  out->encode = native->encode == NULL ? NULL : cpkt_sasl_plugin_native_encode;
-  out->decode_context = native->decode_context;
-  out->decode = native->decode == NULL ? NULL : cpkt_sasl_plugin_native_decode;
-  out->client_credentials = native->client_creds;
-  out->gss_peer_name = (const cpkt_gss_name *)native->gss_peer_name;
-  out->gss_local_name = (const cpkt_gss_name *)native->gss_local_name;
-  out->channel_binding_name = native->cbindingname;
-  out->channel_binding_disposition = native->cbindingdisp;
-  out->parameter_version = native->param_version;
-  out->internal = native;
-}
-
 static int cpkt_sasl_plugin_public_encode(void *context,
                                           const struct iovec *native_iov,
                                           unsigned count, const char **output,
@@ -178,6 +153,47 @@ static int cpkt_sasl_plugin_public_decode(void *context, const char *input,
   if (output_length != NULL)
     *output_length = (unsigned)length;
   return status;
+}
+
+/** C89 facade contract for cpkt_sasl_plugin_output_from_native; see the public
+ * header for ownership and callback lifetime. */
+void cpkt_sasl_plugin_output_from_native(cpkt_sasl_plugin_output *out,
+                                         sasl_out_params_t *native) {
+  memset(out, 0, sizeof(*out));
+  out->done = native->doneflag;
+  out->user = native->user;
+  out->authentication_identity = native->authid;
+  out->user_length = native->ulen;
+  out->authentication_length = native->alen;
+  out->maximum_output_bytes = native->maxoutbuf;
+  out->mechanism_ssf = native->mech_ssf;
+  out->encode_context = native->encode_context;
+  out->encode = native->encode == NULL ? NULL : cpkt_sasl_plugin_native_encode;
+  out->decode_context = native->decode_context;
+  out->decode = native->decode == NULL ? NULL : cpkt_sasl_plugin_native_decode;
+  /* Recover facade callbacks rather than wrapping our own bridges. Each
+   * mechanism step may replace one callback while retaining the other. */
+  if (native->encode == cpkt_sasl_plugin_public_encode &&
+      native->encode_context != NULL) {
+    cpkt_sasl_plugin_output_bridge *bridge =
+        (cpkt_sasl_plugin_output_bridge *)native->encode_context;
+    out->encode = bridge->public_output.encode;
+    out->encode_context = bridge->public_output.encode_context;
+  }
+  if (native->decode == cpkt_sasl_plugin_public_decode &&
+      native->decode_context != NULL) {
+    cpkt_sasl_plugin_output_bridge *bridge =
+        (cpkt_sasl_plugin_output_bridge *)native->decode_context;
+    out->decode = bridge->public_output.decode;
+    out->decode_context = bridge->public_output.decode_context;
+  }
+  out->client_credentials = native->client_creds;
+  out->gss_peer_name = (const cpkt_gss_name *)native->gss_peer_name;
+  out->gss_local_name = (const cpkt_gss_name *)native->gss_local_name;
+  out->channel_binding_name = native->cbindingname;
+  out->channel_binding_disposition = native->cbindingdisp;
+  out->parameter_version = native->param_version;
+  out->internal = native;
 }
 
 /** C89 facade contract for cpkt_sasl_plugin_output_to_native; see the public

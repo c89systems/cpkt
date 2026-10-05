@@ -294,7 +294,7 @@ static int cpkt_sasl_server_init_native(const sasl_utils_t *native_utils,
   if (utils == NULL)
     return SASL_NOMEM;
   cpkt_sasl_plugin_utils_set_global_option_context(
-      native_utils, cpkt_sasl_global_option_application_context(1));
+      native_utils, 1, cpkt_sasl_global_option_application_context(1));
   status = pending->initialize(pending->context, utils, max_version,
                                version_out, &public_plugins, &count);
   if (status != SASL_OK && status != SASL_CONTINUE && status != SASL_NOUSER)

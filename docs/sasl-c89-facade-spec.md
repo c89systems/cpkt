@@ -106,7 +106,16 @@ pointer is borrowed and is null during global plugin initialization. Global
 utility tables remain valid through `mech_free`; per-connection tables remain
 valid through connection disposal. `get_callbacks` reports the actual native
 selection, adapting native default handlers and preserving facade callback
-contexts. `option_context` contains the configured application's context when
+contexts. Mechanism utility tables retain their client/server role's global
+option context. Auxiliary-property and canonicalizer tables share Cyrus's most
+recently initialized role; retained shared tables follow later role initialization
+and clear the application context when that role finishes. The facade also
+retires that role's application callbacks, so shared utility dispatch never
+calls an application whose initialization reference has expired. Repeated initialization
+of an already active role only increments its reference count and does not replace
+the global callback or change the shared role.
+
+`option_context` contains the configured application's context when
 available, and is null for provider-only option dispatch. The receiver's
 `get_option_context` chooses its local option callback context, then its global
 callback context, and returns null if neither exists. The option callback
@@ -151,3 +160,13 @@ When `start` or `step` returns `CPKT_SASL_INTERACT`, the caller fills the
 borrowed interaction records and calls that same operation again with the
 same interaction pointer. The facade forwards the completed records to Cyrus
 SASL; they remain invalid after the next operation or receiver close.
+
+### Security callback round trips
+
+Each mechanism step receives its previously installed facade encode/decode
+callbacks and their application contexts. A step can replace one callback while
+retaining the other, or leave both unchanged. The facade retains the bridges until
+connection disposal and does not wrap its own callbacks as native callbacks.
+Static and shared public API regressions cover independent updates, unchanged
+steps, native engine encode/decode, both global initialization orders, absent
+option callbacks, repeated references, retained utility tables, and shutdown.
