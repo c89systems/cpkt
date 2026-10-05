@@ -91,7 +91,12 @@ through `xcrun` where appropriate, rather than Linux osxcross wrappers.
 Select compilers, SDK and inspection tools before producer configuration and use
 the same discovery for extracted-SDK consumers. System compiler dispatchers and
 the selected Xcode compiler can have different paths; do not mix those selection
-routes or weaken mismatch checks to conceal a real toolchain change. Record
+routes or weaken mismatch checks to conceal a real toolchain change. Propagate
+the selected SDK to external builds too: CMake subprojects receive
+`CMAKE_OSX_SYSROOT`, while direct C/C++ and Make/Autotools invocations receive
+the selected SDK through `-isysroot` and `SDKROOT`. Preserve SDK paths containing
+spaces as one argument and verify these routes independently of CMake's own
+compiler probes. Record
 OS/architecture, runner image, compiler/Xcode/SDK, deployment target, dependency
 pins, and configured job limit. Keep the existing build-system parallelism;
 a larger host does not authorize increasing it. Serialize operational commands
