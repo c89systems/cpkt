@@ -1,5 +1,41 @@
 # Operability, Layout, And Command Surfaces
 
+## Tool ownership and simplicity
+
+Use the simplest implementation that satisfies the project's observable contracts.
+Build logic must be easy to follow and maintain. Prefer established tool features
+and a direct command flow over frameworks, nested dispatchers, redundant wrappers
+or multiple competing descriptions of the same build graph.
+
+- **Make:** expose the public target vocabulary, simple prerequisites and short
+  recipe commands. Keep variables and conditionals straightforward. Do not embed
+  elaborate Bash programs, long quoted one-liners, nested loops, traps, heredocs
+  or chains of `eval`/`$(shell ...)` in Makefiles. Move procedural work to Bash;
+  avoiding Python must not make Makefiles complicated.
+- **Bash:** handle procedural workflows, argument validation, command sequencing,
+  target-matrix iteration, environment setup and cleanup. Use readable statements,
+  arrays and small functions. A Make recipe should normally invoke an existing
+  tool or a focused Bash script; avoid wrapper chains that only forward arguments.
+- **CMake/CTest:** own configuration, compiler/toolchain selection, targets,
+  dependency edges, generated outputs, incremental rebuild decisions, test
+  registration/execution and installation. Use CMake scripts for suitable build
+  and package operations. Invoke the configured build tool through CMake rather
+  than duplicating its graph or freshness logic in another language.
+
+Python3 is an exception, not the default build language. Before introducing or
+expanding a Python helper, document its specific task and why the existing
+Make/Bash/CMake or standard tools cannot handle it clearly and reliably. A
+complex schema generator or structured binary/archive validation may justify
+Python; routine subprocess sequencing, simple hashing, a JSON file or preference
+for Python does not by itself justify it. Keep justified helpers focused, with
+clear inputs, outputs and failure behavior. They must not become a replacement
+build system, lifecycle command dispatcher or release orchestrator.
+
+Apply this boundary when bootstrapping or changing lifecycle logic. For an
+existing implementation, identify overlapping ownership and remove it within an
+authorized refactor; do not silently turn an unrelated task into a whole-pipeline
+rewrite. Verify preserved build, reuse, cleanup and release behavior at cutover.
+
 ## Agent Operability Contract
 
 This lifecycle exists to make C/CMake repositories human-operable and agent-operable through the same local commands. The operating loop is:
@@ -347,7 +383,7 @@ Conditional standard targets, required when the surface exists:
 Make rules:
 
 - `make help` must list every root target intended for humans or agents, including required opt-in environment variables for integration, live, service, and package-manager targets.
-- Release orchestration belongs to Make. CMake is invoked by Make as a build, test, install, and package-configuration surface; do not expose CMake presets or CMake scripts as the public release pipeline or as substitutes for `make release`.
+- Make exposes the release entrypoint and simple target relationships; readable Bash scripts perform procedural release orchestration. CMake supplies build, test, install and package operations. Keep recipes short under [Tool ownership and simplicity](#tool-ownership-and-simplicity); do not move complex scripting into Make or replace this division with a Python orchestrator. The final public gate remains `make release`.
 - `make format` formats project-owned C, headers, examples, tests, and generated single-header inputs with clang-format using the checked-in `.clang-format`.
 - `make format-check` is a read-only formatting assertion; run it after the last edit and before committing.
 - `make print-release-version` prints exactly the version that packaging/release targets will use.
@@ -408,4 +444,4 @@ Script safety contract:
 - Scripts that delete or recreate a directory must refuse empty paths, `/`, the repository root, parent directories, home directories, and any path outside the expected generated-state root.
 - Never remove source-controlled files, parent directories, home directories, or arbitrary user-provided paths.
 - Print actionable errors with the failed surface, phase, and next step. Use the structured diagnostic block for important lifecycle failures.
-- Keep long orchestration in scripts and expose it through Make targets.
+- Keep procedural orchestration in readable Bash scripts exposed through short Make recipes. Keep CMake build rules in CMake, and justify any focused Python exception under [Tool ownership and simplicity](#tool-ownership-and-simplicity).

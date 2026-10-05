@@ -2,6 +2,14 @@
 
 ## Applicability and authority
 
+Implement isolation and reuse with simple Make entrypoints, readable Bash
+workflows and CMake's existing target/dependency/incremental-build facilities.
+The identities and evidence described below are verification contracts, not a
+requirement to build a custom scheduler, Python lifecycle dispatcher or parallel
+build framework. Avoid duplicating CMake's graph or rebuild logic. Keep any
+additional package identity checks focused and justify Python exceptions under
+[operability.md](operability.md#tool-ownership-and-simplicity).
+
 Use this reference when a project declares independently selectable build/test
 groups, distributes composable SDK packages, or changes dependency producer or
 verification reuse. These are separate capabilities: producer reuse also applies
