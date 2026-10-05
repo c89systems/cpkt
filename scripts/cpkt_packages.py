@@ -218,7 +218,10 @@ def metadata(prefix, directory, configured, data, group):
     cmake_names,pc_names,_=package_inventory(data,group)
     variables=dict(configured,_stage_root=str(prefix),CPKT_SOURCE_DIR=str(ROOT),CPKT_METADATA_CMAKE=';'.join(cmake_names),CPKT_METADATA_PC=';'.join(pc_names),CPKT_TARGET_ID=configured['CPKT_TARGET_ID'])
     script=directory/'package-metadata-input.cmake'
-    script.write_text('cmake_minimum_required(VERSION 3.21)\n'+''.join('set('+k+' [==['+v+']==])\n' for k,v in variables.items() if not k.startswith('_CMAKE'))+'include("'+str(ROOT/'cmake/package_metadata.cmake')+'")\n')
+    # Parent diagnostic controls are not package inputs. Replaying their normal
+    # values changes child diagnostics and triggers CMP0218 on CMake 4.4+.
+    diagnostics={'CMAKE_WARN_DEPRECATED','CMAKE_ERROR_DEPRECATED'}
+    script.write_text('cmake_minimum_required(VERSION 3.21)\n'+''.join('set('+k+' [==['+v+']==])\n' for k,v in variables.items() if not k.startswith('_CMAKE') and k not in diagnostics)+'include("'+str(ROOT/'cmake/package_metadata.cmake')+'")\n')
     command(['cmake','-P',script],group=group)
     # Shared cmocka and its facade have distinct installed discovery names.
     if group=='core':

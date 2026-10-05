@@ -64,6 +64,77 @@ class Fixtures(unittest.TestCase):
             manifest=dict(manifest);manifest.pop('package_id',None);manifest['package_id']=digest(encoded(manifest))
         path=prefix/'share/cpkt/packages'/f'{group}.json';path.parent.mkdir(exist_ok=True);path.write_bytes(encoded(manifest));path.chmod(0o644);return manifest
 
+    def test_native_producer_and_consumer_share_selected_tools(self):
+        import cpkt_sdk_consumer as consumer
+        from cpkt_inventory import REPOSITORY_GROUP
+        spec=importlib.util.spec_from_file_location('native_backend',ROOT/'scripts/group-build.py')
+        backend=importlib.util.module_from_spec(spec);spec.loader.exec_module(backend)
+        root=self.work/'native-source';(root/'cmake').mkdir(parents=True)
+        for name in ('CMakeLists.txt','CMakePresets.json','cmake/components.json'):
+            shutil.copy2(ROOT/name,root/name)
+        tools=root/'selected Xcode';tools.mkdir()
+        sdk=tools/'MacOSX.sdk';sdk.mkdir()
+        for name in ('clang','clang++','nm','ar','otool'):(tools/name).write_bytes(b'selected tool')
+        def discover(args,**kwargs):
+            if args==['xcrun','--show-sdk-path']:return str(sdk)+'\n'
+            self.assertEqual(args[:2],['xcrun','--find'])
+            return str(tools/args[2])+'\n'
+        def backend_command(args,*context):return discover(args)
+        preset='arm64-apple-darwin-native';target='arm64-apple-darwin'
+        directory=root/'build'/target/REPOSITORY_GROUP/'Release';directory.mkdir(parents=True)
+        with patch.object(backend,'ROOT',root),patch.object(consumer,'ROOT',root),\
+             patch.object(consumer.sys,'platform','darwin'),\
+             patch.object(consumer,'command',side_effect=discover),\
+             patch.object(backend,'command',side_effect=backend_command),\
+             patch.dict(os.environ,{'CPKT_DEPENDENCY_BUILD_JOBS':'2'}):
+            selected=consumer.configuration(target,preset)
+            keys=('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR',
+                  'CMAKE_OTOOL','CMAKE_OSX_SYSROOT')
+            for producer in (False,True):
+                args=backend.configure_command(preset,REPOSITORY_GROUP,directory,producer)
+                actual={arg[2:].split(':',1)[0]:arg.split('=',1)[1]
+                        for arg in map(str,args) if arg.startswith('-D') and '=' in arg}
+                self.assertEqual({key:selected[key] for key in keys},
+                                 {key:actual[key] for key in keys})
+            item,_,_=backend.preset_info(preset)
+            values={key:backend.preset_cache_value(value,preset)
+                    for key,value in item['cacheVariables'].items()}
+            values.update(backend.producer_flags(preset,REPOSITORY_GROUP))
+            values.update({key:selected[key] for key in keys})
+            def write(values):
+                (directory/'CMakeCache.txt').write_text(''.join(
+                    key+':STRING='+value+'\n' for key,value in values.items()))
+            write(values)
+            self.assertFalse(backend.requested_producer_change(preset,REPOSITORY_GROUP,directory))
+            self.assertEqual(selected['CMAKE_C_COMPILER'],consumer.configuration(target,preset)['CMAKE_C_COMPILER'])
+            for key in keys:
+                changed=dict(values);changed[key]=str(root/'other-tool-or-sdk')
+                write(changed)
+                self.assertTrue(backend.requested_producer_change(preset,REPOSITORY_GROUP,directory))
+                with self.assertRaisesRegex(ValueError,'configured '+key+' differs'):
+                    consumer.configuration(target,preset)
+            write(values)
+
+    def test_package_metadata_does_not_replay_parent_diagnostic_controls(self):
+        import cpkt_packages as packages
+        from cpkt_inventory import REPOSITORY_GROUP
+        prefix=self.work/'metadata-prefix';(prefix/'lib/pkgconfig').mkdir(parents=True)
+        directory=self.work/'metadata-work';directory.mkdir()
+        configured={'CPKT_TARGET_ID':'arm64-apple-darwin','CPKT_BUNDLE_VERSION':'1.2.3',
+                    'CPKT_CMOCKA_VERSION':'2.0.0','CMAKE_WARN_DEPRECATED':'TRUE',
+                    'CMAKE_ERROR_DEPRECATED':'FALSE'}
+        def execute(args,**kwargs):
+            result=subprocess.run(list(map(str,args)),capture_output=True,text=True)
+            self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+            self.assertNotIn('CMP0218',result.stderr)
+        with patch.object(packages,'package_inventory',return_value=([],[],[])),\
+             patch.object(packages,'command',side_effect=execute):
+            packages.metadata(prefix,directory,configured,{},REPOSITORY_GROUP)
+        script=(directory/'package-metadata-input.cmake').read_text()
+        self.assertNotIn('CMAKE_WARN_DEPRECATED',script)
+        self.assertNotIn('CMAKE_ERROR_DEPRECATED',script)
+        self.assertIn('CPKT_BUNDLE_VERSION',script)
+
     def test_cold_artifact_facade_abi_checks_without_producer_cache(self):
         import cpkt_sdk_consumer as consumer
         root=self.work/'cold-source';(root/'cmake').mkdir(parents=True)

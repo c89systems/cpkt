@@ -80,6 +80,12 @@ def environment(preset, group):
     os.environ.update(GROUP=group, CPKT_PRESET=preset, CPKT_RESOLVED_TARGET=target)
 
 
+def native_darwin_configuration(group,target):
+    from cpkt_darwin_tools import discover
+    return discover(lambda args, capture=False:
+                    command(args,group,target,'native-darwin-tool-discovery',capture))
+
+
 def configure_command(preset, group, directory, producer=False):
     item, target, configuration = preset_info(preset)
     arguments = [CMAKE, '--preset', preset, '-B', directory, '-DCPKT_GROUP=' + group,
@@ -87,6 +93,8 @@ def configure_command(preset, group, directory, producer=False):
                  '-DCPKT_BUILD_DEPENDENCIES=' + ('ON' if producer else 'OFF'),
                  '-DCPKT_PREREQUISITE_CONFIGURATION=' + ('Debug' if preset in ('fuzz','opcua-fuzz','valgrind') else configuration)]
     if target.endswith('darwin') and sys.platform == 'darwin':
+        arguments += ['-D'+key+':'+('PATH' if key=='CMAKE_OSX_SYSROOT' else 'FILEPATH')+'='+value
+                      for key,value in native_darwin_configuration(group,target).items()]
         for variable in ('CPKT_DARWIN_HOST_MIG','CPKT_DARWIN_HOST_MIGCOM','CPKT_OTOOL','CMAKE_OTOOL'):
             if os.environ.get(variable):
                 arguments += ['-D' + variable + ':FILEPATH=' + os.environ[variable]]
@@ -244,6 +252,9 @@ def requested_producer_change(preset,group,directory):
             return truth[left.lower()]==truth[right.lower()]
         return left==right
     flags=producer_flags(preset,group)
+    _,target,_=preset_info(preset)
+    if target.endswith('darwin') and sys.platform=='darwin':
+        flags.update(native_darwin_configuration(group,target))
     variables=dict(item['cacheVariables'],**flags)
     for key,value in variables.items():
         if key in managed or value is None:continue

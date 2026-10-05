@@ -141,9 +141,8 @@ def configuration(target,preset):
     path=ROOT/'build'/target/REPOSITORY_GROUP/mode/'CMakeCache.txt'
     prior=cache(path) if path.is_file() else {}
     if sys.platform=='darwin' and target=='arm64-apple-darwin':
-        def xcrun(name):return command(['xcrun','--find',name],capture=True).strip()
-        result={'CPKT_TARGET_ID':target,'CMAKE_C_COMPILER':xcrun('clang'),'CMAKE_CXX_COMPILER':xcrun('clang++'),'CMAKE_NM':xcrun('nm'),'CMAKE_AR':xcrun('ar'),'CMAKE_OTOOL':xcrun('otool'),'CPKT_DEPENDENCY_BUILD_JOBS':'2'}
-        result['CMAKE_OSX_SYSROOT']=command(['xcrun','--show-sdk-path'],capture=True).strip()
+        from cpkt_darwin_tools import discover
+        result=dict(discover(command),CPKT_TARGET_ID=target,CPKT_DEPENDENCY_BUILD_JOBS='2')
     else:
         report=command([ROOT/'scripts/cpkt-toolchains.sh','discover',target],capture=True)
         values=dict(line.split('=',1) for line in report.splitlines() if '=' in line)
@@ -158,7 +157,7 @@ def configuration(target,preset):
             sdks=sorted((Path(values['root'])/'SDK').glob('MacOSX*.sdk'),reverse=True)
             if not sdks:raise ValueError('verified osxcross toolchain has no SDK')
             result['CMAKE_OSX_SYSROOT']=str(sdks[0].resolve())
-    for key in ('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR','CMAKE_READELF','CMAKE_OTOOL'):
+    for key in ('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR','CMAKE_READELF','CMAKE_OTOOL','CMAKE_OSX_SYSROOT'):
         if prior.get(key) and key in result and Path(prior[key]).resolve()!=Path(result[key]).resolve():
             raise ValueError('configured '+key+' differs from verified selected toolchain; prepare core explicitly')
     jobs=os.environ.get('CPKT_DEPENDENCY_BUILD_JOBS',os.environ.get('CMAKE_BUILD_PARALLEL_LEVEL',prior.get('CPKT_DEPENDENCY_BUILD_JOBS','2' if sys.platform=='darwin' else '8')))

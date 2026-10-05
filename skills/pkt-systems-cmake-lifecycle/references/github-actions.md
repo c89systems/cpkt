@@ -87,7 +87,11 @@ existing workflow's behavior while moving recipes behind these targets.
 Do not introduce an arbitrary-command input or a second release pipeline.
 
 Native Darwin uses the selected runner's Xcode/Apple Clang tools, discovered
-through `xcrun` where appropriate, rather than Linux osxcross wrappers. Record
+through `xcrun` where appropriate, rather than Linux osxcross wrappers.
+Select compilers, SDK and inspection tools before producer configuration and use
+the same discovery for extracted-SDK consumers. System compiler dispatchers and
+the selected Xcode compiler can have different paths; do not mix those selection
+routes or weaken mismatch checks to conceal a real toolchain change. Record
 OS/architecture, runner image, compiler/Xcode/SDK, deployment target, dependency
 pins, and configured job limit. Keep the existing build-system parallelism;
 a larger host does not authorize increasing it. Serialize operational commands
