@@ -9,7 +9,7 @@ def run_examples(prefix,target,configured,data,owners,phase,execute):
         if item['group'] not in owners:continue
         delivered=prefix/'share/doc/cpkt'/item['group']/relative
         if not (delivered/'CMakeLists.txt').is_file():raise ValueError('missing installed example '+relative)
-        directory=phase/'examples'/Path(relative).name;source=directory/'wrapper';source.mkdir(parents=True)
+        directory=phase/"examples with spaces and apostrophe's"/Path(relative).name;source=directory/'wrapper';source.mkdir(parents=True)
         build=directory/'build'
         text='cmake_minimum_required(VERSION 3.21)\nproject(installed_example C CXX)\n'
         for component in data['components'].values():

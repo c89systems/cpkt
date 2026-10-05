@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import sys
 import tarfile
@@ -33,6 +34,9 @@ def digest(payload):return hashlib.sha256(payload).hexdigest()
 
 class Fixtures(unittest.TestCase):
     def setUp(self):
+        environment=patch.dict(os.environ)
+        environment.start();self.addCleanup(environment.stop)
+        for key in ('GROUP','PRESET','SCOPE'):os.environ.pop(key,None)
         (ROOT/'build/package-isolation-work/fixtures').mkdir(parents=True,exist_ok=True)
         self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'build/package-isolation-work/fixtures')
         self.work=Path(self.tmp.name)
@@ -108,6 +112,42 @@ class Fixtures(unittest.TestCase):
             results=examples.run_examples(prefix,'arm64-apple-darwin',configured,data,['core'],phase,execute)
         self.assertEqual(len(results),2)
         self.assertEqual(len([call for call in calls if 'installed pkg-config example' in call]),1)
+
+    def test_lua_pkg_config_example_preserves_quoted_arguments(self):
+        source=ROOT/'examples/lua-runtime-c89/build-pkg-config.sh'
+        self.assertTrue(source.is_file(), 'missing delivered Lua example script')
+        prefix=self.work/"SDK with spaces and apostrophe's"
+        output=self.work/"output with spaces and apostrophe's"/'example'
+        trace=self.work/'compiler-arguments.jsonl'
+        compiler=self.work/'selected compiler'
+        compiler.write_text('#!'+sys.executable+'\nimport json,pathlib,sys\n'
+            'with pathlib.Path('+repr(str(trace))+').open("a") as stream: stream.write(json.dumps(sys.argv[1:])+"\\n")\n'
+            'pathlib.Path(sys.argv[sys.argv.index("-o")+1]).write_text("compiled")\n')
+        compiler.chmod(0o755)
+        cflags=['-I'+str(prefix/'include'),'-DCPKT_LITERAL=$(false)']
+        libraries=['-L'+str(prefix/'lib'),str(prefix/'lib/archive with spaces.a'),'-ldl','-lm','-ldl']
+        pkg=self.work/'pkg config'
+        pkg.write_text('#!'+sys.executable+'\nimport sys\nprint('+repr(shlex.join(cflags))+
+            ' if "--cflags" in sys.argv else '+repr(shlex.join(libraries))+')\n')
+        pkg.chmod(0o755)
+        extra_compile=['-DCPKT_WORD=value with spaces']
+        extra_link=['-Wl,-rpath,'+str(prefix/'lib'),'literal $(false)']
+        environment=dict(os.environ,CC=str(compiler),PKG_CONFIG=str(pkg),CPKT_SDK_PREFIX=str(prefix),
+                         CPKT_EXAMPLE_CFLAGS=shlex.join(extra_compile))
+        result=subprocess.run([str(source),str(output),*extra_link],capture_output=True,text=True,env=environment)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        calls=[json.loads(line) for line in trace.read_text().splitlines()]
+        self.assertEqual(len(calls),3)
+        for call,standard in zip(calls[:2],['-std=c89','-std=c99']):
+            self.assertIn(standard,call)
+            for flag in cflags+extra_compile:self.assertIn(flag,call)
+        self.assertEqual(calls[2][-len(libraries+extra_link):],libraries+extra_link)
+        trace.unlink()
+        pkg.write_text('#!'+sys.executable+'\nprint("unclosed \'quote")\n')
+        result=subprocess.run([str(source),str(output)],capture_output=True,text=True,env=environment)
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('Lua example build:',result.stderr)
+        self.assertFalse(trace.exists(), 'malformed flags reached the compiler')
 
     def test_darwin_library_duplicates_preserve_static_archive_order(self):
         from cpkt_sdk_consumer import darwin_link_libraries
@@ -412,7 +452,7 @@ class Fixtures(unittest.TestCase):
         self.assertEqual(os.readlink(destination/'darwin-smoke-test/bin/link'),'program')
     def test_runtime_loaded_library_cannot_fall_back_to_sysroot(self):
         from cpkt_sdk_consumer import validate_runtime_resolution
-        prefix=self.work/'runtime-sdk';(prefix/'lib').mkdir(parents=True)
+        prefix=self.work/"runtime SDK with spaces and apostrophe's";(prefix/'lib').mkdir(parents=True)
         delivered=prefix/'lib/libcrypto.so.3';delivered.write_bytes(b'delivered bytes')
         sysroot=self.work/'sysroot';(sysroot/'lib').mkdir(parents=True)
         loader=sysroot/'lib/ld-linux-x86-64.so.2';loader.write_bytes(b'target loader')
@@ -428,6 +468,9 @@ class Fixtures(unittest.TestCase):
             return 'libcrypto.so.3 => '+str(delivered)+' (0x123)'
         with patch('cpkt_sdk_consumer.command',side_effect=selected):
             self.assertEqual(validate_runtime_resolution('consumer','x86_64-linux-gnu',configured,[])[0]['path'],str(delivered))
+        with patch('cpkt_sdk_consumer.command',return_value='libcrypto.so.3 => '+str(delivered)):
+            invocation=([str(loader),'--library-path',str(prefix/'lib'),'consumer'],True)
+            self.assertEqual(validate_runtime_resolution('consumer','x86_64-linux-gnu',configured,[],invocation)[0]['path'],str(delivered))
         outside=self.work/'host/libc.so.6';outside.parent.mkdir();outside.write_bytes(b'foreign host runtime')
         def foreign(args,**kwargs):
             if args[1]=='-l':return 'Requesting program interpreter: /lib/ld-linux-x86-64.so.2]'

@@ -932,6 +932,13 @@ if(CPKT_BUILD_TESTS)
           "-Wl,--wrap=sasl_client_new")
   endif()
   set(_cpkt_lua_runtime_example_file "${CMAKE_CURRENT_BINARY_DIR}/lua-runtime-c89-example-file.lua")
+  set(_cpkt_lua_runtime_example_literal "${_cpkt_lua_runtime_example_file}")
+  string(REPLACE "\\" "\\\\" _cpkt_lua_runtime_example_literal "${_cpkt_lua_runtime_example_literal}")
+  string(REPLACE "'" "\\'" _cpkt_lua_runtime_example_literal "${_cpkt_lua_runtime_example_literal}")
+  string(REPLACE "\n" "\\n" _cpkt_lua_runtime_example_literal "${_cpkt_lua_runtime_example_literal}")
+  string(REPLACE "\r" "\\r" _cpkt_lua_runtime_example_literal "${_cpkt_lua_runtime_example_literal}")
+  string(REPLACE "\t" "\\t" _cpkt_lua_runtime_example_literal "${_cpkt_lua_runtime_example_literal}")
+
   file(WRITE "${_cpkt_lua_runtime_example_file}"
       "local host = require('example_host')\n"
       "local chunk = require('example_chunk')\n"
@@ -944,7 +951,7 @@ if(CPKT_BUILD_TESTS)
       "if example_count ~= 7 then error('bad integer global') end\n"
       "if example_number ~= 2.5 then error('bad number global') end\n"
       "if required_side_effect ~= 'ok' then error('bad require side effect') end\n"
-      "if arg[0] ~= '${_cpkt_lua_runtime_example_file}' then error('bad arg0') end\n"
+      "if arg[0] ~= '${_cpkt_lua_runtime_example_literal}' then error('bad arg0') end\n"
       "if arg[1] ~= 'one' or arg[2] ~= 'two' then error('bad argv') end\n")
   cpkt_group_add_executable(cpkt_lua_runtime_c89_example
       examples/lua-runtime-c89/main.c

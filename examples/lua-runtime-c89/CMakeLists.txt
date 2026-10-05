@@ -11,6 +11,13 @@ set_source_files_properties(host_module.c PROPERTIES
   COMPILE_OPTIONS "-std=c99;-Wall;-Wextra;-Wpedantic")
 target_link_libraries(cpkt_lua_runtime_c89_example PRIVATE cpkt::lua_runtime)
 
+set(_cpkt_lua_example_path "${CMAKE_CURRENT_BINARY_DIR}/example_file.lua")
+string(REPLACE "\\" "\\\\" _cpkt_lua_example_path "${_cpkt_lua_example_path}")
+string(REPLACE "'" "\\'" _cpkt_lua_example_path "${_cpkt_lua_example_path}")
+string(REPLACE "\n" "\\n" _cpkt_lua_example_path "${_cpkt_lua_example_path}")
+string(REPLACE "\r" "\\r" _cpkt_lua_example_path "${_cpkt_lua_example_path}")
+string(REPLACE "\t" "\\t" _cpkt_lua_example_path "${_cpkt_lua_example_path}")
+
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/example_file.lua"
   "local host = require('example_host')\n"
   "local chunk = require('example_chunk')\n"
@@ -23,5 +30,5 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/example_file.lua"
   "if example_count ~= 7 then error('bad integer global') end\n"
   "if example_number ~= 2.5 then error('bad number global') end\n"
   "if required_side_effect ~= 'ok' then error('bad require side effect') end\n"
-  "if arg[0] ~= '${CMAKE_CURRENT_BINARY_DIR}/example_file.lua' then error('bad arg0') end\n"
+  "if arg[0] ~= '${_cpkt_lua_example_path}' then error('bad arg0') end\n"
   "if arg[1] ~= 'one' or arg[2] ~= 'two' then error('bad argv') end\n")

@@ -34,8 +34,9 @@ tests and is never an implicit production-facade dependency.
 
 Installed examples live under `share/doc/cpkt/<group>/examples/`. Their
 `build-pkg-config.sh` scripts accept an output path followed by individual link
-flags. Set `CC` to the selected target compiler and `CPKT_SDK_PREFIX` to the
-validated SDK prefix. For Darwin, pass the SDK library runtime path as one
+flags. The Lua example script requires Python 3 to parse quoted pkg-config
+flags as arguments without shell evaluation. Set `CC` to the selected target
+compiler and `CPKT_SDK_PREFIX` to the validated SDK prefix. For Darwin, pass the SDK library runtime path as one
 argument, for example `"-Wl,-rpath,$CPKT_SDK_PREFIX/lib"`; CMake's automatic build
 RPATH does not apply to these direct compiler links. These are local example
 executables; SDK library install names remain relative.
