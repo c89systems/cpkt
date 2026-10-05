@@ -142,6 +142,9 @@ def main():
     args=parser.parse_args()
     if 'CPKT_OPERATION_FD' not in os.environ:return locked_run(ROOT,'all',[sys.executable,__file__]+sys.argv[1:])
     delegated(ROOT,'all')
+    if sys.platform=='darwin':
+        from cpkt_darwin_tools import discover
+        os.environ['SDKROOT']=discover(command)['CMAKE_OSX_SYSROOT']
     if args.action=='source':native_source()
     elif args.action=='sdk':native_sdk()
     else:smoke_zip(args.version or version())

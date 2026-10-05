@@ -99,7 +99,11 @@ driver uses an absolute existing `SDKROOT` as its default sysroot. Avoid embeddi
 shell quotes in scalar `CFLAGS`/`CXXFLAGS`: Autoconf can expand them without
 reinterpreting those quotes. Preserve SDK paths containing spaces through the
 environment or separate argument APIs, and test actual header lookup after the
-external build's flag expansion, independently of CMake's compiler probes. Record
+external build's flag expansion, independently of CMake's compiler probes.
+Export that same selected `SDKROOT` to native test and verification subprocesses
+too; direct header, archive and export probes must not depend on a system
+compiler dispatcher supplying an implicit SDK. Keep osxcross-only CMake inputs
+out of native upstream projects, where they are unused. Record
 OS/architecture, runner image, compiler/Xcode/SDK, deployment target, dependency
 pins, and configured job limit. Keep the existing build-system parallelism;
 a larger host does not authorize increasing it. Serialize operational commands

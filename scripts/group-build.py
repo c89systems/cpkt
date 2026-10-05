@@ -78,6 +78,8 @@ def command(arguments, group, target, phase, capture=False):
 def environment(preset, group):
     _, target, _ = preset_info(preset)
     os.environ.update(GROUP=group, CPKT_PRESET=preset, CPKT_RESOLVED_TARGET=target)
+    if target.endswith('darwin') and sys.platform=='darwin':
+        os.environ['SDKROOT']=native_darwin_configuration(group,target)['CMAKE_OSX_SYSROOT']
 
 
 def native_darwin_configuration(group,target):

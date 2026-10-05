@@ -76,8 +76,6 @@ endif()
 set(CMAKE_CROSSCOMPILING FALSE)
 cpkt_append_common_external_cmake_args(darwin_cmake_args)
 foreach(expected IN ITEMS
-    "-DCPKT_OSXCROSS_HOST=${CPKT_OSXCROSS_HOST}"
-    "-DCPKT_MACOS_DEPLOYMENT_TARGET=${CPKT_MACOS_DEPLOYMENT_TARGET}"
     "-DCMAKE_OSX_DEPLOYMENT_TARGET=${CPKT_MACOS_DEPLOYMENT_TARGET}")
   list(FIND darwin_cmake_args "${expected}" found_index)
   if(found_index LESS 0)
@@ -140,6 +138,16 @@ foreach(cross IN ITEMS FALSE TRUE)
     message(FATAL_ERROR "Darwin external builds omit the selected SDK environment")
   endif()
   cpkt_append_common_external_cmake_args(sdk_cmake_args)
+  foreach(value IN ITEMS
+      "-DCPKT_OSXCROSS_HOST=${CPKT_OSXCROSS_HOST}"
+      "-DCPKT_MACOS_DEPLOYMENT_TARGET=${CPKT_MACOS_DEPLOYMENT_TARGET}")
+    list(FIND sdk_cmake_args "${value}" cross_flag_index)
+    if(cross AND cross_flag_index LESS 0)
+      message(FATAL_ERROR "osxcross CMake builds omit ${value}")
+    elseif(NOT cross AND NOT cross_flag_index LESS 0)
+      message(FATAL_ERROR "Native external CMake builds received unused ${value}")
+    endif()
+  endforeach()
   list(FIND sdk_cmake_args "-DCMAKE_OSX_SYSROOT:PATH=${CMAKE_OSX_SYSROOT}" sdk_cmake_index)
   if(sdk_cmake_index LESS 0)
     message(FATAL_ERROR "Darwin external CMake builds omit the selected SDK")

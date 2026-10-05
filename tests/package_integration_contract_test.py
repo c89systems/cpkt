@@ -88,6 +88,10 @@ class Fixtures(unittest.TestCase):
              patch.object(backend,'command',side_effect=backend_command),\
              patch.dict(os.environ,{'CPKT_DEPENDENCY_BUILD_JOBS':'2'}):
             selected=consumer.configuration(target,preset)
+            backend.environment(preset,REPOSITORY_GROUP)
+            inherited=subprocess.check_output([sys.executable,'-c',
+                'import os; print(os.environ["SDKROOT"])'],text=True).strip()
+            self.assertEqual(selected['CMAKE_OSX_SYSROOT'],inherited)
             keys=('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR',
                   'CMAKE_OTOOL','CMAKE_OSX_SYSROOT')
             for producer in (False,True):
@@ -114,6 +118,26 @@ class Fixtures(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'configured '+key+' differs'):
                     consumer.configuration(target,preset)
             write(values)
+
+    def test_native_darwin_lanes_export_sdk_to_child_commands(self):
+        import cpkt_darwin as darwin
+        sdk=self.work/'selected SDK/MacOSX.sdk';sdk.mkdir(parents=True)
+        def discovery(args,**kwargs):
+            if args==['xcrun','--show-sdk-path']:return str(sdk)+'\n'
+            self.assertEqual(args[:2],['xcrun','--find'])
+            return '/selected-Xcode/'+args[2]+'\n'
+        def child():
+            inherited=subprocess.check_output([sys.executable,'-c',
+                'import os; print(os.environ["SDKROOT"])'],text=True).strip()
+            self.assertEqual(str(sdk),inherited)
+        for action,entry in (('source','native_source'),('sdk','native_sdk')):
+            with self.subTest(action=action),patch.object(darwin.sys,'platform','darwin'),\
+                 patch.object(darwin.sys,'argv',['cpkt_darwin.py',action]),\
+                 patch.dict(os.environ,{'CPKT_OPERATION_FD':'1','SDKROOT':'wrong-sdk'}),\
+                 patch.object(darwin,'delegated'),\
+                 patch.object(darwin,'command',side_effect=discovery),\
+                 patch.object(darwin,entry,side_effect=child):
+                darwin.main()
 
     def test_package_metadata_does_not_replay_parent_diagnostic_controls(self):
         import cpkt_packages as packages
