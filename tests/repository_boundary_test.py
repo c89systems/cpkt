@@ -416,6 +416,7 @@ class NativeMetadataMutation(unittest.TestCase):
                         sibling=external/'Debug-development.json'; sibling.write_bytes(b'sibling evidence\n'); sibling.chmod(0o600)
                     if route in ('clean','producer-clean'):
                         (graph/'CMakeCache.txt').write_text('CPKT_TARGET_ID:STRING='+self.target+'\nCPKT_GROUP:STRING='+REPOSITORY_GROUP+'\nCPKT_NATIVE_MAKE_PROGRAM:FILEPATH='+str(child)+'\nCPKT_DEPENDENCY_PRODUCER:BOOL='+('ON' if route=='producer-clean' else 'OFF')+'\n')
+                        if route=='clean':(graph/'cpkt-generated-outputs.txt').write_text('')
                         args=['bash',root/'scripts/native-build.sh','clean']
                     else:
                         if route=='component':
@@ -437,6 +438,7 @@ class NativeMetadataMutation(unittest.TestCase):
                 before={n:self.identity(evidence/n) for n in names}
                 if route in ('clean','producer-clean'):
                     (graph/'CMakeCache.txt').write_text('CPKT_TARGET_ID:STRING='+self.target+'\nCPKT_GROUP:STRING='+REPOSITORY_GROUP+'\nCPKT_NATIVE_MAKE_PROGRAM:FILEPATH='+str(child)+'\nCPKT_DEPENDENCY_PRODUCER:BOOL='+('ON' if route=='producer-clean' else 'OFF')+'\n')
+                    if route=='clean':(graph/'cpkt-generated-outputs.txt').write_text('')
                     args=['bash',root/'scripts/native-build.sh','clean']
                     removed=set(names if route=='producer-clean' else names[:4])
                 else:

@@ -176,12 +176,50 @@ class GeneratedOutputMutation(unittest.TestCase):
         (native / 'nghttp2.h').write_text(header)
         (native / 'nghttp2ver.h').write_text('#define NGHTTP2_VERSION "tiny"\n#define NGHTTP2_VERSION_NUM 1\n')
 
+    def native_tool(self, repo, generator):
+        native = shutil.which('ninja' if generator == 'Ninja' else 'make')
+        tool = repo / 'build/native-recorder'
+        tool.parent.mkdir(parents=True, exist_ok=True)
+        tool.write_text('#!/bin/sh\nprintf "call %s\\n" "$*" >> "' + str(repo / 'native-calls') + '"\nexec "' + native + '" "$@"\n')
+        tool.chmod(0o755)
+        return tool
+
+    def native_context(self, repo, tool, producer=False):
+        return ('set(CPKT_NATIVE_MAKE_PROGRAM "' + str(tool) + '" CACHE FILEPATH "")\n'
+                'set(ENV{CPKT_NATIVE_MAKE_PROGRAM} "${CPKT_NATIVE_MAKE_PROGRAM}")\n'
+                'set(CMAKE_MAKE_PROGRAM "${CMAKE_SOURCE_DIR}/scripts/native-build.sh" CACHE FILEPATH "" FORCE)\n'
+                'set(CPKT_DEPENDENCY_PRODUCER ' + ('ON' if producer else 'OFF') + ' CACHE BOOL "")\n'
+                'set(CPKT_GROUP ' + REPOSITORY_GROUP + ' CACHE STRING "")\n'
+                'set(CPKT_TARGET_ID fixture-target CACHE STRING "")\n')
+
+    def native_evidence(self, repo):
+        evidence = repo / 'build/verification/fixture-target' / REPOSITORY_GROUP
+        evidence.mkdir(parents=True, exist_ok=True)
+        names = ('Debug-development.json', 'Debug-built.json', 'Release-development.json',
+                 'Release-built.json', 'component-toy.json')
+        paths = [evidence / name for name in names]
+        sibling = evidence.parent / 'unselected/Debug-development.json'
+        sibling.parent.mkdir(exist_ok=True)
+        paths.append(sibling)
+        for path in paths:
+            path.write_text('existing evidence ' + path.name + '\n')
+            path.chmod(0o600)
+        return {path: self.identity(path) for path in paths}
+
+    def assert_native_untouched(self, repo, evidence, foreign, sentinel, before):
+        self.assertFalse((repo / 'native-calls').exists())
+        self.assertFalse((repo / 'child-marker').exists())
+        self.assertEqual(evidence, {path: self.identity(path) for path in evidence})
+        self.assertEqual(before, self.identity(sentinel))
+        self.assertEqual([sentinel], list(foreign.iterdir()))
+
     def test_authenticated_native_facade_target_refusal_and_success(self):
         if REPOSITORY_GROUP != 'core':
             self.skipTest('core owns nghttp2 native generation')
-        for kind in ('good', 'directory', 'ancestor', 'header', 'source', 'dangling-header', 'dangling-source'):
+        for kind in ('good', 'directory', 'ancestor', 'header', 'source', 'dangling-header', 'dangling-source', 'missing', 'missing-redirect'):
             with self.subTest(kind=kind), tempfile.TemporaryDirectory(dir=ROOT / 'build', prefix='native-generated-') as tmp:
                 repo, foreign, sentinel = self.seed(Path(tmp))
+                tool = self.native_tool(repo, 'Ninja')
                 include = repo / 'tiny-sdk/include'
                 self.tiny_nghttp2(include)
                 # An immutable input symlink is legitimate.
@@ -194,8 +232,7 @@ class GeneratedOutputMutation(unittest.TestCase):
                     'add_library(cpkt::nghttp2_static INTERFACE IMPORTED)\n'
                     'set_target_properties(cpkt::nghttp2_static PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "' + str(alias) + '")\n'
                     'include(cmake/CpktMutationPaths.cmake)\n'
-                    'set(CPKT_NATIVE_MAKE_PROGRAM \"' + shutil.which('ninja') + '\" CACHE FILEPATH \"\")\n'
-                    'set(CMAKE_MAKE_PROGRAM \"${CMAKE_SOURCE_DIR}/scripts/native-build.sh\" CACHE FILEPATH \"\" FORCE)\n'
+                    + self.native_context(repo, tool) +
                     'set(CPKT_PYTHON3_EXECUTABLE "' + sys.executable + '")\n'
                     'set(CPKT_NGHTTP2_FACADE_NATIVE_HEADERS "' + str(alias / 'nghttp2/nghttp2.h') + '" "' + str(alias / 'nghttp2/nghttp2ver.h') + '")\n'
                     'set(CPKT_NGHTTP2_FACADE_HEADER "${CMAKE_BINARY_DIR}/generated/nghttp2/include/cpkt/nghttp2.h")\n'
@@ -207,7 +244,14 @@ class GeneratedOutputMutation(unittest.TestCase):
                 self.assertEqual(0, result.returncode, result.stdout)
                 header = graph / 'generated/nghttp2/include/cpkt/nghttp2.h'
                 source = graph / 'generated/nghttp2/src/nghttp2.c'
-                if kind != 'good':
+                evidence = self.native_evidence(repo)
+                (repo / 'native-calls').unlink(missing_ok=True)
+                if kind.startswith('missing'):
+                    (graph / 'cpkt-generated-outputs.txt').unlink()
+                    if kind == 'missing-redirect':
+                        self.redirect(graph / 'generated/nghttp2/leaf', 'directory', foreign, sentinel)
+                    before = self.identity(sentinel)
+                elif kind != 'good':
                     output = source if 'source' in kind else header
                     if kind == 'directory':
                         output = graph / 'generated/nghttp2/leaf'
@@ -217,7 +261,18 @@ class GeneratedOutputMutation(unittest.TestCase):
                     link = self.redirect(output, redirect, foreign, sentinel)
                     before = self.identity(sentinel)
                 result = self.operation(repo, ['cmake', '--build', graph, '--target', 'facade'])
-                if kind == 'good':
+                if kind.startswith('missing'):
+                    self.assertNotEqual(0, result.returncode, result.stdout)
+                    self.assertIn('Required generated-output inventory is missing', result.stdout)
+                    self.assertIn('scripts/build.sh configure', result.stdout)
+                    self.assert_native_untouched(repo, evidence, foreign, sentinel, before)
+                    self.assertFalse(header.exists())
+                    self.assertFalse(source.exists())
+                    result = self.operation(repo, [repo / 'scripts/native-build.sh', '-C', graph, 'clean'])
+                    self.assertNotEqual(0, result.returncode, result.stdout)
+                    self.assertIn('Required generated-output inventory is missing', result.stdout)
+                    self.assert_native_untouched(repo, evidence, foreign, sentinel, before)
+                elif kind == 'good':
                     self.assertEqual(0, result.returncode, result.stdout)
                     self.assertEqual(181, len(re.findall(r'^CPKT_NGHTTP2_API int cpkt_nghttp2_probe_', source.read_text(), re.M)))
                     self.assertEqual(181, len(re.findall(r'cpkt_nghttp2_probe_\d+\(void\)', header.read_text())))
@@ -420,6 +475,124 @@ class GeneratedOutputMutation(unittest.TestCase):
                 self.assertIn(name + '(void)', header)
                 self.assertIn(name + '(void)', source)
             self.assertEqual([sentinel], list(foreign.iterdir()))
+
+    def tiny_native_graph(self, repo, generator, *, producer=False, compiler=False):
+        tool = self.native_tool(repo, generator)
+        initial = self.operation(repo, ['cmake', '-E', 'env', 'CPKT_NATIVE_MAKE_PROGRAM=' + str(tool), repo / 'scripts/native-build.sh', '--version'])
+        self.assertEqual(0, initial.returncode, initial.stdout)
+        graph = repo / 'build/graph'
+        text = 'cmake_minimum_required(VERSION 3.21)\n' + self.native_context(repo, tool, producer)
+        text += 'project(probe ' + ('C' if compiler else 'NONE') + ')\n'
+        if compiler:
+            (repo / 'probe.c').write_text('int main(void) { return 0; }\n')
+            text += ('if(NOT probe_round)\nset(probe_round 0)\nendif()\n'
+                     'math(EXPR probe_round "${probe_round}+1")\nset(probe_round ${probe_round} CACHE STRING "" FORCE)\n'
+                     'try_compile(result "${CMAKE_BINARY_DIR}/CMakeFiles/probe-${probe_round}" "${CMAKE_SOURCE_DIR}/probe.c")\n'
+                     'if(NOT result)\nmessage(FATAL_ERROR "compiler probe failed")\nendif()\n'
+                     'add_executable(probe probe.c)\n')
+        text += 'add_custom_target(private_child COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_SOURCE_DIR}/child-marker")\n'
+        if not producer:
+            text += 'include(cmake/CpktMutationPaths.cmake)\ncpkt_write_generated_output_inventory()\n'
+        (repo / 'CMakeLists.txt').write_text(text)
+        configure = ['cmake', '-S', repo, '-B', graph, '-G', generator, '--debug-trycompile']
+        result = self.operation(repo, configure)
+        self.assertEqual(0, result.returncode, result.stdout)
+        return graph, configure
+
+    def test_configured_empty_consumer_inventory_required_before_build_and_native_clean(self):
+        for generator in ('Ninja', 'Unix Makefiles'):
+            with self.subTest(generator=generator), tempfile.TemporaryDirectory(dir=ROOT / 'build', prefix='native-empty-consumer-') as tmp:
+                repo, foreign, sentinel = self.seed(Path(tmp))
+                graph, configure = self.tiny_native_graph(repo, generator)
+                listing = graph / 'cpkt-generated-outputs.txt'
+                self.assertEqual(b'', listing.read_bytes())
+                result = self.operation(repo, ['cmake', '--build', graph, '--parallel', '2', '--target', 'private_child'])
+                self.assertEqual(0, result.returncode, result.stdout)
+                self.assertTrue((repo / 'child-marker').is_file())
+                self.assertRegex((repo / 'native-calls').read_text(), r'(?:-j\s*2|--jobs=2)')
+                (repo / 'child-marker').unlink()
+                (repo / 'native-calls').unlink()
+                evidence = self.native_evidence(repo)
+                before = self.identity(sentinel)
+                listing.unlink()
+                routes = (['cmake', '--build', graph, '--target', 'private_child'],
+                          [repo / 'scripts/native-build.sh', '-C', graph, 'clean'],
+                          [repo / 'scripts/native-build.sh', '-C' + str(graph), 'private_child'],
+                          [repo / 'scripts/native-build.sh', '-C', graph, '--version'])
+                if generator == 'Unix Makefiles':
+                    routes += ([repo / 'scripts/native-build.sh', '--directory=' + str(graph), 'clean'],
+                               [repo / 'scripts/native-build.sh', '--directory', graph, 'private_child'])
+                for command in routes:
+                    with self.subTest(command=command):
+                        result = self.operation(repo, command)
+                        self.assertNotEqual(0, result.returncode, result.stdout)
+                        self.assertIn('Required generated-output inventory is missing', result.stdout)
+                        self.assertIn('scripts/build.sh configure', result.stdout)
+                        self.assert_native_untouched(repo, evidence, foreign, sentinel, before)
+                result = self.operation(repo, configure)
+                self.assertEqual(0, result.returncode, result.stdout)
+                self.assertEqual(b'', listing.read_bytes())
+                result = self.operation(repo, [repo / 'scripts/native-build.sh', '-C', graph, 'clean'])
+                self.assertEqual(0, result.returncode, result.stdout)
+                for path, identity in evidence.items():
+                    if path.parent.name == REPOSITORY_GROUP and not path.name.startswith('component-'):
+                        self.assertFalse(path.exists())
+                    else:
+                        self.assertEqual(identity, self.identity(path))
+
+    def test_native_producer_and_initial_compiler_probes_need_no_inventory(self):
+        for generator in ('Ninja', 'Unix Makefiles'):
+            for producer in (False, True):
+                with self.subTest(generator=generator, producer=producer), tempfile.TemporaryDirectory(dir=ROOT / 'build', prefix='native-inventory-exempt-') as tmp:
+                    repo, foreign, sentinel = self.seed(Path(tmp))
+                    graph, configure = self.tiny_native_graph(repo, generator, producer=producer, compiler=True)
+                    # A second configure creates a fresh try_compile below an existing parent cache.
+                    result = self.operation(repo, configure)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    probes = list((graph / 'CMakeFiles').rglob('CMakeCache.txt'))
+                    self.assertTrue(probes)
+                    self.assertTrue(all(not (path.parent / 'cpkt-generated-outputs.txt').exists() for path in probes))
+                    calls = (repo / 'native-calls').read_text()
+                    self.assertIn('--version', calls)
+                    self.assertIn('cmTC_', calls)
+                    self.assertEqual(producer, not (graph / 'cpkt-generated-outputs.txt').exists())
+                    for _ in range(2):
+                        result = self.operation(repo, ['cmake', '--build', graph, '--parallel', '2', '--target', 'probe', 'private_child'])
+                        self.assertEqual(0, result.returncode, result.stdout)
+                    self.assertTrue((repo / 'child-marker').exists())
+                    result = self.run_command([graph / 'probe'], repo)
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    evidence = self.native_evidence(repo)
+                    result = self.operation(repo, [repo / 'scripts/native-build.sh', '-C', graph, 'clean'])
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    for path, identity in evidence.items():
+                        if path.parent.name == REPOSITORY_GROUP and (producer or not path.name.startswith('component-')):
+                            self.assertFalse(path.exists())
+                        else:
+                            self.assertEqual(identity, self.identity(path))
+                    self.assertFalse((graph / 'probe').exists())
+
+    def test_native_inventory_malformed_or_nonregular_never_executes_or_revokes(self):
+        for kind in ('directory', 'fifo', 'relative', 'traversal', 'blank'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory(dir=ROOT / 'build', prefix='native-inventory-invalid-') as tmp:
+                repo, foreign, sentinel = self.seed(Path(tmp))
+                graph, _ = self.tiny_native_graph(repo, 'Ninja')
+                listing = graph / 'cpkt-generated-outputs.txt'
+                listing.unlink()
+                if kind == 'directory':
+                    listing.mkdir()
+                elif kind == 'fifo':
+                    os.mkfifo(listing)
+                else:
+                    listing.write_text('relative/output\n' if kind == 'relative' else str(graph / '../output') + '\n' if kind == 'traversal' else '\n')
+                evidence = self.native_evidence(repo)
+                before = self.identity(sentinel)
+                (repo / 'native-calls').unlink(missing_ok=True)
+                for command in (['cmake', '--build', graph, '--target', 'private_child'],
+                                [repo / 'scripts/native-build.sh', '-C', graph, 'clean']):
+                    result = self.operation(repo, command)
+                    self.assertNotEqual(0, result.returncode, result.stdout)
+                    self.assert_native_untouched(repo, evidence, foreign, sentinel, before)
 
     def test_native_output_inventory_refused_before_child_or_clean_removal(self):
         for leaf in ('inventory', 'product'):
