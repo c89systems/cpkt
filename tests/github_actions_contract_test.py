@@ -14,6 +14,16 @@ sys.path.insert(0,str(ROOT/'tests'))
 from package_integration_contract_test import Fixtures
 
 class Workflow(unittest.TestCase):
+    def test_each_native_job_provisions_its_own_lock_tool(self):
+        text=(ROOT/'.github/workflows/darwin-bundle.yml').read_text()
+        for job in ('arm64','arm64-artifact'):
+            with self.subTest(job=job):
+                body=text.split('\n  '+job+':\n',1)[1]
+                body=re.split(r'\n  [A-Za-z0-9_-]+:\n',body,maxsplit=1)[0]
+                installs=re.findall(r'^\s+run:\s+(brew install[^\n]+)',body,re.M)
+                packages={argument for command in installs for argument in shlex.split(command)[2:]}
+                self.assertIn('util-linux',packages,job+' lacks its own flock prerequisite')
+
     def test_handoff_transport_preserves_duplicate_keys_for_strict_preflight(self):
         text=(ROOT/'.github/workflows/darwin-bundle.yml').read_text()
         command=next(line.strip() for line in text.splitlines() if "python3 -c" in line and 'CPKT_HANDOFF' in line)

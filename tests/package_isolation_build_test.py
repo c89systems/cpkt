@@ -106,6 +106,52 @@ class Isolation(unittest.TestCase):
                 self.assertIn('operation',result.stderr)
                 self.assertFalse(marker.exists(),'forged operation reached child work')
 
+    def _cmake_mutation_observer(self):
+        marker=self.root/'native-mutation.json'
+        observer=self.root/'cmake-observer'
+        observer.write_text('#!'+sys.executable+'\nimport json,pathlib,subprocess,sys\n'
+            'arguments=sys.argv[1:]\n'
+            'if any(value in arguments for value in ("--preset","--build","--install")):\n'
+            '  pathlib.Path('+repr(str(marker))+').write_text(json.dumps(arguments))\n'
+            '  raise SystemExit(72)\n'
+            'raise SystemExit(subprocess.call(['+repr(shutil.which('cmake'))+',*arguments]))\n')
+        observer.chmod(0o755)
+        variables={key:value for key,value in self.environment.items() if key not in ('PRESET','CPKT_PRESET')}
+        variables['CMAKE']=str(observer)
+        return marker,variables
+
+    def test_package_stage_resolves_cli_and_native_environment_presets(self):
+        owner=load(self.root)['repository_group']
+        marker,variables=self._cmake_mutation_observer()
+        (self.root/'VERSION').write_text('0.0.0\n')
+        cases=[(['--preset','release'],variables),([],dict(variables,CPKT_PRESET='release'))]
+        for selection,environment in cases:
+            with self.subTest(selection=selection):
+                marker.unlink(missing_ok=True)
+                result=self.command(owner,'bash',str(self.root/'scripts/package-stage.sh'),
+                    '--group',owner,*selection,env=environment,timeout='5')
+                self.assertEqual(result.returncode,72,result.stdout+result.stderr)
+                arguments=json.loads(marker.read_text())
+                self.assertEqual(arguments[0],'--install')
+                self.assertEqual(arguments[1],str(self.root/'build/x86_64-linux-gnu'/owner/'Release'))
+        marker.unlink()
+        result=self.command(owner,'bash',str(self.root/'scripts/package-stage.sh'),
+            '--group',owner,env=variables,timeout='5')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('Release preset required',result.stderr)
+        self.assertFalse(marker.exists())
+
+    def test_memcheck_rejects_label_before_preparing_or_building(self):
+        owner=load(self.root)['repository_group']
+        marker,variables=self._cmake_mutation_observer()
+        result=subprocess.run(['bash',str(self.root/'scripts/build.sh'),'memcheck',
+            '--group',owner,'--preset','valgrind','--label','nonexistent-label'],
+            env=variables,capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('--label requires the test action',result.stderr)
+        self.assertFalse(marker.exists())
+        self.assertFalse((self.root/'.cache').exists())
+
     def test_package_stage_launcher_preserves_release_readiness(self):
         owner=load(self.root)['repository_group'];target='x86_64-linux-gnu'
         binary=self.root/'build'/target/owner/'Release';binary.mkdir(parents=True)

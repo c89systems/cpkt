@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/lifecycle-common.sh"
-preset=${PRESET:?Release preset required}
+preset=${PRESET:-${CPKT_PRESET:-}}
 group=${GROUP:-$cpkt_owner}
 while [ "$#" -gt 0 ]; do
   [ "$#" -ge 2 ] || cpkt_fail "missing value for $1"
@@ -9,6 +9,7 @@ while [ "$#" -gt 0 ]; do
   shift 2
 done
 cpkt_check_group "$group"
+[ -n "$preset" ] || cpkt_fail 'Release preset required; pass --preset <preset>'
 cpkt_preset "$preset"
 [ "$cpkt_configuration" = Release ] || cpkt_fail 'SDK packaging requires Release'
 export GROUP="$cpkt_owner"

@@ -48,6 +48,9 @@ fi
 if [ -n "$regex$label" ]; then
   case "$action" in test|memcheck) ;; *) cpkt_fail 'test selectors require a test action' ;; esac
 fi
+if [ -n "$label" ] && [ "$action" != test ]; then
+  cpkt_fail '--label requires the test action'
+fi
 if [ "$fresh" = yes ]; then
   case "$action" in configure|build) ;; *) cpkt_fail '--fresh requires configure or build' ;; esac
 fi
