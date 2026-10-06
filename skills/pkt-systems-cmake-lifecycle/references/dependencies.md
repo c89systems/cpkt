@@ -35,13 +35,15 @@ Dependency upgrades must preserve the declared public consumer contract.
 Private implementation dependencies may change without a public ABI-version
 bump, provided the supported public API, ABI, behavior and runtime requirements
 remain intact. Apply this boundary to compiler-collection upgrades too.
+
 Check upstream release notes as part of dependency-upgrade assessment.
-Compare against the latest published artifacts,
-not the previous development commit.
+Compare against the latest published artifacts, not the previous development
+commit.
 Record the compatibility baseline and conclusion in the existing release record.
-Minor/patch version numbers and unchanged
-SONAMEs alone do not establish compatibility. Check public ABI, bundled consumer
-support, static link closure, package metadata, and deployment runtime requirements.
+
+Minor/patch version numbers and unchanged SONAMEs alone do not establish
+compatibility. Check public ABI, bundled consumer support, static link closure,
+package metadata, and deployment runtime requirements.
 For dependencies exposed through supported public interfaces, check upstream ABI
 declarations, SONAME/install-name metadata, exported symbols, public type layouts
 and calling conventions. Never disguise an upstream ABI bump.
@@ -51,7 +53,9 @@ A newer collection can raise required glibc symbol versions without changing
 Proceed with compatible upgrades after verification. A breaking transition needs
 a consequence analysis and explicit maintainer approval before changing the
 supported contract. Record affected consumers, required rebuilds/deployment
-changes, verification coverage, and release communication. Respect an explicitly
+changes, verification coverage, and release communication.
+Explain why the transition is needed, whether a supported compatible option
+remains, and any unresolved risks or rollback limits. Respect an explicitly
 facade-only support boundary for embedded backends instead of inventing a support
 commitment for their private or upstream interfaces.
 
