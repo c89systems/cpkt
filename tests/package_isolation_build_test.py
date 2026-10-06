@@ -823,18 +823,21 @@ include(cmake/CpktPackage.cmake)
         shutil.copy(ROOT/'cmake/CpktGroups.cmake',self.root/'cmake/CpktGroups.cmake')
         inventory={'schema_version':1,'repository_group':'core','groups':{'core':{'requires':[]}},'components':{},'targets':{
             'cpkt_probe':{'group':'core','public':False}},'tests':{
-            name:{'group':'core','preflight':guarded}
-            for name,guarded in (('plain',False),('guarded',True))}}
+            name:{'group':'tooling' if name=='registered' else 'core','preflight':guarded}
+            for name,guarded in (('registered',False),('plain',False),('guarded',True))}}
         (self.root/'cmake/components.json').write_text(json.dumps(inventory))
         working=self.root/'working directory';working.mkdir()
         arguments=['','semi;colon','quote"slash\\dollar${unexpanded}',
                    'brackets ]] ]=] ]==]','\nleading newline','']
         (self.root/'expected.json').write_text(json.dumps(arguments))
         checker=self.root/'argv-check.py'
-        checker.write_text('import json,sys\nfrom pathlib import Path\n'
+        checker.write_text('import json,os,sys\nfrom pathlib import Path\n'
             'root=Path(__file__).resolve().parent\n'
             'assert sys.argv[2:]==json.loads((root/"expected.json").read_text()),repr(sys.argv)\n'
             'assert Path.cwd()==root/"working directory"\n'
+            'assert os.environ["GROUP"]=="core"\n'
+            'assert os.environ["CPKT_RESOLVED_TARGET"]=="synthetic"\n'
+            'if sys.argv[1]!="registered":assert os.environ["CPKT_TEST_CONTEXT_SENTINEL"]=="kept"\n'
             '(root/sys.argv[1]).write_text("passed")\n')
         def literal(value):
             equals=''
@@ -842,22 +845,31 @@ include(cmake/CpktPackage.cmake)
             return '['+equals+'[\n'+value+']'+equals+']'
         source='cmake_minimum_required(VERSION 3.21)\nproject(arguments NONE)\nenable_testing()\n'
         source+='include(cmake/CpktGroups.cmake)\n'
-        source+='set(CPKT_TARGET_ID synthetic)\n'
+        source+='set(CPKT_TARGET_ID initial)\n'
         header=source
-        for name in ('plain','guarded'):
+        for name in ('registered','plain','guarded'):
             source+='cpkt_group_add_test(NAME '+name+' COMMAND '
             source+=' '.join(literal(value) for value in [sys.executable,str(checker),name,*arguments])
             source+=' WORKING_DIRECTORY '+literal(str(working))+' CONFIGURATIONS Release)\n'
+        source+='cpkt_group_set_tests_properties(plain PROPERTIES ENVIRONMENT '
+        source+=literal('CPKT_TEST_CONTEXT_SENTINEL=kept;GROUP=all;CPKT_RESOLVED_TARGET=wrong')+')\n'
+        source+='cpkt_group_set_property(TEST guarded PROPERTY ENVIRONMENT '
+        source+=literal('CPKT_TEST_CONTEXT_SENTINEL=kept')+')\n'
+        source+='set(CPKT_TARGET_ID synthetic)\n'
         (self.root/'CMakeLists.txt').write_text(source)
         binary=self.root/'test-arguments'
         result=subprocess.run(['cmake','-S',str(self.root),'-B',str(binary)],
                               env=self.environment,capture_output=True,text=True)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
-        result=self.command('core','ctest','--test-dir',str(binary),'-C','Release','--output-on-failure',
-                              env=self.environment)
-        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+        for context in ({},{'GROUP':'all','CPKT_RESOLVED_TARGET':'aarch64-linux-musl'}):
+            variables=dict(self.environment)
+            variables.update(context)
+            result=self.command('core','ctest','--test-dir',str(binary),'-C','Release','--output-on-failure',
+                                  env=variables)
+            self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual('passed',(self.root/'plain').read_text())
         self.assertEqual('passed',(self.root/'guarded').read_text())
+        self.assertEqual('passed',(self.root/'registered').read_text())
         (self.root/'CMakeLists.txt').write_text(header+'\ncpkt_group_add_test(NAME plain COMMAND cpkt_probe)\n')
         result=subprocess.run(['cmake','-S',str(self.root),'-B',str(self.root/'missing-target')],
                               env=self.environment,capture_output=True,text=True)

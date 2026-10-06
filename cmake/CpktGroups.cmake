@@ -99,6 +99,16 @@ function(cpkt_group_add_custom_target name)
     add_custom_target(${name} ${ARGN})
   endif()
 endfunction()
+function(cpkt_bind_test_context name)
+  # CTest may be launched without the lifecycle shell's configured selectors.
+  # Keep them authoritative while preserving each test's other environment.
+  get_property(_environment TEST "${name}" PROPERTY ENVIRONMENT)
+  list(FILTER _environment EXCLUDE REGEX "^(GROUP|CPKT_RESOLVED_TARGET)=")
+  list(APPEND _environment "GROUP=${CPKT_GROUP}"
+    "CPKT_RESOLVED_TARGET=${CPKT_TARGET_ID}")
+  set_property(TEST "${name}" PROPERTY ENVIRONMENT "${_environment}")
+endfunction()
+
 function(cpkt_group_add_test)
   cmake_parse_arguments(PARSE_ARGV 0 _test "" "NAME;WORKING_DIRECTORY" "COMMAND;CONFIGURATIONS")
   cpkt_inventory_selected(tests "${_test_NAME}" _selected)
@@ -130,7 +140,10 @@ function(cpkt_group_add_test)
         set(_wrapped ON)
       endif()
     endforeach()
-    cmake_language(EVAL CODE "${_registration})")
+    # Bind after all target selection and test-specific properties are set.
+    cpkt_literal_argument(_test_literal "${_test_NAME}")
+    cmake_language(EVAL CODE "${_registration})
+      cmake_language(DEFER CALL cpkt_bind_test_context ${_test_literal})")
     cpkt_inventory_owner(tests "${_test_NAME}" _owner)
     set_property(TEST "${_test_NAME}" APPEND PROPERTY LABELS "group:${_owner}")
   endif()
