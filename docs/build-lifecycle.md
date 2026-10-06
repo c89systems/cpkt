@@ -13,6 +13,10 @@ producer preparation and consumer configuration; it retains cached job limits,
 with Linux maximum 8 and native Darwin maximum 2. Hardening borrows verified
 ordinary Debug output. Missing/stale borrowed inputs fail with preparation
 commands. Ordinary work does not clean shared archives or toolchain caches.
+Before accepting a saved contract, native CMake checks its recorded recipe,
+file, inventory and transitive dependency inputs against current source bytes.
+This read-only check also protects hardening that borrows ordinary Debug output;
+it never configures a producer or rebuilds a dependency.
 Verified warm ExternalProject nodes retain their dependency edges and validate
 original receipts on every native build. Changed launcher/stamp scripts never
 replay a compiled install. Recipe/input or output corruption selects the full

@@ -360,9 +360,11 @@ include(cmake/CpktPackage.cmake)
         for name,group in [('a','core'),('b','core'),('c','core')]:
             data['components'][name]={'group':group,'directory':name,'dependencies':['a'] if name=='c' else [],
                 'helpers':['cpkt_add_'+name]+(['cpkt_common'] if name!='b' else []),'recipe_inputs':[],'variants':['static','shared']}
-            recipe+='function(cpkt_add_'+name+')\n  set(value one)\nendfunction()\n'
+            helper='  set(helper "cmake/fixture-input.cmake")\n' if name=='a' else ''
+            recipe+='function(cpkt_add_'+name+')\n  set(value one)\n'+helper+'endfunction()\n'
             recipe+='cpkt_prepare_dependency_component(\n NAME '+name+'\n VARIABLES '+name.upper()+'_PIN\n RECIPE_FUNCTIONS cpkt_add_'+name+')\n'
         (self.root/'cmake/components.json').write_text(json.dumps(data))
+        input_file=self.root/'cmake/fixture-input.cmake';input_file.write_text('original input')
         path=self.root/'cmake/CpktDependencies.cmake';path.write_text(recipe)
         top=self.root/'CMakeLists.txt';top.write_text('set(A_PIN one)\nset(B_PIN one)\nset(C_PIN one)\n')
         for group in ('core',):
@@ -386,6 +388,23 @@ include(cmake/CpktPackage.cmake)
             return {name:component_input_id(self.root,'synthetic',name) for name in data['components']}
 
         before=identities()
+        stamp=input_file.stat()
+        for mutation in ('changed', 'missing', 'inventory'):
+            with self.subTest(saved_input=mutation):
+                if mutation=='changed':
+                    input_file.write_text('modified input')
+                    os.utime(input_file,ns=(stamp.st_atime_ns,stamp.st_mtime_ns))
+                elif mutation=='missing':input_file.unlink()
+                else:
+                    altered=json.loads(json.dumps(data));altered['components']['a']['variants']=['static']
+                    (self.root/'cmake/components.json').write_text(json.dumps(altered))
+                for name in ('a', 'c'):
+                    with self.assertRaisesRegex(RuntimeError, 'build inputs changed'):
+                        component_input_id(self.root,'synthetic',name)
+                self.assertEqual(before['b'],component_input_id(self.root,'synthetic','b'))
+                input_file.write_text('original input')
+                (self.root/'cmake/components.json').write_text(json.dumps(data))
+                self.assertEqual(before['a'],component_input_id(self.root,'synthetic','a'))
         (self.root/'README.md').write_text('unrelated docs')
         for cache in self.root.glob('build/synthetic/*/producer/CMakeCache.txt'):
             cache.write_text('CMAKE_GENERATOR:STRING=Unix Makefiles\nCPKT_DEPENDENCY_BUILD_JOBS:STRING=1\n')
@@ -406,7 +425,42 @@ include(cmake/CpktPackage.cmake)
         changed=identities()
         self.assertEqual(before['a'],changed['a']);self.assertEqual(before['b'],changed['b'])
         self.assertNotEqual(before['c'],changed['c'])
+        from cpkt_receipts import publish_component, readiness_path, verification_inputs, validate_development
+        owner=data['repository_group']
+        directory=self.root/'build/synthetic'/owner/'Debug';directory.mkdir(parents=True)
+        configured={'CPKT_TARGET_ID':'synthetic','CMAKE_BUILD_TYPE':'Debug'}
+        (directory/'CMakeCache.txt').write_text('CPKT_TARGET_ID:STRING=synthetic\nCMAKE_BUILD_TYPE:STRING=Debug\n')
+        (directory/'cpkt-required-coverage.txt').write_text('fixture\n')
+        (directory/'cpkt-owned-outputs.txt').write_text('')
+        with patch.dict(os.environ, CPKT_OPERATION_RUN='fixture-ordinary-proof'):
+            for name in data['components']:
+                installed=self.root/'.cache/deps/synthetic'/name/'install';installed.mkdir(parents=True,exist_ok=True)
+                (installed/'library.a').write_bytes(b'fixture ordinary output')
+                publish_component(self.root, 'synthetic', name)
+            publish(readiness_path(self.root, 'synthetic', owner, 'Debug'),
+                {'kind':'development','group':owner,'target':'synthetic','configuration':'Debug',
+                 'coverage':['fixture'],'verification_id':verification_inputs(self.root,owner,configured),
+                 'components':changed,'outputs':group_outputs(directory)})
+        validate_development(self.root, 'synthetic', owner, 'Debug', 'debug')
         path.write_text(recipe.replace('set(value one)','set(value two)',1))
+        # No producer reconfiguration: borrowed readiness must reject the old
+        # contract while unrelated component inputs remain reusable.
+        for name in ('a', 'c'):
+            with self.assertRaisesRegex(RuntimeError, 'build inputs changed'):
+                component_input_id(self.root, 'synthetic', name)
+        self.assertEqual(changed['b'], component_input_id(self.root, 'synthetic', 'b'))
+        with self.assertRaisesRegex(RuntimeError, 'Repair: make test GROUP='+owner+' PRESET=debug'):
+            validate_development(self.root, 'synthetic', owner, 'Debug', 'debug')
+        borrowed=self.root/'build/borrow-contract.cmake'
+        borrowed.write_text('cmake_minimum_required(VERSION 3.21)\n'
+            'set(CMAKE_SOURCE_DIR "'+str(self.root)+'")\nset(CMAKE_BINARY_DIR "'+str(self.root/'build')+'")\n'
+            'set(CPKT_GROUP '+owner+')\nset(CPKT_TARGET_ID synthetic)\nset(CPKT_BORROW_ORDINARY_DEPENDENCIES ON)\n'
+            'set(CPKT_DEPENDENCY_CONTRACT_ROOT "'+str(self.root/'.cache/dependency-contracts')+'")\n'
+            'include("'+str(self.root/'cmake/CpktDependencyContract.cmake')+'")\n'
+            'cpkt_prepare_dependency_component(NAME a BUILD_ROOT ignored INSTALL_ROOT ignored)\n')
+        result=subprocess.run(['cmake','-P',str(borrowed)],capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertIn('build inputs changed',result.stderr)
         helpers=identities()
         self.assertNotEqual(changed['a'],helpers['a']);self.assertNotEqual(changed['c'],helpers['c'])
         self.assertEqual(changed['b'],helpers['b'])

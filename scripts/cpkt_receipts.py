@@ -59,6 +59,12 @@ def component_inputs(root, target, name, configuration_cache):
         raise RuntimeError('missing/unknown native component contract: '+name)
     if digest(text.split('\n',1)[1].encode()) != text.split('\n',1)[0][7:]:
         raise RuntimeError('corrupt native component contract: '+name)
+    validation = subprocess.run([configuration_cache.get('CMAKE_COMMAND', 'cmake'),
+        '-DCPKT_REPO_ROOT='+str(root), '-DCPKT_TARGET_ID='+target,
+        '-DCPKT_COMPONENT='+name, '-P', str(root/'cmake/validate-dependency-contract.cmake')],
+        capture_output=True, text=True)
+    if validation.returncode:
+        raise RuntimeError(name+': build inputs changed: '+validation.stdout+validation.stderr)
     inputs={'native_contract':digest(text.encode()),'target':target}
     toolchain=configuration_cache.get('CMAKE_TOOLCHAIN_FILE')
     if toolchain:
