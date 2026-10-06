@@ -22,6 +22,7 @@ archive_path="$dist_dir/$archive_name"
 checksums_path="$dist_dir/cpkt-$bundle_version-CHECKSUMS"
 source "$repo_root/scripts/lifecycle-common.sh"
 cpkt_owned_path "$archive_path"
+cpkt_owned_path "$archive_path.tmp"
 
 find_gnu_tar() {
   if [ "${CPKT_GNU_TAR:-}" != "" ]; then
@@ -63,6 +64,8 @@ trap 'exit 143' TERM
 stage_root="$stage_parent/$archive_stem"
 manifest_tmp="$stage_parent/source-files.txt"
 manifest_with_generated="$stage_parent/source-files-with-generated.txt"
+# Public generated source files/directories have stable modes; cp -p preserves inputs.
+umask 022
 mkdir -p "$stage_root" "$dist_dir"
 python3 "$repo_root/scripts/cpkt_source_proof.py" --invalidate "$bundle_version"
 
@@ -111,10 +114,7 @@ printf '%s\n' "$bundle_version" > "$stage_root/VERSION"
 } | sort > "$manifest_with_generated"
 cp "$manifest_with_generated" "$stage_root/RELEASE_MANIFEST"
 
-(
-  cd "$stage_parent"
-  "$gnu_tar" --sort=name --owner=0 --group=0 --numeric-owner -czf "$archive_path" -- "$archive_stem"
-)
+CPKT_GNU_TAR="$gnu_tar" bash "$script_dir/archive.sh" "$stage_root" "$archive_path"
 
 
 cmake \

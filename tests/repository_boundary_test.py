@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -222,6 +223,7 @@ class GeneratedWorkspace(unittest.TestCase):
             ('package.sh', ['package'], 'dist/' + archive, False),
             ('darwin.sh', ['test-darwin-native'], 'dist/' + provider + '-1.2.3-arm64-apple-darwin.tar.gz', False),
             ('package-source.sh', [], 'dist/' + provider + '-1.2.3.tar.gz', False),
+            ('package-source.sh', [], 'dist/' + provider + '-1.2.3.tar.gz.tmp', False),
             ('source-archive-verify.sh', [provider + '-1.2.3.tar.gz', '1.2.3'],
              'build/verification/source/1.2.3/reconstruction.log', False),
             ('run-no-warnings.sh', ['probe', '/bin/true'], 'build', True),
@@ -351,7 +353,8 @@ class GeneratedWorkspace(unittest.TestCase):
             (root / 'tests').mkdir()
             (root / 'tests/privacy_scan.cmake').write_text('# inert privacy scan fixture\n')
             (root / 'RELEASE_MANIFEST').write_text('scripts/package-source.sh\nscripts/lifecycle-common.sh\ncmake/components.json\n')
-            result = subprocess.run(['bash', str(root / 'scripts/package-source.sh')],
+            result = subprocess.run(['bash', '-c', 'umask 022; exec bash "$1"',
+                                    'source-fixture', str(root / 'scripts/package-source.sh')],
                                     cwd=root / 'tools', env=env, capture_output=True, text=True)
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             provider = {'core': 'cpkt', 'db': 'cpktdb', 'misc': 'cpktmisc'}[REPOSITORY_GROUP]
@@ -360,6 +363,53 @@ class GeneratedWorkspace(unittest.TestCase):
             listing = subprocess.check_output(['tar', 'tf', str(archives[0])], text=True)
             self.assertIn('/VERSION', listing)
             self.assertIn('/RELEASE_MANIFEST', listing)
+            self.assertFalse(list((root / 'build').glob('cpkt-source-stage.*')))
+
+            original = archives[0].read_bytes()
+            with tarfile.open(archives[0], 'r:gz') as archive:
+                self.assertTrue(all(member.mtime == 0 for member in archive.getmembers()),
+                                'source files, generated files and directories need fixed timestamps')
+                self.assertTrue(all(member.uid == 0 and member.gid == 0 for member in archive.getmembers()))
+                self.assertEqual(0o755, archive.getmember(provider + '-1.2.3').mode)
+                for generated in ('VERSION', 'RELEASE_MANIFEST'):
+                    self.assertEqual(0o644, archive.getmember(provider + '-1.2.3/' + generated).mode)
+                script = archive.getmember(provider + '-1.2.3/scripts/package-source.sh')
+                self.assertEqual((root / 'scripts/package-source.sh').stat().st_mode & 0o777, script.mode)
+            for relative in (root / 'RELEASE_MANIFEST').read_text().splitlines():
+                os.utime(root / relative, (1700000000, 1700000000))
+            result = subprocess.run(['bash', '-c', 'umask 077; exec bash "$1"',
+                                    'source-fixture', str(root / 'scripts/package-source.sh')],
+                                    cwd=root / 'tools', env=env, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(original, archives[0].read_bytes(),
+                             'unchanged source bytes must reproduce despite checkout/staging timestamps')
+            self.assertFalse(list((root / 'dist').glob('*.tmp')))
+            self.assertFalse(list((root / 'build').glob('cpkt-source-stage.*')))
+
+            # Git source packaging selects tracked files and injects its own version.
+            subprocess.run(['git', '-C', str(root), 'init', '-q'], check=True)
+            tracked = (root / 'RELEASE_MANIFEST').read_text().splitlines()
+            subprocess.run(['git', '-C', str(root), 'add', '--', *tracked], check=True)
+            subprocess.run(['git', '-C', str(root), '-c', 'commit.gpgSign=false',
+                            '-c', 'core.hooksPath=/dev/null', '-c', 'user.name=Fixture',
+                            '-c', 'user.email=fixture@example.invalid', 'commit', '-q',
+                            '-m', 'test(fixture): seed source archive inputs'], check=True)
+            git_archive = root / 'dist' / (provider + '-0.0.0.tar.gz')
+            git_bytes = None
+            for timestamp in (1234567890, 1800000000):
+                for relative in tracked:
+                    os.utime(root / relative, (timestamp, timestamp))
+                result = subprocess.run(['bash', str(root / 'scripts/package-source.sh')],
+                                        cwd=root / 'tools', env=env, capture_output=True, text=True)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                with tarfile.open(git_archive, 'r:gz') as archive:
+                    self.assertTrue(all(member.mtime == 0 for member in archive.getmembers()))
+                    self.assertEqual(b'0.0.0\n', archive.extractfile(provider + '-0.0.0/VERSION').read())
+                if git_bytes is None:
+                    git_bytes = git_archive.read_bytes()
+                else:
+                    self.assertEqual(git_bytes, git_archive.read_bytes())
+            self.assertFalse(list((root / 'dist').glob('*.tmp')))
             self.assertFalse(list((root / 'build').glob('cpkt-source-stage.*')))
 
 class NativeMetadataMutation(unittest.TestCase):

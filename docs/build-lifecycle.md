@@ -47,6 +47,9 @@ native adapter's actual bytes are part of that contract.
 CMake install rules stage owned SDK payload, public generated headers, discovery
 metadata, example sources and complete licenses. `scripts/archive.sh` uses GNU
 tar and gzip with fixed timestamps/order/ownership and compression level 6.
+Both SDK and source packaging use that writer, including generated version/manifest
+files and staging directories; unchanged source bytes reproduce across checkout timestamps.
+Source staging uses umask 022 for generated files/directories and preserves copied input modes.
 Manifests retain content, modes, symlinks, versions, source hashes, facade features,
 ABI/loader identities and exact optional-core requirements. Optional providers
 use their own archive roots and versions and require a published checksum pin;
