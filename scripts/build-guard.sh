@@ -14,6 +14,8 @@ if [ "$#" -eq 9 ] && [ "${1:-}" = bash ] && [ "${2:-}" = "$root/scripts/package.
     && [ "${6:-}" = --preset ] && [ -n "${7:-}" ] && [ "${8:-}" = --scope ] && [ "${9:-}" = selected ]; then
   checking=yes
 fi
+source "$root/scripts/mutation-paths.sh"
+removals=()
 if [ "$checking" = no ]; then
   case "$PWD" in
     "$root/.cache/deps-build/"*)
@@ -22,8 +24,9 @@ if [ "$checking" = no ]; then
       component=${relative#*/}
       component=${component%%/*}
       if [ "$component" = mqtt-c ]; then component=mqttc; fi
-      rm -f -- "$root/build/verification/$target/$group/component-$component.json"
-      for file in "$root/build/verification/$target/$group/"*-development.json; do rm -f -- "$file"; done ;;
+      evidence="$root/build/verification/$target/$group"
+      cpkt_validate_mutation_path "$evidence"
+      removals+=("$evidence/component-$component.json" "$evidence/"*-development.json) ;;
     "$root/build/"*)
       relative=${PWD#"$root/build/"}
       target=${relative%%/*}
@@ -33,10 +36,12 @@ if [ "$checking" = no ]; then
       configuration=${remainder%%/*}
       if [ "$configured_group" = "$group" ]; then
         case "$configuration" in Debug|Release|Fuzz|Valgrind)
-          rm -f -- "$root/build/verification/$target/$group/$configuration-development.json" \
-            "$root/build/verification/$target/$group/$configuration-built.json" ;;
+          evidence="$root/build/verification/$target/$group"
+          removals+=("$evidence/$configuration-development.json" "$evidence/$configuration-built.json") ;;
         esac
       fi ;;
   esac
 fi
+for file in "${removals[@]}"; do cpkt_validate_mutation_path "$file"; done
+if [ "${#removals[@]}" -gt 0 ]; then rm -f -- "${removals[@]}"; fi
 exec "$@"

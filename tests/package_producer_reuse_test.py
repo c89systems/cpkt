@@ -56,7 +56,7 @@ def setup(generator, parent):
     for path in ROOT.glob('scripts/cpkt_*.py'):shutil.copy2(path,root/'scripts'/path.name)
     for name in ('validate-sdk.py',):shutil.copy2(ROOT/'scripts'/name,root/'scripts'/name)
     for path in ROOT.glob('scripts/*.sh'):shutil.copy2(path,root/'scripts'/path.name)
-    for name in ('CpktGroups.cmake','CpktOperation.cmake','CpktDependencyContract.cmake','validate-dependency-contract.cmake','CpktTestInventory.cmake','CpktSDKInstall.cmake','CpktComponentInventory.cmake','CpktLiteralArguments.cmake','CpktVerifiedExternalProject.cmake','lifecycle-info.cmake','producer-cache.cmake'):
+    for name in ('CpktMutationPaths.cmake','CpktGroups.cmake','CpktOperation.cmake','CpktDependencyContract.cmake','validate-dependency-contract.cmake','CpktTestInventory.cmake','CpktSDKInstall.cmake','CpktComponentInventory.cmake','CpktLiteralArguments.cmake','CpktVerifiedExternalProject.cmake','lifecycle-info.cmake','producer-cache.cmake'):
         shutil.copy2(ROOT/'cmake'/name,root/'cmake'/name)
     (root/'VERSION').write_text('1.2.3\n')
     resolver=root/'scripts/cpkt-toolchains.sh'

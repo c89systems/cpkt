@@ -24,15 +24,13 @@ cpkt_check_group() {
   case "$1" in all|"$cpkt_owner") ;; *) cpkt_fail "GROUP=$1 is not owned by this repository ($cpkt_owner)" ;; esac
 }
 
+source "$cpkt_scripts/mutation-paths.sh"
+
 cpkt_owned_path() {
-  local path=$1 parent
+  local path=$1
   case "$path" in "$cpkt_root/build"|"$cpkt_root/build/"*|"$cpkt_root/.cache/"*|"$cpkt_root/dist"|"$cpkt_root/dist/"*) ;; *) cpkt_fail "path is not owned generated state: $path" ;; esac
   case "$path/" in *'/../'*|*'/./'*) cpkt_fail 'generated path contains traversal' ;; esac
-  parent=$path
-  while [ "$parent" != "$cpkt_root" ]; do
-    [ ! -L "$parent" ] || cpkt_fail "generated path has a symlink ancestor: $parent"
-    parent=${parent%/*}
-  done
+  cpkt_validate_mutation_path "$path"
 }
 
 cpkt_cache_value() {

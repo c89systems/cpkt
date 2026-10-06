@@ -1,5 +1,7 @@
 # CMake evaluates registration conditions; CTest supplies the executed inventory.
+include("${CMAKE_CURRENT_LIST_DIR}/CpktMutationPaths.cmake")
 function(cpkt_assert_test_inventory)
+  cpkt_validate_mutation_paths("${CMAKE_BINARY_DIR}/cpkt-required-coverage.txt")
   string(JSON _count LENGTH "${CPKT_INVENTORY}" tests)
   math(EXPR _last "${_count} - 1")
   foreach(_index RANGE 0 ${_last})

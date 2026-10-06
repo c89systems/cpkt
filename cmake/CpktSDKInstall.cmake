@@ -1,4 +1,5 @@
 # Native install rules for owned facades and inventory-declared SDK payload.
+include("${CMAKE_CURRENT_LIST_DIR}/CpktMutationPaths.cmake")
 function(cpkt_register_sdk_install facades)
   string(JSON _package ERROR_VARIABLE _no_package GET "${CPKT_INVENTORY}" groups "${CPKT_GROUP}" package)
   if(_no_package)
@@ -7,6 +8,8 @@ function(cpkt_register_sdk_install facades)
   if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
     return()
   endif()
+  cpkt_validate_mutation_paths("${CMAKE_BINARY_DIR}/cpkt-package-components.json"
+    "${CMAKE_BINARY_DIR}/cpkt-sdk-install.cmake")
   cpkt_literal_argument(_operation "${CMAKE_SOURCE_DIR}/scripts/operation.sh")
   cpkt_literal_argument(_root "${CMAKE_SOURCE_DIR}")
   install(CODE "execute_process(COMMAND bash ${_operation} --root ${_root} --group ${CPKT_GROUP} --check RESULT_VARIABLE _ownership)\nif(NOT _ownership EQUAL 0)\nmessage(FATAL_ERROR \"SDK installation requires the owning repository operation\")\nendif()")

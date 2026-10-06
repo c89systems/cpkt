@@ -361,6 +361,254 @@ class GeneratedWorkspace(unittest.TestCase):
             self.assertIn('/RELEASE_MANIFEST', listing)
             self.assertFalse(list((root / 'build').glob('cpkt-source-stage.*')))
 
+class NativeMetadataMutation(unittest.TestCase):
+    """Authenticated native mutations must refuse before erasing unrelated state."""
+    target = 'x86_64-linux-gnu'
+
+    def fixture(self, work):
+        from native_lifecycle_fixture import seed, environment
+        root = work/'repo'; seed(root)
+        external = work/'foreign'; external.mkdir()
+        sentinel = external/'sentinel'; sentinel.write_bytes(b'foreign bytes\n'); sentinel.chmod(0o640)
+        marker = root/'child-marker'
+        child = root/'child.sh'
+        child.write_text('#!/bin/sh\nprintf child > "'+str(marker)+'"\n')
+        child.chmod(0o755)
+        return root, external, sentinel, child, environment()
+
+    def operation(self, root, env, cwd, args):
+        return subprocess.run(['bash',str(root/'scripts/operation.sh'),'--group',REPOSITORY_GROUP,'--',
+            'bash','-c','cd "$1"; shift; exec "$@"','fixture',str(cwd),*map(str,args)],
+            cwd=root,env=env,capture_output=True,text=True)
+
+    def identity(self, path):
+        from cpkt_receipts import file_identity
+        return file_identity(path)
+
+    def refuse(self, result, root, sentinel, link, sibling=None):
+        self.assertNotEqual(0,result.returncode,result.stdout+result.stderr)
+        self.assertIn('symlink ancestor',result.stderr.lower())
+        self.assertEqual(b'foreign bytes\n',sentinel.read_bytes())
+        self.assertEqual(0o640,sentinel.stat().st_mode & 0o777)
+        self.assertTrue(link.is_symlink())
+        self.assertFalse((root/'child-marker').exists())
+        if sibling:
+            self.assertEqual(b'sibling evidence\n',sibling.read_bytes())
+            self.assertEqual(0o600,sibling.stat().st_mode & 0o777)
+
+    def test_authenticated_launcher_and_native_clean_refuse_redirects(self):
+        for route in ('launcher','component','clean','producer-clean'):
+            for kind in ('verification','target','group','leaf','dangling','parent-dangling'):
+                with self.subTest(route=route,kind=kind), tempfile.TemporaryDirectory(dir=ROOT/'build') as tmp:
+                    root,external,sentinel,child,env=self.fixture(Path(tmp))
+                    graph=root/'build'/self.target/REPOSITORY_GROUP/'Debug'; graph.mkdir(parents=True)
+                    evidence=root/'build/verification'/self.target/REPOSITORY_GROUP
+                    leaf=evidence/('component-toy.json' if route=='component' else 'Debug-built.json')
+                    if kind in ('leaf','dangling'):
+                        evidence.mkdir(parents=True)
+                        sibling=evidence/'Debug-development.json'; sibling.write_bytes(b'sibling evidence\n'); sibling.chmod(0o600)
+                        leaf.symlink_to(sentinel if kind=='leaf' else external/'absent'); link=leaf
+                    else:
+                        link={'verification':root/'build/verification','target':evidence.parent,'group':evidence,'parent-dangling':evidence}[kind]
+                        link.parent.mkdir(parents=True,exist_ok=True)
+                        link.symlink_to(external/'absent' if kind=='parent-dangling' else external,target_is_directory=True)
+                        sibling=external/'Debug-development.json'; sibling.write_bytes(b'sibling evidence\n'); sibling.chmod(0o600)
+                    if route in ('clean','producer-clean'):
+                        (graph/'CMakeCache.txt').write_text('CPKT_TARGET_ID:STRING='+self.target+'\nCPKT_GROUP:STRING='+REPOSITORY_GROUP+'\nCPKT_NATIVE_MAKE_PROGRAM:FILEPATH='+str(child)+'\nCPKT_DEPENDENCY_PRODUCER:BOOL='+('ON' if route=='producer-clean' else 'OFF')+'\n')
+                        args=['bash',root/'scripts/native-build.sh','clean']
+                    else:
+                        if route=='component':
+                            graph=root/'.cache/deps-build'/self.target/'toy'; graph.mkdir(parents=True)
+                        args=['bash',root/'scripts/build-guard.sh',root,REPOSITORY_GROUP,child]
+                    result=self.operation(root,env,graph,args)
+                    self.refuse(result,root,sentinel,link,sibling)
+                    self.assertFalse((external/'absent').exists())
+
+    def test_native_selection_and_control_exemptions(self):
+        for route in ('launcher','component','clean','producer-clean','check','package-stage'):
+            with self.subTest(route=route),tempfile.TemporaryDirectory(dir=ROOT/'build') as tmp:
+                root,external,sentinel,child,env=self.fixture(Path(tmp))
+                graph=root/'build'/self.target/REPOSITORY_GROUP/'Debug'; graph.mkdir(parents=True)
+                evidence=root/'build/verification'/self.target/REPOSITORY_GROUP; evidence.mkdir(parents=True)
+                names=('Debug-development.json','Debug-built.json','Release-development.json','Release-built.json','component-toy.json','component-other.json')
+                for name in names:(evidence/name).write_text(name)
+                sibling=root/'build/verification'/self.target/'other'/'Debug-development.json'; sibling.parent.mkdir(); sibling.write_text('other group')
+                before={n:self.identity(evidence/n) for n in names}
+                if route in ('clean','producer-clean'):
+                    (graph/'CMakeCache.txt').write_text('CPKT_TARGET_ID:STRING='+self.target+'\nCPKT_GROUP:STRING='+REPOSITORY_GROUP+'\nCPKT_NATIVE_MAKE_PROGRAM:FILEPATH='+str(child)+'\nCPKT_DEPENDENCY_PRODUCER:BOOL='+('ON' if route=='producer-clean' else 'OFF')+'\n')
+                    args=['bash',root/'scripts/native-build.sh','clean']
+                    removed=set(names if route=='producer-clean' else names[:4])
+                else:
+                    args=['bash',root/'scripts/build-guard.sh',root,REPOSITORY_GROUP]
+                    removed=set(names[:2])
+                    if route=='component':
+                        graph=root/'.cache/deps-build'/self.target/'toy'; graph.mkdir(parents=True)
+                        removed={'Debug-development.json','Release-development.json','component-toy.json'}
+                    if route=='check':
+                        args+=['bash',root/'scripts/operation.sh','--root',root,'--group',REPOSITORY_GROUP,'--check']; removed=set()
+                    elif route=='package-stage':
+                        (root/'scripts/package.sh').write_text(child.read_text())
+                        args+=['bash',root/'scripts/package.sh','package-stage','--group',REPOSITORY_GROUP,'--preset','release','--scope','selected']; removed=set()
+                    else:args+=[child]
+                result=self.operation(root,env,graph,args)
+                self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+                self.assertEqual(set(names)-removed,{p.name for p in evidence.iterdir()})
+                for name in set(names)-removed:self.assertEqual(before[name],self.identity(evidence/name))
+                self.assertEqual('other group',sibling.read_text())
+
+    def toy_contract(self, root, child):
+        script=root/'contract.cmake'
+        script.write_text('cmake_minimum_required(VERSION 3.21)\n'
+            'set(CMAKE_SOURCE_DIR "'+str(root)+'")\nset(CMAKE_BINARY_DIR "'+str(root/'build/graph')+'")\n'
+            'set(CPKT_TARGET_ID '+self.target+')\nset(CPKT_GROUP '+REPOSITORY_GROUP+')\n'
+            'set(CPKT_BUILD_DEPENDENCIES ON)\nset(CPKT_DEPENDENCY_PRODUCER ON)\n'
+            'set(CPKT_EXTERNAL_ROOT_LIFECYCLE_OWNED ON)\nset(CPKT_DEPENDENCY_BUILD_ROOT_LIFECYCLE_OWNED ON)\n'
+            'set(CPKT_DEPENDENCY_CONTRACT_ROOT "'+str(root/'.cache/dependency-contracts')+'")\n'
+            'set(CPKT_HOST_PYTHON_EXECUTABLE "'+str(child)+'")\n'
+            'include("'+str(root/'cmake/CpktDependencyContract.cmake')+'")\n'
+            'cpkt_prepare_dependency_component(NAME toy BUILD_ROOT "'+str(root/'.cache/deps-build'/self.target/'toy')+'" INSTALL_ROOT "'+str(root/'.cache/deps'/self.target/'toy/install')+'")\n')
+        return script
+
+    def test_native_refresh_preflights_contract_evidence_and_roots(self):
+        for kind in ('group','target','verification','receipt','dangling-receipt','readiness','contract','dangling-contract','contract-parent','dangling-contract-parent','build-root','install-root','caller-owned'):
+            with self.subTest(kind=kind),tempfile.TemporaryDirectory(dir=ROOT/'build') as tmp:
+                root,external,sentinel,child,env=self.fixture(Path(tmp))
+                script=self.toy_contract(root,child)
+                build=root/'.cache/deps-build'/self.target/'toy'; build.mkdir(parents=True)
+                install=root/'.cache/deps'/self.target/'toy/install'; install.mkdir(parents=True)
+                (build/'keep').write_bytes(b'build'); (install/'keep').write_bytes(b'install')
+                evidence=root/'build/verification'/self.target/REPOSITORY_GROUP
+                contract=root/'.cache/dependency-contracts'/self.target/'toy.txt'
+                links={'group':evidence,'target':evidence.parent,'verification':evidence.parent.parent,
+                    'receipt':evidence/'component-toy.json','dangling-receipt':evidence/'component-toy.json',
+                    'readiness':evidence/'Release-development.json','contract':contract,'dangling-contract':contract,
+                    'contract-parent':contract.parent,'dangling-contract-parent':contract.parent,
+                    'build-root':build,'install-root':install}
+                if kind=='caller-owned':
+                    script.write_text(script.read_text().replace('set(CPKT_EXTERNAL_ROOT_LIFECYCLE_OWNED ON)','set(CPKT_EXTERNAL_ROOT_LIFECYCLE_OWNED OFF)'))
+                    link=None
+                else:
+                    link=links[kind]
+                    if kind in ('build-root','install-root'):shutil.rmtree(link)
+                    link.parent.mkdir(parents=True,exist_ok=True)
+                    directory=kind in ('group','target','verification','contract-parent','dangling-contract-parent','build-root','install-root')
+                    link.symlink_to(external/'absent' if kind.startswith('dangling') else external if directory else sentinel,target_is_directory=directory)
+                # Sibling evidence is already present when a later validation fails.
+                sibling=(external if kind in ('group','target','verification') else evidence)/'Debug-development.json'
+                sibling.parent.mkdir(parents=True,exist_ok=True); sibling.write_bytes(b'sibling evidence\n'); sibling.chmod(0o600)
+                before_build=None if kind=='build-root' else self.identity(build/'keep')
+                before_install=None if kind=='install-root' else self.identity(install/'keep')
+                result=self.operation(root,env,root,['cmake','-P',script])
+                if link:self.refuse(result,root,sentinel,link,sibling)
+                else:
+                    self.assertNotEqual(0,result.returncode); self.assertIn('caller-owned roots',result.stderr)
+                    self.assertEqual(b'sibling evidence\n',sibling.read_bytes())
+                if before_build:self.assertEqual(before_build,self.identity(build/'keep'))
+                if before_install:self.assertEqual(before_install,self.identity(install/'keep'))
+                self.assertFalse((external/'absent').exists())
+
+    def test_native_contract_cold_and_warm(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'build') as tmp:
+            root,external,sentinel,child,env=self.fixture(Path(tmp)); script=self.toy_contract(root,child)
+            # Lifecycle-owned roots retain valid relative parent segments.
+            script.write_text(script.read_text().replace('/.cache/deps-build/','/build/../.cache/deps-build/'))
+            evidence=root/'build/verification'/self.target/REPOSITORY_GROUP; evidence.mkdir(parents=True)
+            for name in ('Debug-development.json','component-toy.json','component-other.json','Debug-built.json'):(evidence/name).write_text('old')
+            result=self.operation(root,env,root,['cmake','-P',script]); self.assertEqual(0,result.returncode,result.stderr)
+            self.assertEqual({'component-other.json','Debug-built.json'},{p.name for p in evidence.iterdir()})
+            contract=root/'.cache/dependency-contracts'/self.target/'toy.txt'; before=self.identity(contract)
+            install=root/'.cache/deps'/self.target/'toy/install'; install.mkdir(parents=True); (install/'keep').write_text('warm output')
+            result=self.operation(root,env,root,['cmake','-P',script]); self.assertEqual(0,result.returncode,result.stderr)
+            self.assertEqual(before,self.identity(contract)); self.assertEqual('warm output',(install/'keep').read_text())
+            self.assertTrue((root/'child-marker').exists())
+
+    def test_public_deps_and_direct_producer_cache_refuse_redirects(self):
+        from native_lifecycle_fixture import capture
+        for route in ('public','direct'):
+            for kind in ('leaf','dangling','parent','missing-parent'):
+                with self.subTest(route=route,kind=kind),tempfile.TemporaryDirectory(dir=ROOT/'build') as tmp:
+                    root=Path(tmp)/'repo'; env,calls=capture(root)
+                    external=Path(tmp)/'foreign'; external.mkdir(); sentinel=external/'sentinel'; sentinel.write_bytes(b'foreign bytes\n'); sentinel.chmod(0o640)
+                    producer=root/'build'/self.target/REPOSITORY_GROUP/'producer'; cache=producer/'CMakeCache.txt'
+                    link=cache if kind in ('leaf','dangling') else producer
+                    link.parent.mkdir(parents=True,exist_ok=True)
+                    link.symlink_to(external/'absent' if kind in ('dangling','missing-parent') else sentinel if kind=='leaf' else external,target_is_directory=kind in ('parent','missing-parent'))
+                    args=['bash',root/'scripts/build.sh','deps','--group',REPOSITORY_GROUP,'--preset','debug'] if route=='public' else ['cmake','-DCPKT_PRODUCER='+str(producer),'-DCPKT_CONSUMER='+str(root/'consumer'),'-P',root/'cmake/producer-cache.cmake']
+                    result=self.operation(root,env,root,args) if route=='direct' else subprocess.run(list(map(str,args)),cwd=root,env=env,capture_output=True,text=True)
+                    self.refuse(result,root,sentinel,link)
+                    self.assertFalse(calls.exists()); self.assertFalse((external/'absent').exists())
+
+    def test_public_producer_flags_update_remove_and_cold_across_generators(self):
+        from native_lifecycle_fixture import capture
+        keys=('CMAKE_C_FLAGS','CMAKE_CXX_FLAGS','CMAKE_EXE_LINKER_FLAGS','CMAKE_SHARED_LINKER_FLAGS','CMAKE_MODULE_LINKER_FLAGS','CMAKE_STATIC_LINKER_FLAGS')
+        for generator in ('Ninja','Unix Makefiles'):
+            with self.subTest(generator=generator),tempfile.TemporaryDirectory(dir=ROOT/'build') as tmp:
+                root=Path(tmp)/'repo'; env,calls=capture(root); env['CPKT_DEPENDENCY_BUILD_JOBS']='2'
+                producer=root/'build'/self.target/REPOSITORY_GROUP/'producer'; consumer=producer.parent/'Debug'; consumer.mkdir(parents=True)
+                producer.mkdir(); (root/'CMakePresets.json').write_text(json.dumps({'version':3,'configurePresets':[{'name':'debug','generator':generator,'binaryDir':str(producer)}]}))
+                wrapper=Path(env['CMAKE']); wrapper.write_text(wrapper.read_text()+'raise SystemExit(subprocess.call(['+repr(shutil.which('cmake'))+',*a]))\n')
+                (root/'CMakeLists.txt').write_text('cmake_minimum_required(VERSION 3.21)\nproject(toy NONE)\nadd_custom_target(cpkt_deps_all)\n')
+                # Public deps executes real cache synchronization and native toy configure/build.
+                def public():
+                    result=subprocess.run(['bash',str(root/'scripts/build.sh'),'deps','--group',REPOSITORY_GROUP,'--preset','debug'],cwd=root,env=env,capture_output=True,text=True)
+                    self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+                    recorded=[json.loads(line) for line in calls.read_text().splitlines()]
+                    self.assertEqual(2,len(recorded)); self.assertIn('-DCPKT_DEPENDENCY_PRODUCER=ON',recorded[0]['args'])
+                    self.assertIn('-DCPKT_DEPENDENCY_BUILD_JOBS=2',recorded[0]['args'])
+                    self.assertEqual(['--build',str(producer),'--parallel','2','--target','cpkt_deps_all'],recorded[1]['args']); calls.unlink()
+                public(); self.assertTrue((producer/'CMakeCache.txt').is_file())
+                result=subprocess.run(['cmake','-S',str(root),'-B',str(producer),'-G',generator],capture_output=True,text=True); self.assertEqual(0,result.returncode,result.stderr)
+                cache=producer/'CMakeCache.txt'
+                cache.write_text(cache.read_text()+''.join('//old flag comment\n'+key+':STRING=old\n\n' for key in keys))
+                (consumer/'CMakeCache.txt').write_text(''.join('//selected\n'+key+':STRING=new flag;literal\n' for key in keys))
+                public()
+                for key in keys:self.assertIn(key+':STRING=new flag;literal\n',cache.read_text())
+                (consumer/'CMakeCache.txt').unlink(); public()
+                for key in keys:self.assertNotIn(key+':',cache.read_text())
+                self.assertNotIn('//old flag comment',cache.read_text())
+                result=subprocess.run(['cmake','-S',str(root),'-B',str(producer),'-G',generator],capture_output=True,text=True); self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+
+    def test_native_coverage_and_sdk_writers_preflight_all_leaves(self):
+        for surface in ('coverage','sdk-json','sdk-script'):
+            for kind in ('leaf','dangling','parent'):
+                with self.subTest(surface=surface,kind=kind),tempfile.TemporaryDirectory(dir=ROOT/'build') as tmp:
+                    root,external,sentinel,child,env=self.fixture(Path(tmp)); graph=root/'build/graph'
+                    name='cpkt-required-coverage.txt' if surface=='coverage' else 'cpkt-package-components.json' if surface=='sdk-json' else 'cpkt-sdk-install.cmake'
+                    leaf=graph/name; link=graph if kind=='parent' else leaf
+                    link.parent.mkdir(parents=True,exist_ok=True); link.symlink_to(external if kind=='parent' else external/'absent' if kind=='dangling' else sentinel,target_is_directory=kind=='parent')
+                    script=root/'writer.cmake'; script.write_text('cmake_minimum_required(VERSION 3.21)\nset(CMAKE_BINARY_DIR "'+str(graph)+'")\nset(CMAKE_SOURCE_DIR "'+str(root)+'")\nset(CPKT_GROUP '+REPOSITORY_GROUP+')\nset(CMAKE_BUILD_TYPE Release)\nset(CPKT_INVENTORY [=[{"tests":{},"groups":{"'+REPOSITORY_GROUP+'":{"package":{}}}}]=])\ninclude("'+str(root/'cmake'/('CpktTestInventory.cmake' if surface=='coverage' else 'CpktSDKInstall.cmake'))+'")\n'+('cpkt_assert_test_inventory()' if surface=='coverage' else 'cpkt_register_sdk_install("")')+'\n')
+                    result=self.operation(root,env,root,['cmake','-P',script]); self.refuse(result,root,sentinel,link)
+                    if surface=='sdk-script':self.assertFalse((graph/'cpkt-package-components.json').exists())
+
+    def test_imported_core_aliases_validate_all_parents_before_linking(self):
+        for kind in ('safe','parent','dangling-parent'):
+            with self.subTest(kind=kind),tempfile.TemporaryDirectory(dir=ROOT/'build') as tmp:
+                root,external,sentinel,child,env=self.fixture(Path(tmp))
+                inventory={'schema_version':1,'repository_group':REPOSITORY_GROUP,'groups':{REPOSITORY_GROUP:{'requires':[]}},'components':{'a':{'external':'cpkt','directory':'a'},'b':{'external':'cpkt','directory':'b'}}}
+                (root/'cmake/components.json').write_text(json.dumps(inventory))
+                prefix=root/'.cache/cpkt'/self.target/'install'; prefix.mkdir(parents=True); (prefix/'header').write_text('immutable SDK')
+                base=root/'.cache/deps'/self.target; base.mkdir(parents=True)
+                link=base/'b'
+                if kind!='safe':link.symlink_to(external if kind=='parent' else external/'absent',target_is_directory=True)
+                args=['cmake','-DCPKT_REPO_ROOT='+str(root),'-DCPKT_CORE_TARGET='+self.target,'-DCPKT_CORE_ACTION=link','-P',root/'cmake/core-dependency.cmake']
+                result=self.operation(root,env,root,args)
+                if kind!='safe':
+                    self.refuse(result,root,sentinel,link); self.assertFalse((base/'a').exists())
+                else:
+                    self.assertEqual(0,result.returncode,result.stderr)
+                    self.assertEqual(prefix,(base/'a/install').resolve())
+                    before=self.identity(prefix/'header')
+                    result=self.operation(root,env,root,args); self.assertEqual(0,result.returncode,result.stderr)
+                    self.assertEqual(before,self.identity(prefix/'header'))
+
+    def test_core_acquisition_path_refused_before_pin_or_archive_work(self):
+        with tempfile.TemporaryDirectory(dir=ROOT/'build') as tmp:
+            root,external,sentinel,child,env=self.fixture(Path(tmp)); link=root/'build/core-acquisition'/self.target/'archive-path'
+            link.parent.mkdir(parents=True); link.symlink_to(sentinel)
+            result=self.operation(root,env,root,['cmake','-DCPKT_REPO_ROOT='+str(root),'-DCPKT_CORE_TARGET='+self.target,'-DCPKT_CORE_ACTION=acquire','-DCPKT_CORE_PIN='+str(root/'absent-pin'),'-P',root/'cmake/core-dependency.cmake'])
+            self.refuse(result,root,sentinel,link); self.assertFalse((root/'.cache').exists())
+
+
 class VerificationMutation(unittest.TestCase):
     """Exercise public metadata surfaces in isolated, acquisition-free repositories."""
     target = 'x86_64-linux-gnu'

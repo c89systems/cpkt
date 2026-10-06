@@ -180,7 +180,7 @@ if [ "$symlink_status" -eq 0 ]; then
   exit 1
 fi
 case "$symlink_output" in
-  *"dependency root ancestor must not be a symlink"*) ;;
+  *"symlink ancestor"*"$symlink_root/.cache"*) ;;
   *) printf 'symlinked ancestor failure was not actionable\n%s\n' "$symlink_output" >&2; exit 1 ;;
 esac
 test -e "$symlink_target/cache/deps/$target_id/openssl/install/sentinel"

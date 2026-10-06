@@ -14,10 +14,14 @@ description=$1
 shift
 
 # This helper is also copied alone into installed-consumer fixtures.
-if [ -L "$repo_root/build" ]; then
-  printf 'generated path has a symlink ancestor: %s\n' "$repo_root/build" >&2
-  exit 2
-fi
+parent="$repo_root/build"
+while [ -n "$parent" ]; do
+  if [ -L "$parent" ]; then
+    printf 'generated path has a symlink ancestor: %s\n' "$parent" >&2
+    exit 2
+  fi
+  parent=${parent%/*}
+done
 mkdir -p "$repo_root/build"
 work_root=$(mktemp -d "$repo_root/build/cpkt-no-warnings.XXXXXX")
 trap 'rm -rf "$work_root"' EXIT

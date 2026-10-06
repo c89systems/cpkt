@@ -1,4 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
+include("${CMAKE_CURRENT_LIST_DIR}/CpktMutationPaths.cmake")
+cpkt_validate_mutation_paths("${CPKT_PRODUCER}/CMakeCache.txt")
 if(NOT EXISTS "${CPKT_PRODUCER}/CMakeCache.txt")
   return()
 endif()

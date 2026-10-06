@@ -22,18 +22,23 @@ native=$(value CPKT_NATIVE_MAKE_PROGRAM) || native=${CPKT_NATIVE_MAKE_PROGRAM:-}
 [ -x "$native" ] && [ "$native" != "$scripts/native-build.sh" ] || {
   printf 'Configured native build tool is missing or recursive\n' >&2; exit 2;
 }
+source "$scripts/mutation-paths.sh"
+removals=()
 for argument in "$@"; do
   case "$argument" in clean|--clean)
     target=$(value CPKT_TARGET_ID) || target=
     group=$(value CPKT_GROUP) || group=
     if [ -n "$target" ] && [ -n "$group" ]; then
-      for file in "$root/build/verification/$target/$group/"*-development.json \
-          "$root/build/verification/$target/$group/"*-built.json; do rm -f -- "$file"; done
+      evidence="$root/build/verification/$target/$group"
+      cpkt_validate_mutation_path "$evidence"
+      removals+=("$evidence/"*-development.json "$evidence/"*-built.json)
       producer=$(value CPKT_DEPENDENCY_PRODUCER) || producer=OFF
       if [ "$producer" = ON ]; then
-        for file in "$root/build/verification/$target/$group/"component-*.json; do rm -f -- "$file"; done
+        removals+=("$evidence/"component-*.json)
       fi
     fi ;;
   esac
 done
+for file in "${removals[@]}"; do cpkt_validate_mutation_path "$file"; done
+if [ "${#removals[@]}" -gt 0 ]; then rm -f -- "${removals[@]}"; fi
 exec "$native" "$@"

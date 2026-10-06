@@ -59,7 +59,7 @@ cpkt_owned_path "$cpkt_binary"
 if [ "$action" = test ]; then
   cpkt_owned_path "$cpkt_binary/cpkt-test-inventory.json"
 fi
-cpkt_owned_path "$cpkt_root/build/$cpkt_target/$cpkt_owner/producer"
+cpkt_owned_path "$cpkt_root/build/$cpkt_target/$cpkt_owner/producer/CMakeCache.txt"
 export GROUP="$group"
 cpkt_locked "${original_arguments[@]}"
 cd "$cpkt_root"
