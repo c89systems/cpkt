@@ -35,6 +35,7 @@ Dependency upgrades must preserve the declared public consumer contract.
 Private implementation dependencies may change without a public ABI-version
 bump, provided the supported public API, ABI, behavior and runtime requirements
 remain intact. Apply this boundary to compiler-collection upgrades too.
+Check upstream release notes as part of dependency-upgrade assessment.
 Compare against the latest published artifacts,
 not the previous development commit. Minor/patch version numbers and unchanged
 SONAMEs alone do not establish compatibility. Check public ABI, bundled consumer
