@@ -35,8 +35,10 @@ empty target pins remain intentional until publication.
 Bash owns flock, stable lock inodes, nested operations, process groups, bounded
 signal cleanup and command diagnostics. Persistent service execution closes the issued descriptor numbers, including recovered handles, and clears operation capabilities before exec. `scripts/package-command.sh` applies
 that process policy to validator-owned external tool probes too. The Python
-output adapter forwards signals to this Bash owner and reads its output; it does
-not manage groups or schedule builds. Fixture reuse requires the same live run,
+output adapter forwards signals to this Bash owner and reads its output. It bounds
+capture draining after the owner exits: detached writers cannot keep the operation
+open, and incomplete successful captures cannot supply verification evidence.
+It does not manage groups or schedule builds. Fixture reuse requires the same live run,
 exact input bytes/environment, command argv and output identities. Completed
 readiness requires every native required CTest case exactly once in successful
 JUnit; filtered or failed runs cannot publish full readiness.

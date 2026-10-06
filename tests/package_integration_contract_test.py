@@ -958,6 +958,81 @@ leading]==] [==[literal "quotes"]==])
         self.assertNotEqual(result.returncode,0,'cold graph accepted missing source archive')
         self.assertIn('absent.tar.gz',result.stdout+result.stderr)
 
+    def test_capture_drain_releases_operation_with_detached_pipe_writer(self):
+        import fcntl
+        import signal
+        import time
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
+        root=self.work/'capture-drain';seed(root)
+        leaf=root/'leaf.py';launcher=root/'launcher.py';driver=root/'driver.py'
+        leaf.write_text('import fcntl,os\nfrom pathlib import Path\n'
+            'with open(os.environ["DRAIN_LEASE"],"w") as lease:\n'
+            ' fcntl.flock(lease,fcntl.LOCK_EX)\n'
+            ' Path(os.environ["DRAIN_READY"]).touch()\n'
+            ' with open(os.environ["DRAIN_CONTROL"],"rb",buffering=0) as control:control.read(1)\n')
+        launcher.write_text('import os,subprocess,sys,time\nfrom pathlib import Path\n'
+            'subprocess.Popen([sys.executable,os.environ["DRAIN_LEAF"]],start_new_session=True)\n'
+            'while not Path(os.environ["DRAIN_READY"]).exists():time.sleep(.01)\n'
+            'print("stdout-before-exit",flush=True)\nprint("stderr-before-exit",file=sys.stderr,flush=True)\n'
+            'Path(os.environ["DRAIN_STARTED"]).write_text(str(os.getpid()))\n'
+            'if os.environ["DRAIN_MODE"]=="signal":time.sleep(30)\n'
+            'raise SystemExit(23 if os.environ["DRAIN_MODE"]=="failure" else 0)\n')
+        driver.write_text('import os,sys\nfrom pathlib import Path\n'
+            'sys.path.insert(0,'+repr(str(ROOT/'scripts'))+')\nimport cpkt_packages as package\n'
+            'package.ROOT=Path(os.environ["DRAIN_ROOT"])\n'
+            'Path(os.environ["DRAIN_DRIVER"]).write_text(str(os.getpid()))\n'
+            'try:package.command([sys.executable,os.environ["DRAIN_LAUNCHER"]],cwd=package.ROOT,capture=True,group='+repr(owner)+')\n'
+            'except RuntimeError as error:print(str(error),file=sys.stderr);raise SystemExit(70)\n')
+        cases=[('failure',23,None),('success',70,None)]
+        cases += [('signal',128+signum,signum) for signum in (signal.SIGHUP,signal.SIGINT,signal.SIGTERM)]
+        for index,(mode,status,signum) in enumerate(cases):
+            with self.subTest(mode=mode,signum=signum):
+                control=root/('control-'+str(index));os.mkfifo(control)
+                channel=os.open(control,os.O_RDWR)
+                paths={name:root/(name+'-'+str(index)) for name in ('lease','ready','started','driver')}
+                variables=environment();variables.update(
+                    DRAIN_ROOT=str(root),DRAIN_LEAF=str(leaf),DRAIN_LAUNCHER=str(launcher),DRAIN_MODE=mode,
+                    DRAIN_CONTROL=str(control),_CPKT_PACKAGE_TERMINATION_GRACE_SECONDS='.1')
+                variables.update({'DRAIN_'+key.upper():str(value) for key,value in paths.items()})
+                process=subprocess.Popen(['bash',str(root/'scripts/operation.sh'),'--root',str(root),
+                    '--group',owner,'--',sys.executable,str(driver)],env=variables,
+                    stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,start_new_session=True)
+                try:
+                    deadline=time.monotonic()+5
+                    while not paths['started'].exists():
+                        self.assertIsNone(process.poll())
+                        self.assertLess(time.monotonic(),deadline,'capture command did not start')
+                        time.sleep(.01)
+                    started=time.monotonic()
+                    if signum:os.kill(int(paths['driver'].read_text()),signum)
+                    output,_=process.communicate(timeout=1.5)
+                    self.assertEqual(process.returncode,status,output)
+                    self.assertLess(time.monotonic()-started,1.5,output)
+                    if mode=='failure':
+                        self.assertIn('stdout-before-exit',output)
+                        self.assertIn('stderr-before-exit',output)
+                    if mode=='success':self.assertIn('captured output pipes remained open',output)
+                    with (root/'build/control/operation.lock').open('r+') as probe:
+                        fcntl.flock(probe,fcntl.LOCK_EX|fcntl.LOCK_NB)
+                finally:
+                    os.write(channel,b'x');os.close(channel)
+                    try:process.communicate(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        if paths['started'].exists():
+                            try:os.killpg(int(paths['started'].read_text()),signal.SIGKILL)
+                            except ProcessLookupError:pass
+                        try:os.killpg(process.pid,signal.SIGKILL)
+                        except ProcessLookupError:pass
+                        process.communicate(timeout=2)
+                    if paths['lease'].exists():
+                        deadline=time.monotonic()+2
+                        with paths['lease'].open('r+') as probe:
+                            while True:
+                                try:fcntl.flock(probe,fcntl.LOCK_EX|fcntl.LOCK_NB);break
+                                except BlockingIOError:
+                                    if time.monotonic()>deadline:raise AssertionError('fixture writer kept its lease')
+                                    time.sleep(.01)
+
     def test_shell_defaults_preserve_matrix_and_selected_scope(self):
         root=self.work/'dispatch';variables,record=trace(root)
         owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']

@@ -38,6 +38,9 @@ def command(args, cwd=ROOT, capture=False, group=None, env=None):
     with child_delegation(ROOT, scope) as (delegation, fds):
         if env:
             delegation.update(env)
+        drain_grace = float(delegation.get('_CPKT_PACKAGE_TERMINATION_GRACE_SECONDS', '2'))
+        if not 0 < drain_grace <= 10:
+            raise ValueError('package capture drain grace must be positive and at most 10 seconds')
         phase='configure' if str(args[0])=='cmake' and '--build' not in args else 'build' if '--build' in args else 'fixture' if any('preflight' in str(a) for a in args) else 'test' if any('consumer' in str(a) or 'build.sh' in str(a) for a in args) else 'package'
         process=subprocess.Popen(['bash',str(ROOT/'scripts/package-command.sh'),str(ROOT),phase,'--',*map(str,args)],
             cwd=cwd,env=delegation,pass_fds=fds,text=True,
@@ -51,7 +54,28 @@ def command(args, cwd=ROOT, capture=False, group=None, env=None):
         try:
             for signum in (signal.SIGHUP,signal.SIGINT,signal.SIGTERM):
                 handlers[signum]=signal.signal(signum,forward)
-            output,error=process.communicate()
+            deadline = None
+            while True:
+                try:
+                    output,error=process.communicate(timeout=.05 if capture else None)
+                    break
+                except subprocess.TimeoutExpired as pending:
+                    if process.poll() is None:
+                        continue
+                    if deadline is None:
+                        deadline = time.monotonic() + drain_grace
+                    if time.monotonic() < deadline:
+                        continue
+                    # Bash has finished owning/reaping its command group. A
+                    # detached writer cannot extend this adapter's capture.
+                    output = (pending.output or b'').decode(process.stdout.encoding, errors='replace')
+                    error = (pending.stderr or b'').decode(process.stderr.encoding, errors='replace')
+                    process.stdout.close()
+                    process.stderr.close()
+                    if not process.returncode and not received:
+                        print(output+error, file=sys.stderr)
+                        raise RuntimeError('captured output pipes remained open after command exit')
+                    break
             if process.returncode or received:
                 if capture:print((output or '')+(error or ''),file=sys.stderr)
                 raise SystemExit(128+received[0] if received else process.returncode)
