@@ -56,6 +56,9 @@ if [ "$fresh" = yes ]; then
 fi
 if [ "$action" = path ]; then printf '%s\n' "$cpkt_binary"; exit 0; fi
 cpkt_owned_path "$cpkt_binary"
+if [ "$action" = test ]; then
+  cpkt_owned_path "$cpkt_binary/cpkt-test-inventory.json"
+fi
 cpkt_owned_path "$cpkt_root/build/$cpkt_target/$cpkt_owner/producer"
 export GROUP="$group"
 cpkt_locked "${original_arguments[@]}"
@@ -151,6 +154,7 @@ if [ "$action" = memcheck ]; then
   exec bash "$cpkt_scripts/memcheck.sh" --group "$group" --preset "$preset" --regex "$regex"
 fi
 listing="$cpkt_binary/cpkt-test-inventory.json"
+cpkt_owned_path "$listing"
 "$cpkt_ctest" --test-dir "$cpkt_binary" --show-only=json-v1 > "$listing"
 python3 "$cpkt_scripts/cpkt_build_evidence.py" inventory "${evidence[@]}"
 test_arguments=(--test-dir "$cpkt_binary" --no-tests=error --stop-on-failure --output-on-failure \

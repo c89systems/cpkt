@@ -169,4 +169,196 @@ class Repository(unittest.TestCase):
             self.assertFalse(marker.exists());self.assertFalse((root/'build').exists());self.assertFalse((root/'.cache').exists())
             self.assertEqual(before,tree_identity(root))
 
+
+
+class GeneratedWorkspace(unittest.TestCase):
+    """Exercise public Bash writers in miniature repositories, without SDKs."""
+    def fixture(self, root):
+        from native_lifecycle_fixture import seed, environment
+        seed(root)
+        tools = root / 'tools'
+        tools.mkdir()
+        calls = root / 'children.jsonl'
+        cmake = tools / 'cmake'
+        cmake.write_text('#!' + sys.executable + '\n' +
+            'import json,subprocess,sys\nfrom pathlib import Path\n'
+            'a=sys.argv[1:]\n'
+            'if "--list-presets=configure" in a or ("-P" in a and not any("producer-cache" in v for v in a)):\n'
+            '  raise SystemExit(subprocess.call([' + repr(shutil.which('cmake')) + ',*a]))\n'
+            'with open(' + repr(str(calls)) + ',"a") as f:f.write(json.dumps(a)+"\\n")\n'
+            'if "-B" in a:Path(a[a.index("-B")+1]).mkdir(parents=True,exist_ok=True)\n'
+            'if "--install" in a:\n'
+            '  p=Path(a[a.index("--prefix")+1]);p.mkdir(parents=True,exist_ok=True);(p/"payload").write_text("fixture")\n')
+        cmake.chmod(0o755)
+        ctest = tools / 'ctest'
+        ctest.write_text('#!' + sys.executable + '\nimport json,sys\n'
+            'with open(' + repr(str(calls)) + ',"a") as f:f.write(json.dumps(sys.argv[1:])+"\\n")\n'
+            'print("{\\"tests\\": []}")\n')
+        ctest.chmod(0o755)
+        (tools / 'valgrind').write_text('#!/bin/sh\nexit 91\n')
+        (tools / 'valgrind').chmod(0o755)
+        for name in ('cpkt_build_evidence.py', 'cpkt_memcheck_evidence.py', 'cpkt_package_manifest.py'):
+            (root / 'scripts' / name).write_text('# inert evidence/manifest fixture\n')
+        (root / 'scripts/test-e2e.sh').write_text('#!/bin/sh\nexit 0\n')
+        (root / 'scripts/cpkt-toolchains.sh').write_text('#!/bin/sh\nprintf "status=ready\\n"\n')
+        env = dict(environment(), CMAKE=str(cmake), CTEST=str(ctest),
+                   PATH=str(tools) + os.pathsep + os.environ['PATH'],
+                   CPKT_DEPENDENCY_CACHE=str(root / 'shared-cache'))
+        return env, calls
+
+    def cases(self):
+        graph = 'build/x86_64-linux-gnu/' + REPOSITORY_GROUP
+        provider = {'core': 'cpkt', 'db': 'cpktdb', 'misc': 'cpktmisc'}[REPOSITORY_GROUP]
+        archive = provider + '-1.2.3-x86_64-linux-gnu.tar.gz'
+        stage = 'build/package-stage/x86_64-linux-gnu/' + REPOSITORY_GROUP
+        return [
+            ('preflight.sh', ['--preset', 'debug'], 'build/control/preflight/x86_64-linux-gnu/native', True),
+            ('build.sh', ['test', '--preset', 'debug'], graph + '/Debug/cpkt-test-inventory.json', False),
+            ('memcheck.sh', [], graph + '/Valgrind/cpkt-memcheck-inventory.json', False),
+            ('package-stage.sh', ['--preset', 'release'], stage + '/archives/' + archive, False),
+            ('package-stage.sh', ['--preset', 'release'], stage + '/archives/' + archive + '.tmp', False),
+            ('source-reconstruct.sh', [], 'build/source-composition/' + archive, False),
+            ('package.sh', ['package'], 'dist/' + archive, False),
+            ('darwin.sh', ['test-darwin-native'], 'dist/' + provider + '-1.2.3-arm64-apple-darwin.tar.gz', False),
+            ('package-source.sh', [], 'dist/' + provider + '-1.2.3.tar.gz', False),
+            ('source-archive-verify.sh', [provider + '-1.2.3.tar.gz', '1.2.3'],
+             'build/verification/source/1.2.3/reconstruction.log', False),
+            ('run-no-warnings.sh', ['probe', '/bin/true'], 'build', True),
+        ]
+
+    def test_writers_refuse_redirects_before_children_and_preserve_sentinels(self):
+        (ROOT / 'build').mkdir(exist_ok=True)
+        for script, arguments, relative, directory in self.cases():
+            for redirect in ('leaf', 'parent', 'dangling'):
+                if relative == 'build' and redirect == 'parent':
+                    continue
+                with self.subTest(script=script, path=relative, redirect=redirect), \
+                        tempfile.TemporaryDirectory(prefix='workspace-boundary-', dir=ROOT / 'build') as temporary:
+                    work = Path(temporary)
+                    root = work / 'repo'
+                    env, calls = self.fixture(root)
+                    external = work / 'unrelated'
+                    external.mkdir()
+                    sentinel = external / 'sentinel'
+                    sentinel.write_bytes(b'unrelated bytes\n')
+                    sentinel.chmod(0o640)
+                    target = root / relative
+                    if redirect == 'parent':
+                        target = target.parent
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    destination = external if directory or redirect == 'parent' else sentinel
+                    if redirect == 'dangling':
+                        destination = work / 'absent'
+                    target.symlink_to(destination, target_is_directory=directory or redirect == 'parent')
+                    provider = {'core': 'cpkt', 'db': 'cpktdb', 'misc': 'cpktmisc'}[REPOSITORY_GROUP]
+                    (root / (provider + '-1.2.3.tar.gz')).write_bytes(b'not extracted')
+                    # Reconstruction/export child scripts would start production work.
+                    # A marker proves refusal occurs before any such invocation.
+                    if script == 'darwin.sh':
+                        uname = root / 'tools/uname'
+                        uname.write_text('#!/bin/sh\ncase "$1" in -s) echo Darwin ;; -m) echo arm64 ;; esac\n')
+                        uname.chmod(0o755)
+                    if script in ('source-reconstruct.sh', 'package.sh', 'darwin.sh'):
+                        (root / 'scripts/build.sh').write_text('#!/bin/sh\ntouch "' + str(calls) + '"\nexit 47\n')
+                        (root / 'scripts/core-dependency.sh').write_text('#!/bin/sh\ntouch "' + str(calls) + '"\nexit 47\n')
+                    result = subprocess.run(['bash', str(root / 'scripts' / script), *arguments],
+                                            cwd=root, env=env, capture_output=True, text=True)
+                    self.assertEqual(2, result.returncode, result.stdout + result.stderr)
+                    self.assertIn('symlink ancestor', result.stderr)
+                    self.assertFalse(calls.exists(), result.stdout + result.stderr)
+                    self.assertEqual(b'unrelated bytes\n', sentinel.read_bytes())
+                    self.assertEqual(0o640, sentinel.stat().st_mode & 0o777)
+                    self.assertEqual([sentinel], list(external.iterdir()))
+                    self.assertFalse((work / 'absent').exists())
+                    self.assertTrue(target.is_symlink())
+                    self.assertFalse((root / '.cache').exists())
+
+    def test_ordinary_preflight_inventory_and_stage_keep_native_arguments(self):
+        (ROOT / 'build').mkdir(exist_ok=True)
+        for script, arguments in [('preflight.sh', ['--preset', 'debug']),
+                                  ('build.sh', ['test', '--preset', 'debug', '--regex', 'some test', '--label', 'fixture']),
+                                  ('memcheck.sh', ['--regex', 'some test']),
+                                  ('package-stage.sh', ['--preset', 'release'])]:
+            with self.subTest(script=script), tempfile.TemporaryDirectory(
+                    prefix='workspace-ordinary-', dir=ROOT / 'build') as temporary:
+                root = Path(temporary)
+                env, calls = self.fixture(root)
+                (root / 'build/x86_64-linux-gnu' / REPOSITORY_GROUP / 'Valgrind').mkdir(parents=True)
+                result = subprocess.run(['bash', str(root / 'scripts' / script), *arguments],
+                                        cwd=root, env=env, capture_output=True, text=True)
+                self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+                argv = [json.loads(line) for line in calls.read_text().splitlines()]
+                if script == 'build.sh':
+                    self.assertIn(['-R', 'some test'], [a[i:i+2] for a in argv for i in range(len(a)-1)])
+                    self.assertIn(['-L', 'fixture'], [a[i:i+2] for a in argv for i in range(len(a)-1)])
+                if script == 'memcheck.sh':
+                    self.assertTrue(any('-T' in a and 'memcheck' in a for a in argv))
+                if script == 'preflight.sh':
+                    self.assertTrue(any('-B' in a and str(root / 'build/control/preflight/x86_64-linux-gnu/native') in a for a in argv))
+                if script == 'package-stage.sh':
+                    archives = list((root / 'build/package-stage/x86_64-linux-gnu' / REPOSITORY_GROUP / 'archives').glob('*.tar.gz'))
+                    self.assertEqual(1, len(archives))
+                    listing = subprocess.check_output(['tar', 'tf', str(archives[0])], text=True)
+                    self.assertIn('/payload', listing)
+
+    def test_generic_archive_accepts_explicit_output_and_warning_workspace_is_private(self):
+        (ROOT / 'build').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='workspace-contract-', dir=ROOT / 'build') as temporary:
+            root = Path(temporary) / 'repo'
+            env, calls = self.fixture(root)
+            prefix = root / 'payload'
+            prefix.mkdir()
+            (prefix / 'bytes').write_text('fixture')
+            output = Path(temporary) / 'explicit-output/archive.tar.gz'
+            result = subprocess.run(['bash', str(root / 'scripts/archive.sh'), str(prefix), str(output)],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertTrue(output.is_file())
+            result = subprocess.run(['bash', str(root / 'scripts/run-no-warnings.sh'), 'probe', '/bin/true'],
+                                    cwd=prefix, env=env, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertFalse(list((root / 'build').glob('cpkt-no-warnings.*')))
+
+
+    def test_source_composition_copies_owned_archive_before_compose(self):
+        (ROOT / 'build').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='workspace-composition-', dir=ROOT / 'build') as temporary:
+            root = Path(temporary)
+            env, calls = self.fixture(root)
+            provider = {'core': 'cpkt', 'db': 'cpktdb', 'misc': 'cpktmisc'}[REPOSITORY_GROUP]
+            archive_name = provider + '-1.2.3-x86_64-linux-gnu.tar.gz'
+            artifact = root / 'build/package-stage/x86_64-linux-gnu' / REPOSITORY_GROUP / 'archives' / archive_name
+            artifact.parent.mkdir(parents=True)
+            artifact.write_bytes(b'owned archive bytes')
+            for name in ('build.sh', 'core-dependency.sh', 'package.sh'):
+                (root / 'scripts' / name).write_text('#!/bin/sh\nexit 0\n')
+            (root / 'scripts/cpkt_packages.py').write_text(
+                'import sys\nfrom pathlib import Path\n'
+                'assert sys.argv[1:]==["compose","--group","all","--preset","x86_64-linux-gnu-release","--base",' + repr(str(root / 'build/source-composition')) + ']\n'
+                'assert (Path(sys.argv[-1])/' + repr(archive_name) + ').read_bytes()==b"owned archive bytes"\n')
+            result = subprocess.run(['bash', str(root / 'scripts/source-reconstruct.sh')],
+                                    cwd=root / 'tools', env=env, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            self.assertEqual(b'owned archive bytes', (root / 'build/source-composition' / archive_name).read_bytes())
+
+    def test_source_archive_output_stays_in_dist(self):
+        (ROOT / 'build').mkdir(exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix='workspace-source-', dir=ROOT / 'build') as temporary:
+            root = Path(temporary)
+            env, calls = self.fixture(root)
+            (root / 'scripts/cpkt_source_proof.py').write_text('# inert source-proof fixture\n')
+            (root / 'tests').mkdir()
+            (root / 'tests/privacy_scan.cmake').write_text('# inert privacy scan fixture\n')
+            (root / 'RELEASE_MANIFEST').write_text('scripts/package-source.sh\nscripts/lifecycle-common.sh\ncmake/components.json\n')
+            result = subprocess.run(['bash', str(root / 'scripts/package-source.sh')],
+                                    cwd=root / 'tools', env=env, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            provider = {'core': 'cpkt', 'db': 'cpktdb', 'misc': 'cpktmisc'}[REPOSITORY_GROUP]
+            archives = list((root / 'dist').glob('*.tar.gz'))
+            self.assertEqual([root / 'dist' / (provider + '-1.2.3.tar.gz')], archives)
+            listing = subprocess.check_output(['tar', 'tf', str(archives[0])], text=True)
+            self.assertIn('/VERSION', listing)
+            self.assertIn('/RELEASE_MANIFEST', listing)
+            self.assertFalse(list((root / 'build').glob('cpkt-source-stage.*')))
+
 if __name__=='__main__':unittest.main()

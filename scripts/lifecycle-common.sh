@@ -26,7 +26,7 @@ cpkt_check_group() {
 
 cpkt_owned_path() {
   local path=$1 parent
-  case "$path" in "$cpkt_root/build/"*|"$cpkt_root/.cache/"*) ;; *) cpkt_fail "path is not owned generated state: $path" ;; esac
+  case "$path" in "$cpkt_root/build"|"$cpkt_root/build/"*|"$cpkt_root/.cache/"*|"$cpkt_root/dist"|"$cpkt_root/dist/"*) ;; *) cpkt_fail "path is not owned generated state: $path" ;; esac
   case "$path/" in *'/../'*|*'/./'*) cpkt_fail 'generated path contains traversal' ;; esac
   parent=$path
   while [ "$parent" != "$cpkt_root" ]; do

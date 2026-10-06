@@ -10,6 +10,8 @@ while [ "$#" -gt 0 ]; do
 done
 cpkt_check_group "$group"
 cpkt_preset "$preset"
+binary="$cpkt_root/build/control/preflight/$cpkt_target/native"
+cpkt_owned_path "$binary"
 export GROUP="$group"
 cpkt_locked --group "$group" --preset "$preset"
 profile=linux-runner
@@ -29,7 +31,6 @@ case "$cpkt_target" in
       arguments+=("-DCMAKE_TOOLCHAIN_FILE=$cpkt_root/cmake/toolchains/arm64-apple-darwin.cmake")
     fi ;;
 esac
-binary="$cpkt_root/build/control/preflight/$cpkt_target/native"
 "$cpkt_cmake" -S "$cpkt_root/cmake/preflight" -B "$binary" -G Ninja \
   "-DCPKT_REPO_ROOT=$cpkt_root" "-DCPKT_TARGET_ID=$cpkt_target" "-DCPKT_GROUP=$cpkt_owner" \
   "-DCPKT_PREFLIGHT_PROFILE=$profile" "-DCPKT_TARGET_ARCH=${cpkt_target%%-*}" \

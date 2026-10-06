@@ -55,6 +55,10 @@ if [ "$archive_version" != "$expected_version" ]; then
   exit 1
 fi
 
+source "$repo_root/scripts/lifecycle-common.sh"
+reconstruction_log="$repo_root/build/verification/source/$expected_version/reconstruction.log"
+cpkt_owned_path "$reconstruction_log"
+
 if tar --numeric-owner -tvf "$archive_path" | awk '$2 != "0/0" { print; bad = 1 } END { exit bad }'; then
   :
 else
@@ -193,8 +197,7 @@ if [[ -n ${CPKT_SOURCE_ARCHIVE_TOOLCHAIN_FILE:-} && $(realpath "$CPKT_SOURCE_ARC
   exit 1
 fi
 source "$repo_root/scripts/source-environment.sh" "$repo_root"
-mkdir -p "$repo_root/build/verification/source/$expected_version"
-reconstruction_log="$repo_root/build/verification/source/$expected_version/reconstruction.log"
+mkdir -p "${reconstruction_log%/*}"
 bash "$repo_root/scripts/operation.sh" --root "$repo_root" --group all \
   --source-root "$source_root" -- bash "$source_root/scripts/source-reconstruct.sh" 2>&1 | tee "$reconstruction_log"
 python3 "$repo_root/scripts/cpkt_source_proof.py" "$archive_path" "$expected_version" "$source_root"

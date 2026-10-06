@@ -12,11 +12,12 @@ done
 cpkt_check_group "$group"
 [ "$preset" = valgrind ] || cpkt_fail 'Memcheck requires the valgrind profile'
 cpkt_preset "$preset"
+listing="$cpkt_binary/cpkt-memcheck-inventory.json"
+cpkt_owned_path "$listing"
 export GROUP="$group"
 cpkt_locked --group "$group" --preset "$preset" --regex "$regex"
 bash "$cpkt_scripts/require-native-hardening-host.sh" valgrind
 command -v valgrind >/dev/null || cpkt_fail 'host Valgrind is required'
-listing="$cpkt_binary/cpkt-memcheck-inventory.json"
 arguments=(--test-dir "$cpkt_binary" -L memcheck)
 if [ -n "$regex" ]; then arguments+=(-R "$regex"); fi
 "$cpkt_ctest" "${arguments[@]}" --show-only=json-v1 > "$listing"

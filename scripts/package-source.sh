@@ -20,6 +20,8 @@ archive_name="$archive_stem.tar.gz"
 dist_dir="$repo_root/dist"
 archive_path="$dist_dir/$archive_name"
 checksums_path="$dist_dir/cpkt-$bundle_version-CHECKSUMS"
+source "$repo_root/scripts/lifecycle-common.sh"
+cpkt_owned_path "$archive_path"
 
 find_gnu_tar() {
   if [ "${CPKT_GNU_TAR:-}" != "" ]; then

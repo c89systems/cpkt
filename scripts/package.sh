@@ -62,6 +62,10 @@ if [ "$action" = package-checksums ]; then validate checksums --group all --scop
 if [ "$action" = package ]; then
   targets=()
   while IFS= read -r target; do targets+=("$target"); done < <(cpkt_info targets)
+  cpkt_owned_path "$cpkt_root/dist"
+  for target in "${targets[@]}"; do
+    cpkt_owned_path "$cpkt_root/dist/$cpkt_provider-$version-$target.tar.gz"
+  done
   for target in "${targets[@]}"; do
     bash "$cpkt_scripts/build.sh" preflight --group all --preset "$target-release"
   done
@@ -71,6 +75,7 @@ if [ "$action" = package ]; then
     selected="$target-release"
     bash "$cpkt_scripts/build.sh" test --group "$cpkt_owner" --preset "$selected"
     bash "$cpkt_scripts/package.sh" package-stage --group "$cpkt_owner" --preset "$selected" --scope selected
+    cpkt_owned_path "$cpkt_root/dist/$cpkt_provider-$version-$target.tar.gz"
     cp -- "$cpkt_root/build/package-stage/$target/$cpkt_owner/archives/$cpkt_provider-$version-$target.tar.gz" "$cpkt_root/dist/"
     validate compose --group all --preset "$selected" --base "$cpkt_root/dist"
   done
