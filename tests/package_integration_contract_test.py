@@ -909,6 +909,55 @@ leading]==] [==[literal "quotes"]==])
             self.assertIn('requires SCOPE=release',result.stderr)
             self.assertFalse(record.exists(),'narrowed direct alias reached verification work')
 
+    def test_verified_warm_external_project_needs_no_source_archive(self):
+        import re
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
+        root=self.work/'offline-warm';(root/'installed').mkdir(parents=True)
+        payload=root/'installed/library.a';payload.write_bytes(b'verified output')
+        scripts=root/'scripts';scripts.mkdir()
+        calls=root/'receipt-calls'
+        (scripts/'cpkt_receipt_cli.py').write_text('from pathlib import Path\n'
+            'assert Path('+repr(str(payload))+').read_bytes()==b"verified output"\n'
+            'with Path('+repr(str(calls))+').open("a") as stream:stream.write("validated\\n")\n')
+        recipe=(ROOT/'cmake/CpktDependencies.cmake').read_text()
+        registration=re.search(r'macro\(cpkt_cached_external_project_add\).*?endmacro\(\)',recipe,re.S).group(0)
+        source='cmake_minimum_required(VERSION 3.21)\nproject(offline NONE)\ninclude(ExternalProject)\n'
+        source+='include("'+str(ROOT/'cmake/CpktVerifiedExternalProject.cmake')+'")\n'
+        source+='include("'+str(ROOT/'cmake/CpktDependencyArchiveCache.cmake')+'")\n'+registration+'\n'
+        source+='set(CPKT_GROUP '+owner+')\nset(CPKT_TARGET_ID synthetic)\n'
+        source+='set(CPKT_DEPENDENCY_CACHE "$ENV{CPKT_DEPENDENCY_CACHE}")\n'
+        source+='set(CPKT_DEPENDENCY_CACHE_LOCK_TIMEOUT 1)\nset(CPKT_DEPENDENCY_DOWNLOAD_RETRIES 1)\n'
+        source+='set(CPKT_DEPENDENCY_DOWNLOAD_TIMEOUT 1)\nset(CPKT_DEPENDENCY_DOWNLOAD_INACTIVITY_TIMEOUT 1)\n'
+        source+='set(CPKT_DOWNLOAD_ROOT "'+str(root/'build/seeds')+'")\n'
+        source+='set(CPKT_HOST_PYTHON_EXECUTABLE "'+sys.executable+'")\n'
+        source+='set(CPKT_VERIFIED_COMPONENT_INSTALL "'+str(root/'installed')+'")\n'
+        source+='cpkt_cached_external_project_add(offline_project URL "file://'+str(root/'absent.tar.gz')+'"\n'
+        source+=' URL_HASH SHA256='+('a'*64)+' CONFIGURE_COMMAND "" BUILD_COMMAND "" INSTALL_COMMAND "")\n'
+        (root/'CMakeLists.txt').write_text(source)
+        cache=root/'build/synthetic-archive-cache'
+        variables=environment();variables['CPKT_DEPENDENCY_CACHE']=str(cache)
+        warm=root/'build/warm'
+        configure=['cmake','-S',str(root),'-B',str(warm),'-G','Ninja','-DCPKT_VERIFIED_COMPONENT=fixture']
+        result=subprocess.run(configure,env=variables,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        for repeat in range(2):
+            result=subprocess.run(['cmake','--build',str(warm),'--target','offline_project'],
+                env=variables,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertEqual(calls.read_text().splitlines(),['validated','validated'])
+        self.assertFalse(cache.exists(),'warm graph acquired source archive state')
+        payload.write_bytes(b'corrupt')
+        result=subprocess.run(['cmake','--build',str(warm),'--target','offline_project'],
+            env=variables,capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
+        self.assertEqual(payload.read_bytes(),b'corrupt','warm node repaired borrowed output')
+        self.assertEqual(calls.read_text().splitlines(),['validated','validated'])
+        cold=root/'build/cold'
+        result=subprocess.run(['cmake','-S',str(root),'-B',str(cold),'-G','Ninja'],
+            env=variables,capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0,'cold graph accepted missing source archive')
+        self.assertIn('absent.tar.gz',result.stdout+result.stderr)
+
     def test_shell_defaults_preserve_matrix_and_selected_scope(self):
         root=self.work/'dispatch';variables,record=trace(root)
         owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']

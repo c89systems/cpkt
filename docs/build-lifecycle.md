@@ -20,7 +20,9 @@ it never configures a producer or rebuilds a dependency.
 Verified warm ExternalProject nodes retain their dependency edges and validate
 original receipts on every native build. Changed launcher/stamp scripts never
 replay a compiled install. Recipe/input or output corruption selects the full
-native producer path; the native adapter's actual bytes are part of that contract.
+native producer path. Verified warm nodes skip source-archive acquisition,
+including when the archive cache and seed locations are empty. The
+native adapter's actual bytes are part of that contract.
 
 CMake install rules stage owned SDK payload, public generated headers, discovery
 metadata, example sources and complete licenses. `scripts/archive.sh` uses GNU
