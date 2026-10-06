@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+case ${BASH_SOURCE[0]} in
+  */*) source "${BASH_SOURCE[0]%/*}/require-host-bash.sh" ;;
+  *) source ./require-host-bash.sh ;;
+esac || exit $?
 # Shared path/argument handling; CMake remains the build graph authority.
 
 cpkt_scripts=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)

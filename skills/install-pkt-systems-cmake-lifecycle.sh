@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+case ${BASH_SOURCE[0]} in
+  */*) source "${BASH_SOURCE[0]%/*}/pkt-systems-cmake-lifecycle/scripts/require-host-bash.sh" ;;
+  *) source ./pkt-systems-cmake-lifecycle/scripts/require-host-bash.sh ;;
+esac || exit $?
 set -euo pipefail
 
 skill_names=(pkt-systems-cmake-lifecycle codex-review-and-fix-loop)

@@ -57,7 +57,7 @@ is in use. Do not assume a downstream checkout contains either `skills/` or
 vendored copies under `scripts/`.
 
 Set a shell variable `lifecycle_scripts_dir` to that resolved directory.
-Keep the complete helper set together, including `cpkt-archive-cache.sh`,
+Keep the complete helper set together, including `require-host-bash.sh`, `cpkt-archive-cache.sh`,
 `cpkt-toolchains.sh` and `cpkt-aflpp.sh`; do not copy a resolver without its
 sibling helpers. CMake examples below take the same directory through the
 explicit `CPKT_LIFECYCLE_SCRIPTS_DIR` input (for example `-D` on configure).
@@ -106,6 +106,28 @@ shipping or invoking a machine-provisioning script from this skill. Use the
 host package manager with explicit operator authorization where it needs
 `sudo`; do not embed package-manager actions in ordinary project builds.
 
+## Host Bash
+
+The lifecycle helpers require host **Bash 4.4 or newer** for nounset-safe empty
+arrays, dynamic file descriptors and `mapfile`. This host prerequisite does not
+apply to unrelated consumers of the C89 SDK. Helpers reject an unsupported
+shell before lifecycle discovery, cache work or native children.
+
+On macOS, install Homebrew Bash and give it PATH precedence in the terminal
+that runs Make and scripts (the system `/bin/bash` remains unchanged):
+
+```sh
+brew install bash
+export PATH="$(brew --prefix bash)/bin:$PATH"
+bash "$lifecycle_scripts_dir/require-host-bash.sh"
+```
+
+On Linux, include `bash` in the host package baseline (for example
+`sudo apt-get install bash`), upgrading it if older than 4.4. The command above
+prints the actual selected shell version and path. Installing a formula alone
+does not select it; Make, operations and compiler/native launchers must inherit
+that PATH. Bash is a host tool, never a cpkt SDK or toolchain cache product.
+
 ### Host packages
 
 Refresh apt metadata and install this complete baseline as one transaction:
@@ -113,7 +135,7 @@ Refresh apt metadata and install this complete baseline as one transaction:
 ```sh
 sudo apt-get update
 sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  autoconf automake binutils bison bzip2 ca-certificates \
+  autoconf automake bash binutils bison bzip2 ca-certificates \
   cmake cpio curl default-jre-headless flex \
   fuse-overlayfs gawk git git-lfs help2man \
   libbz2-dev libcairo2-dev liblzma-dev \
@@ -140,7 +162,8 @@ described below. Confirm the baseline host command surfaces before treating
 the workstation as ready:
 
 ```sh
-command -v git cmake ninja podman qemu-aarch64 valgrind
+command -v bash git cmake ninja podman qemu-aarch64 valgrind
+bash "$lifecycle_scripts_dir/require-host-bash.sh"
 cmake --version
 ```
 

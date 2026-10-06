@@ -263,6 +263,24 @@ class Fixtures(unittest.TestCase):
         result=subprocess.run(['bash',str(root/'scripts/build.sh'),'configure','--preset','arm64-apple-darwin-native'],env=variables,capture_output=True,text=True)
         self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         calls=[json.loads(line) for line in record.read_text().splitlines() if '--preset' in json.loads(line)['args']]
+        # Standalone native preflight uses the same Apple compiler/SDK route and
+        # consumes an explicit tuple without changing toolchain selection.
+        record.unlink()
+        preflight_env=dict(variables,CTEST='/usr/bin/true')
+        result=subprocess.run(['bash',str(root/'scripts/preflight.sh'),'--preset','arm64-apple-darwin-native'],env=preflight_env,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        preflight=[json.loads(line) for line in record.read_text().splitlines() if '-S' in json.loads(line)['args']]
+        self.assertEqual(1,len(preflight))
+        arguments=preflight[0]['args']
+        for value in ('-DCPKT_PREFLIGHT_PROFILE=native-darwin','-DCPKT_TARGET_ARCH=arm64',
+                      '-DCPKT_TARGET_OS=darwin','-DCPKT_TARGET_LIBC=',
+                      '-DCMAKE_C_COMPILER='+str(tools/'clang'),
+                      '-DCMAKE_CXX_COMPILER='+str(tools/'clang++'),
+                      '-DCMAKE_OSX_SYSROOT='+str(sdk),'-DCMAKE_OSX_DEPLOYMENT_TARGET=15.0'):
+            self.assertIn(value,arguments)
+        self.assertFalse(any(a.startswith('-DCMAKE_TOOLCHAIN_FILE=') for a in arguments))
+        self.assertEqual(str(sdk),preflight[0]['sdk'])
+
         def discover(args,**kwargs):
             return str(sdk)+'\n' if args==['xcrun','--show-sdk-path'] else str(tools/args[2])+'\n'
         with patch.object(consumer,'ROOT',root),patch.object(consumer.sys,'platform','darwin'),patch.object(consumer,'command',side_effect=discover):

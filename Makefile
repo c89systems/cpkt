@@ -67,7 +67,7 @@ help:
 	@printf '\nSelection: unqualified build/test retain six Linux Release targets; selected build/test use native debug by default.\nSelected packaging requires explicit Release PRESET, writes only build/, and contains only this repository payload.\nRelease/matrix/source gates reject narrowing before clean. Formatting stays global. Local jobs=8, native Darwin jobs=2; explicit configured limits are honored.\n'
 	@printf '  %-30s %s\n' 'test-darwin-native' 'Native Darwin source/runtime proof (Apple tools, jobs=2).'
 	@printf '  %-30s %s\n' 'test-darwin-sdk' 'Execute supplied Darwin SDK combinations without changing libraries.'
-	@printf '  %-30s %s\n' 'test-github-actions-contracts' 'Offline workflow/handoff identity fixtures.'
+	@printf '  %-30s %s\n' 'test-github-actions-contracts' 'Offline host Bash, workflow and handoff fixtures.'
 
 print-release-version:
 	@bash scripts/release-version.sh "$(CURDIR)"

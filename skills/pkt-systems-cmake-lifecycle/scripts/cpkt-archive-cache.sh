@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+case ${BASH_SOURCE[0]} in
+  */*) source "${BASH_SOURCE[0]%/*}/require-host-bash.sh" ;;
+  *) source ./require-host-bash.sh ;;
+esac || exit $?
 # Shared local-byte lookup for pinned toolchain archives. Call under the
 # resolver's cache lock; downloads and extraction remain owned by the caller.
 

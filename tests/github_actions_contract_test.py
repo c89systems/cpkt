@@ -12,6 +12,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'tests'))
 from package_integration_contract_test import Fixtures
+from host_bash_prerequisite_test import HostBash
 
 class Workflow(unittest.TestCase):
     def test_each_native_job_provisions_its_own_lock_tool(self):
@@ -23,6 +24,13 @@ class Workflow(unittest.TestCase):
                 installs=re.findall(r'^\s+run:\s+(brew install[^\n]+)',body,re.M)
                 packages={argument for command in installs for argument in shlex.split(command)[2:]}
                 self.assertIn('util-linux',packages,job+' lacks its own flock prerequisite')
+                self.assertIn('bash',packages,job+' lacks its own host Bash prerequisite')
+                self.assertLess(body.index('brew install'),body.index('name: Select host Bash'))
+                self.assertLess(body.index('name: Select host Bash'),body.index('name: Host Bash regression'))
+                for command in ('make test-darwin-native','make test-darwin-sdk','preflight --handoff','download --handoff'):
+                    if command in body:
+                        self.assertLess(body.index('name: Host Bash regression'),body.index(command))
+                self.assertIn('shell: /bin/bash --noprofile --norc -e -o pipefail {0}',body)
 
     def test_handoff_transport_preserves_duplicate_keys_for_strict_preflight(self):
         text=(ROOT/'.github/workflows/darwin-bundle.yml').read_text()
@@ -69,5 +77,5 @@ class Workflow(unittest.TestCase):
         self.assertIn('"$executable"',native)
 
 if __name__=='__main__':
-    suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(Workflow),unittest.TestSuite(Fixtures(name) for name in ('test_authenticated_draft_read_identity','test_digest_hit_zero_network_and_corrupt_miss','test_credentials_only_official_redirects'))])
+    suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(Workflow),unittest.defaultTestLoader.loadTestsFromTestCase(HostBash),unittest.TestSuite(Fixtures(name) for name in ('test_authenticated_draft_read_identity','test_digest_hit_zero_network_and_corrupt_miss','test_credentials_only_official_redirects'))])
     sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())

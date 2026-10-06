@@ -1,5 +1,16 @@
 # Operability, Layout, And Command Surfaces
 
+## Host shell prerequisite
+
+For this modern helper collection (nounset-safe empty arrays, dynamic FDs and
+mapfile), require host Bash >= 4.4. Use one builtin-only, Bash 3.2-parseable
+startup helper before discovery, cache work, native children or mutation.
+Reject unsupported shells with the actual version and actionable PATH setup.
+Keep `set -u` and exact argv, including zero arguments versus one empty argument.
+Test those behaviors, actual selected-shell provenance and stock macOS Bash
+rejection on native workers. Do not impose this floor on unrelated SDK consumers.
+See [toolchains.md](toolchains.md#host-bash).
+
 ## Tool ownership and simplicity
 
 Use the simplest implementation that satisfies the project's observable contracts.

@@ -94,6 +94,18 @@ targets such as `test-darwin-native` and
 existing workflow's behavior while moving recipes behind these targets.
 Do not introduce an arbitrary-command input or a second release pipeline.
 
+Every native job that invokes the modern lifecycle helpers must install host
+Bash (`brew install bash` alongside its other tools). Bootstrap with stock-shell
+compatible syntax, export `PATH="$(brew --prefix bash)/bin:$PATH"`, verify the
+selected shell with `bash scripts/require-host-bash.sh`, and write that bin path
+to `$GITHUB_PATH` before any Make, operation, compiler launcher or cache command.
+Use `/bin/bash --noprofile --norc -e -o pipefail {0}` only for that bootstrap;
+subsequent lifecycle commands inherit the modern PATH-selected Bash. Exercise
+stock `/bin/bash` rejection and selected-shell success in native fixtures, and
+check install/bootstrap ordering offline. Do not replace `/bin/bash`, alter
+account profiles, or cache/package host Bash with the SDK. Apply this to existing
+source and artifact jobs without enabling an unselected artifact lane.
+
 Native Darwin uses the selected runner's Xcode/Apple Clang tools, discovered
 through `xcrun` where appropriate, rather than Linux osxcross wrappers.
 Select compilers, SDK and inspection tools before producer configuration and use

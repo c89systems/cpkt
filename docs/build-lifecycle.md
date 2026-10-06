@@ -1,5 +1,25 @@
 # Native lifecycle architecture
 
+The lifecycle helpers require host **Bash 4.4 or newer** for nounset-safe empty
+arrays, dynamic file descriptors and `mapfile`. This host prerequisite does not
+apply to unrelated consumers of the C89 SDK. Helpers reject an unsupported
+shell before lifecycle discovery, cache work or native children.
+
+On macOS, install Homebrew Bash and give it PATH precedence in the terminal
+that runs Make and scripts (the system `/bin/bash` remains unchanged):
+
+```sh
+brew install bash
+export PATH="$(brew --prefix bash)/bin:$PATH"
+bash scripts/require-host-bash.sh
+```
+
+On Linux, include `bash` in the host package baseline (for example
+`sudo apt-get install bash`), upgrading it if older than 4.4. The command above
+prints the actual selected shell version and path. Installing a formula alone
+does not select it; Make, operations and compiler/native launchers must inherit
+that PATH. Bash is a host tool, never a cpkt SDK or toolchain cache product.
+
 Make exposes public names and short recipes. `scripts/lifecycle.sh` validates
 selectors and routes to readable Bash workflows. `make help` is the command
 index. `scripts/build.sh configure|build|test|deps|path|preflight` is the native

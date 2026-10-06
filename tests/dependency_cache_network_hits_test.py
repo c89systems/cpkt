@@ -83,6 +83,7 @@ def check_toolchain_caches(work):
         assert dispatch.strip().endswith("esac")
         (scripts / "resolver.sh").write_text(contents)
         shutil.copyfile(directory / "cpkt-archive-cache.sh", scripts / "cpkt-archive-cache.sh")
+        shutil.copyfile(directory / "require-host-bash.sh", scripts / "require-host-bash.sh")
         binaries = fixture / "bin"
         binaries.mkdir()
         for executable, body in (

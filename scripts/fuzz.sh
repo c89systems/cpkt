@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+case ${BASH_SOURCE[0]} in
+  */*) source "${BASH_SOURCE[0]%/*}/require-host-bash.sh" ;;
+  *) source ./require-host-bash.sh ;;
+esac || exit $?
 set -euo pipefail
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)

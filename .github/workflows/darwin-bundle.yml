@@ -34,7 +34,17 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.producer_commit || github.sha }}
       - name: Install build tools
-        run: brew install cmake ninja coreutils gnu-sed gnu-tar gpatch util-linux pkg-config
+        run: brew install bash cmake ninja coreutils gnu-sed gnu-tar gpatch util-linux pkg-config
+      - name: Select host Bash
+        shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          host_bash_bin="$(brew --prefix bash)/bin"
+          export PATH="$host_bash_bin:$PATH"
+          hash -r
+          bash scripts/require-host-bash.sh
+          printf '%s\n' "$host_bash_bin" >> "$GITHUB_PATH"
+      - name: Host Bash regression
+        run: python3 tests/host_bash_prerequisite_test.py
       - name: Native source and runtime contract
         run: |
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
@@ -66,7 +76,17 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.producer_commit }}
       - name: Install consumer tools
-        run: brew install cmake ninja coreutils gnu-tar pkg-config util-linux
+        run: brew install bash cmake ninja coreutils gnu-tar pkg-config util-linux
+      - name: Select host Bash
+        shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          host_bash_bin="$(brew --prefix bash)/bin"
+          export PATH="$host_bash_bin:$PATH"
+          hash -r
+          bash scripts/require-host-bash.sh
+          printf '%s\n' "$host_bash_bin" >> "$GITHUB_PATH"
+      - name: Host Bash regression
+        run: python3 tests/host_bash_prerequisite_test.py
       - name: Validate final tag, credentials and pinned handoff before cache acquisition
         env:
           CPKT_DRAFT_TOKEN: ${{ secrets.CPKT_DRAFT_TOKEN }}

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+case ${BASH_SOURCE[0]} in
+  */*) source "${BASH_SOURCE[0]%/*}/require-host-bash.sh" ;;
+  *) source ./require-host-bash.sh ;;
+esac || exit $?
 set -euo pipefail
 # Persistent services must never keep a repository operation lock alive.
 for key in CPKT_OPERATION_FD CPKT_OPERATION_CAP_FD; do

@@ -14,6 +14,7 @@ binary="$cpkt_root/build/control/preflight/$cpkt_target/native"
 cpkt_owned_path "$binary"
 export GROUP="$group"
 cpkt_locked --group "$group" --preset "$preset"
+libc=${cpkt_target##*-}
 profile=linux-runner
 arguments=()
 case "$cpkt_target" in
@@ -21,6 +22,7 @@ case "$cpkt_target" in
     if [[ "$cpkt_target" == x86_64-* ]]; then profile=native-linux; fi
     arguments+=("-DCMAKE_TOOLCHAIN_FILE=$cpkt_root/cmake/CpktReadOnlyToolchain.cmake") ;;
   arm64-apple-darwin)
+    libc=
     if [ "$(uname -s)" = Darwin ]; then
       profile=native-darwin
       export SDKROOT=$(xcrun --show-sdk-path)
@@ -35,5 +37,5 @@ esac
   "-DCPKT_REPO_ROOT=$cpkt_root" "-DCPKT_TARGET_ID=$cpkt_target" "-DCPKT_GROUP=$cpkt_owner" \
   "-DCPKT_PREFLIGHT_PROFILE=$profile" "-DCPKT_TARGET_ARCH=${cpkt_target%%-*}" \
   "-DCPKT_TARGET_OS=$([ "$cpkt_target" = arm64-apple-darwin ] && printf darwin || printf linux)" \
-  "-DCPKT_TARGET_LIBC=${cpkt_target##*-}" "${arguments[@]}"
+  "-DCPKT_TARGET_LIBC=$libc" "${arguments[@]}"
 "$cpkt_ctest" --test-dir "$binary" --no-tests=error --stop-on-failure --output-on-failure

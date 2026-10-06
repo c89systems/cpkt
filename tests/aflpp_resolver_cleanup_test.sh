@@ -18,6 +18,7 @@ compiler_arguments="$work_dir/compiler-arguments"
 mkdir -p "$fake_repo/scripts" "$fake_bin" "$bootlin_root/include" "$cache_root/archives"
 cp "$source_dir/scripts/cpkt-aflpp.sh" "$fake_repo/scripts/cpkt-aflpp.sh"
 cp "$source_dir/scripts/cpkt-archive-cache.sh" "$fake_repo/scripts/cpkt-archive-cache.sh"
+cp "$source_dir/scripts/require-host-bash.sh" "$fake_repo/scripts/require-host-bash.sh"
 chmod +x "$fake_repo/scripts/cpkt-aflpp.sh"
 grep -Fq 'with_cache_lock "$cache/locks/aflplusplus-${version}-x86_64-linux-gnu.lock" ensure_locked "$cache"' "$fake_repo/scripts/cpkt-aflpp.sh" || {
   printf 'AFL++ root publication is not serialized by a shared cache lock\n' >&2

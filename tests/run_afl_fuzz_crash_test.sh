@@ -14,6 +14,7 @@ fake_repo="$work_dir/repo"
 fake_afl_root="$work_dir/afl"
 mkdir -p "$fake_repo/scripts" "$fake_afl_root/bin" "$work_dir/seeds" "$work_dir/bin"
 cp "$source_dir/scripts/run-afl-fuzz.sh" "$fake_repo/scripts/run-afl-fuzz.sh"
+cp "$source_dir/scripts/require-host-bash.sh" "$fake_repo/scripts/require-host-bash.sh"
 cp "$source_dir/scripts/require-native-hardening-host.sh" "$fake_repo/scripts/require-native-hardening-host.sh"
 
 cat > "$fake_repo/scripts/cpkt-aflpp.sh" <<EOF
