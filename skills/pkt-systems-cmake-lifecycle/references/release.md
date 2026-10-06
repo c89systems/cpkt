@@ -41,7 +41,7 @@ Executable lifecycle tests:
 
 - Add a focused test that asserts `release` runs `lifecycle-version-contract` before `clean`, that it runs every ordinary prerelease proof before the final matrix, and that shipped source archives are reconstructed only on the final clean release path or through an explicitly requested standalone source-smoke command.
 - Add focused tests for checksum-manifest generation and upload-set selection: in complete-release scope, every intended release artifact under `dist/` must be checksum-listed, every listed artifact must exist, and the manifest itself must be uploaded. Reject stale/unlisted release artifacts except documented exclusions. Selected/binary fixtures check their exact declared inventories and prove identified out-of-scope source/other-version artifacts neither enter nor satisfy their evidence; see [packaging.md](packaging.md).
-- Add a focused `make lifecycle-version-contract` test for lightweight-tag version behavior and release-command version selection. Use a temporary lightweight semver tag such as `v99.99.99` on the current `HEAD` and clean it with a trap. Treat `v99.99.99` as reserved test-only state, never a real release tag. Fail on a pre-existing reserved tag unless a lifecycle-owned recovery record under `build/` identifies the exact lightweight object created by this test. Persist that record only after exclusive tag creation succeeds; automatic recovery and trap cleanup must use compare-and-delete against the recorded object and preserve any changed or unowned ref. Interruption before ownership is recorded fails closed. Create the reserved temporary tag with signing disabled, for example `git -c tag.gpgSign=false tag v99.99.99`, so user or repository signing configuration cannot turn the temporary lightweight tag into an annotated or signed tag or make noninteractive release fail. Assert with `git cat-file -t <tag>` that accepted exact release tags and the reserved temporary test tag resolve directly to a `commit`; reject annotated or signed tag objects. If `HEAD` already has a non-reserved exact lightweight release tag, assert that the exact tag wins and skip the temporary-tag block; final tagged release runs must not create the reserved temporary tag. Do not create another checkout, git worktree, copied repository, generated source archive, or source-archive staging fixture for this; extra checkout topology can hide the real release-branch `HEAD` contract. Keep these tests out of prerelease, ordinary tests, package verification, and release-matrix command graphs. `make release` must run this target as its first recipe command. This pre-clean gate should prove the Make-owned release entrypoint observes exact lightweight tags; it should not configure CMake merely to satisfy the tag-mutation contract. CMake version propagation belongs in the Make-driven build/package tests and package verification, where CMake is invoked as an implementation surface of the release graph.
+- Add a focused `make lifecycle-version-contract` test for lightweight-tag version behavior and release-command version selection, following [temporary test-tag ownership](#temporary-test-tag-ownership).
 - Add focused tests for artifact verification failures that previously could escape until publish time: local source/cache/build path leaks, local `file://` URLs, hardening or fuzzer instrumentation markers, non-relocatable RPATH/RUNPATH/install-name metadata, missing dependency manifests, and stale or omitted release artifacts.
 - Tests should exercise observable release contracts through the public Make/script surfaces rather than only checking implementation details. Light structural tests are acceptable for target wiring because the target graph is part of the lifecycle contract.
 
@@ -233,3 +233,31 @@ Release retry protocol:
 - If the pushed tag is wrong, stop immediately. Do not publish or repair silently.
 
 Do not publish a release from an untagged commit, from a dirty worktree, from artifacts built before the final tag, from a tag that is not on `HEAD`, or from a `dist/` glob.
+
+## Temporary test-tag ownership
+
+The version-contract test uses a reserved temporary tag such as `v99.99.99` on
+the current `HEAD`. Run it through `make lifecycle-version-contract`, before any
+clean/build/package work, as prescribed above. Test the active checkout rather
+than another checkout, worktree, copied repository or source-archive fixture.
+CMake version propagation remains part of the normal build/package checks;
+this focused tag test does not configure CMake.
+
+- Create a lightweight tag with signing disabled, for example
+  `git -c tag.gpgSign=false tag v99.99.99`. Assert that accepted version tags
+  resolve directly to a `commit`; reject annotated or signed tag objects.
+- When `HEAD` already has an exact non-reserved lightweight release tag, verify
+  its precedence and skip temporary-tag creation.
+- Record ownership under ignored `build/`. A nonce-bearing intent before exclusive creation
+  permits recovery if the process dies before recording completed creation.
+  Authenticate the zero-to-object Git reflog entry with the recorded nonce and
+  object ID; intent alone does not prove tag ownership.
+- Fail on an unowned pre-existing tag or mismatched ownership evidence.
+  Automatic recovery and trap cleanup use compare-and-delete against the recorded object,
+  preserving changed or unowned refs. A catchable exit cleans the owned tag;
+  a later invocation recovers an interrupted test using the same ownership checks.
+- Verify the reserved tag selects its version through the release script and
+  Make surfaces, and cleanup restores the original version.
+
+Automatic cleanup applies only to the owned temporary test tag. Actual release
+tag removal and branch rewind follow [failed local release recovery](#failed-local-release-recovery).
