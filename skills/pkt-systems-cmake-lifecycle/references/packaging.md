@@ -221,24 +221,9 @@ Darwin Mach-O invariant:
 
 Darwin tool discovery:
 
-- Do not assume Darwin inspection tools are on `PATH`.
-- The pkt.systems standard osxcross install location is `${OSXCROSS_ROOT:-$HOME/.local/cross/osxcross}`. With `CPKT_OSXCROSS_HOST` unset, resolve the newest complete Darwin 25.x prefix and use its reported tool paths. An explicit value pins an exact installed prefix. Do not invent major-version aliases such as `arm64-apple-darwin25-otool`; the installed tools may only have a `25.4` prefix. Follow [toolchains.md](toolchains.md#darwin-osxcross-input-and-setup).
-- Do not assume Darwin linker tools are selected merely because `${host}-clang` is invoked by absolute path. Some osxcross clang wrappers still delegate to the first `ld` found in `PATH`; on Linux that can be `/usr/bin/ld`, which violates the basic cross-compilation invariant. Darwin configure, build, package-smoke, and installed-example link commands must run with `${OSXCROSS_ROOT}/bin` prepended to `PATH`.
-- Darwin CMake toolchains must set `CMAKE_LINKER` to the resolver-reported absolute linker for the selected prefix and force executable, shared, and module links through `--ld-path=${CMAKE_LINKER}`. This applies when the pin variable is unset as well. Upstream dependency build systems that bypass CMake must receive equivalent environment, normally `PATH=${OSXCROSS_ROOT}/bin:$PATH` plus `LDFLAGS=--ld-path=${CMAKE_LINKER}` or an upstream-specific linker override. Do not use an absolute path with `-fuse-ld`; Clang reserves that option for linker flavor and deprecates path use.
-- Package verification should include a linker-route regression when osxcross is available. It should dry-run or link a minimal Darwin executable and assert the route selects the resolved Darwin linker, not `/usr/bin/ld` or another host linker; cover discovery without a pin and an explicit prefix pin.
-- Prefer configured CMake tool state when locating Darwin tools: `CMAKE_C_COMPILER`, `CMAKE_STRIP`, `CMAKE_INSTALL_NAME_TOOL`, `CPKT_OTOOL`, and `CMAKE_OTOOL` when present.
-- Discover configured CMake tool state from the active preset build directory, normally by reading `CMakeCache.txt` or using non-mutating CMake cache introspection after configure. Tool lookup scripts should accept an explicit build directory or target ID so they inspect the same configured build that produced the package.
-- Prefer a shared `scripts/discover_target_tools.sh` helper for this lookup so package generation, package verification, Darwin smoke bundles, and release privacy verification agree on the selected tools.
-- The lookup order for each Darwin tool is:
-  1. an explicit project-prefixed override variable, when the repository defines one;
-  2. the configured CMake cache value for that tool;
-  3. target-prefixed sibling tools next to `CMAKE_C_COMPILER`;
-  4. unprefixed sibling tools next to `CMAKE_C_COMPILER`;
-  5. `PATH` as the last fallback.
-- For osxcross-style toolchains, derive the host prefix from `CPKT_OSXCROSS_HOST`, the configured compiler name, or the configured target host. If the compiler is `/path/to/toolchain/bin/<host>-cc` or `/path/to/toolchain/bin/<host>-clang`, check `/path/to/toolchain/bin/<host>-otool`, `/path/to/toolchain/bin/<host>-install_name_tool`, and `/path/to/toolchain/bin/<host>-strip` before checking unprefixed names.
-- Darwin package verification must use the discovered `otool` to inspect install names, dependency paths, rpaths, and code-signature load commands. Darwin package generation must use discovered target-correct `install_name_tool` and `strip` only when mutation is deliberately required; host `/usr/bin/strip` or another non-target strip must not be used on cross-built Mach-O artifacts.
-- Validate discovered Darwin tools before trusting them when practical, for example by checking they exist, are executable, and can inspect a generated target Mach-O artifact in the package verification workflow. Validate mutation tools only in workflows that intentionally mutate generated throwaway artifacts or pre-finalization build inputs.
-- If a Darwin artifact is shipped and no target-correct `otool` can be found from configured overrides, CMake state, compiler siblings, or `PATH`, package verification must report an `external-tool-unavailable` diagnostic for that target instead of silently skipping Mach-O metadata verification. Missing `install_name_tool` or `strip` is not a blocker for verify-only Darwin packaging, but it is a blocker for any lifecycle step that intentionally mutates Mach-O artifacts.
+Follow [external tool discovery](operability.md#external-tool-discovery) for the
+lookup order, osxcross linker selection, shared helper, validation and required-tool
+failures. Apply the resulting tools to the extracted Mach-O checks above.
 
 Release privacy gate:
 

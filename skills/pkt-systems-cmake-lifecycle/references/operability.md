@@ -105,17 +105,23 @@ Failure taxonomy:
 - `release-authority`: unclear version, branch, tag, GitHub release, or engineer approval state.
 - `external-tool-unavailable`: optional tool unavailable; skip only when absence is acceptable and documented.
 
-External tool discovery:
+## External tool discovery
 
 - Lifecycle scripts must not assume cross-target inspection or fixup tools are on `PATH`.
 - The pkt.systems default osxcross root is `${OSXCROSS_ROOT:-$HOME/.local/cross/osxcross}`. Leave `CPKT_OSXCROSS_HOST` unset for resolver discovery of the newest complete Darwin 25.x prefix; set it only to pin an exact installed prefix. osxcross may provide `arm64-apple-darwin25.4-*` without major-version aliases. Use the resolver-reported tools from the ready collection rather than inventing `arm64-apple-darwin25-*` paths; follow [toolchains.md](toolchains.md#darwin-osxcross-input-and-setup).
 - osxcross Darwin compiler drivers may select the host linker when the osxcross `bin` directory is not first on `PATH`. Darwin toolchain files and wrapper scripts must prepend `${OSXCROSS_ROOT}/bin` to `PATH` before configure, compiler-identification, try-compile, dependency configure/build, package smoke, and example/consumer link steps. Do not assume that invoking `${host}-clang` by absolute path is enough to select `${host}-ld`.
-- Darwin toolchain files should also set `CMAKE_LINKER` to the target `${host}-ld` and inject an absolute `--ld-path=${CMAKE_LINKER}` into executable, shared-library, and module linker flags. Keep the `PATH` fix and the explicit linker-path fix together: the former protects compiler-driver and upstream build-system discovery, while the latter makes generated CMake link lines auditable. Do not pass an absolute path through `-fuse-ld`: modern Clang treats that option as a linker-flavor selector and deprecates path use.
+- Darwin toolchain files must also set `CMAKE_LINKER` to the resolver-reported absolute `${host}-ld` and inject `--ld-path=${CMAKE_LINKER}` into executable, shared-library, and module linker flags. Apply this with discovery or an explicit prefix pin. Keep the `PATH` fix and the explicit linker-path fix together. Upstream builds that bypass CMake need equivalent selection, normally `PATH=${OSXCROSS_ROOT}/bin:$PATH` and `LDFLAGS=--ld-path=${CMAKE_LINKER}` or an upstream-specific linker override. Do not pass an absolute path through `-fuse-ld`: modern Clang treats that option as a linker-flavor selector and deprecates path use.
 - Add an executable regression test for the Darwin linker route when osxcross is available. It should compile or dry-run link a minimal executable, demonstrate the host-linker risk, and prove the lifecycle route chooses the resolver-reported absolute Darwin linker for both automatic discovery and an explicit prefix pin.
-- Discover target tools from configured project state before falling back to ambient tools. Prefer CMake cache or toolchain values such as `CMAKE_C_COMPILER`, `CMAKE_STRIP`, `CMAKE_INSTALL_NAME_TOOL`, `CPKT_OTOOL`, `CMAKE_OTOOL` when present, `CMAKE_READELF`, and project-prefixed tool override variables when the repository defines them.
-- When a configured compiler path is known, inspect the compiler directory for sibling target-prefixed tools before falling back to `PATH`. For osxcross-style Darwin toolchains, derive `<host>` from the selected compiler/resolver and look for `<host>-otool`, `<host>-install_name_tool`, and `<host>-strip` next to `<host>-cc` or `<host>-clang`. Do not substitute a major-only default prefix.
+- Read target tools from the producing build's configured state, including `CMAKE_C_COMPILER`, `CMAKE_STRIP`, `CMAKE_INSTALL_NAME_TOOL`, `CPKT_OTOOL`, `CMAKE_OTOOL` when present, and `CMAKE_READELF`. Use `CMakeCache.txt` or non-mutating cache introspection. Darwin lookup order is:
+  1. an explicit project-prefixed override, when declared;
+  2. the configured CMake cache value;
+  3. target-prefixed sibling tools next to `CMAKE_C_COMPILER`;
+  4. unprefixed compiler sibling tools;
+  5. `PATH` as the last fallback.
+- For osxcross-style Darwin toolchains, derive `<host>` from `CPKT_OSXCROSS_HOST`, the configured compiler or the selected resolver. Look for `<host>-otool`, `<host>-install_name_tool`, and `<host>-strip` next to `<host>-cc` or `<host>-clang` before unprefixed names. Do not substitute a major-only default prefix.
 - Package generation must use discovered target-correct mutation tools, such as `strip` and `install_name_tool`, rather than host tools with the same basename when mutation is deliberately required. For Darwin final artifacts, prefer verify-only packaging with correct link/install-time Mach-O metadata over post-package mutation.
-- Package verification must use the discovered target-correct inspection tools, such as `readelf` and `otool`, and should report the exact lookup path tried when a required verification tool is unavailable.
+- Package verification must use the discovered target-correct inspection tools, such as `readelf` and `otool`, and report the lookup paths tried when a required tool is unavailable. Darwin verification inspects install names, dependency paths, rpaths and code-signature load commands. Missing target-correct `otool` for a shipped Darwin artifact is an `external-tool-unavailable` failure.
+- Validate discovered tools against a generated target artifact when practical. Validate mutation tools only when mutation is required, using throwaway or pre-finalization inputs.
 - Absence of an optional inspection tool may skip only that optional inspection and only with an explicit message. Absence of a tool required to prove a release invariant is a verification failure, not a silent pass.
 - Repositories that package cross-target artifacts should centralize this logic in one helper instead of reimplementing lookup in package, smoke, and privacy scripts. For these SDK providers, artifact validators use `scripts/configured_build.py` against the producing CMake cache and `scripts/cpkt_darwin_tools.py` for native Apple tools. These are focused validation adapters, not build configuration or preset interpreters. Other projects may expose an equivalent Bash tool query such as `scripts/discover_target_tools.sh`.
 - If a project exposes `scripts/discover_target_tools.sh`, it should accept at least a configured build directory or preset-derived build directory, a target ID, and optional project-prefixed overrides. It should print stable `KEY=value` shell assignments or another simple machine-readable format for `CC`, `STRIP`, `INSTALL_NAME_TOOL`, `OTOOL`, `READELF`, and any target host prefix it derived.
@@ -123,7 +129,7 @@ External tool discovery:
 - Package generation, package verification, Darwin smoke bundle creation, and release privacy verification should consume the same discovered tool values. A mismatch between generation and verification tool discovery is a lifecycle bug. Missing Darwin mutation tools are acceptable only for verify-only package flows that do not mutate final Mach-O artifacts.
 - Add tests for the discovery helper with temporary fake toolchain directories. Cover configured CMake cache values, target-prefixed osxcross sibling tools, unprefixed compiler sibling tools, `PATH` fallback, and refusal to select a known host tool for a cross-built Darwin artifact.
 
-Structured diagnostics:
+## Structured diagnostics
 
 - Major lifecycle scripts should end important failures with a compact diagnostic block in plain key/value text.
 - Diagnostics are for humans, agents, and wrappers. Human-readable logs remain authoritative.
