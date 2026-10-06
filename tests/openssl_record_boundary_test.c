@@ -22,6 +22,223 @@ static void check(int condition, const char *expression, int line) {
 }
 #define CHECK(expression) check((expression), #expression, __LINE__)
 
+static const char inquiry_reason[] = "inquiry reason";
+
+static void inquiry_scalar(SSL *native_ssl, SSL *facade_ssl, int operation) {
+  cpkt_openssl_u64 value, original;
+  uint64_t native_value;
+  int native_result, facade_result;
+
+  original = cpkt_openssl_u64_make(0x11223344UL, 37UL);
+  value = original;
+  native_value = ((uint64_t)0x11223344UL << 32) | 37UL;
+  ERR_clear_error();
+  if (operation == 0)
+    native_result = SSL_get_handshake_rtt(native_ssl, &native_value);
+  else if (operation == 1)
+    native_result = SSL_get_stream_read_error_code(native_ssl, &native_value);
+  else
+    native_result = SSL_get_stream_write_error_code(native_ssl, &native_value);
+  ERR_clear_error();
+  if (operation == 0)
+    facade_result = cpkt_openssl_SSL_get_handshake_rtt(facade_ssl, &value);
+  else if (operation == 1)
+    facade_result =
+        cpkt_openssl_SSL_get_stream_read_error_code(facade_ssl, &value);
+  else
+    facade_result =
+        cpkt_openssl_SSL_get_stream_write_error_code(facade_ssl, &value);
+  CHECK(facade_result == native_result);
+  CHECK(native_result == 0 || native_result == -1);
+  CHECK(cpkt_openssl_u64_equal(value, original));
+  ERR_clear_error();
+}
+
+static void inquiry_close(SSL *native_ssl, SSL *facade_ssl) {
+  cpkt_openssl_ssl_conn_close_info value, original;
+  SSL_CONN_CLOSE_INFO native_value;
+  int native_result, facade_result;
+
+  memset(&value, 0xa5, sizeof(value));
+  value.error_code = cpkt_openssl_u64_make(0x11223344UL, 37UL);
+  value.frame_type = cpkt_openssl_u64_make(0x55667788UL, 37UL);
+  value.reason = inquiry_reason;
+  value.reason_length = 37;
+  value.flags = 37;
+  memcpy(&original, &value, sizeof(value));
+  memset(&native_value, 0, sizeof(native_value));
+  native_value.error_code = ((uint64_t)0x11223344UL << 32) | 37UL;
+  native_value.frame_type = ((uint64_t)0x55667788UL << 32) | 37UL;
+  native_value.reason = inquiry_reason;
+  native_value.reason_len = 37;
+  native_value.flags = 37;
+  ERR_clear_error();
+  native_result =
+      SSL_get_conn_close_info(native_ssl, &native_value, sizeof(native_value));
+  ERR_clear_error();
+  facade_result =
+      cpkt_openssl_SSL_get_conn_close_info(facade_ssl, &value, sizeof(value));
+  CHECK(facade_result == native_result);
+  CHECK(native_result == 0 || native_result == -1);
+  CHECK(memcmp(&value, &original, sizeof(value)) == 0);
+  ERR_clear_error();
+}
+
+#ifdef CPKT_OPENSSL_INQUIRY_WRAP
+static int inquiry_mock_enabled;
+static int inquiry_mock_result;
+static int inquiry_mock_write;
+static int inquiry_mock_zero;
+static int inquiry_mock_null;
+static int inquiry_mock_operation;
+static int inquiry_mock_calls;
+static SSL *inquiry_mock_ssl;
+static size_t inquiry_mock_length;
+
+int __real_SSL_get_handshake_rtt(const SSL *ssl, uint64_t *value);
+int __real_SSL_get_stream_read_error_code(SSL *ssl, uint64_t *value);
+int __real_SSL_get_stream_write_error_code(SSL *ssl, uint64_t *value);
+int __real_SSL_get_conn_close_info(SSL *ssl, SSL_CONN_CLOSE_INFO *value,
+                                   size_t length);
+
+static uint64_t inquiry_mock_value(void) {
+  return inquiry_mock_zero ? 0 : ((uint64_t)0x12345678UL << 32) | 0x9abcdef0UL;
+}
+
+static int inquiry_mock_scalar(const SSL *ssl, uint64_t *value, int operation) {
+  CHECK(ssl == inquiry_mock_ssl && operation == inquiry_mock_operation);
+  CHECK((value == NULL) == inquiry_mock_null);
+  ++inquiry_mock_calls;
+  if (value != NULL && inquiry_mock_write)
+    *value = inquiry_mock_value();
+  return inquiry_mock_result;
+}
+
+int __wrap_SSL_get_handshake_rtt(const SSL *ssl, uint64_t *value) {
+  if (!inquiry_mock_enabled)
+    return __real_SSL_get_handshake_rtt(ssl, value);
+  return inquiry_mock_scalar(ssl, value, 0);
+}
+
+int __wrap_SSL_get_stream_read_error_code(SSL *ssl, uint64_t *value) {
+  if (!inquiry_mock_enabled)
+    return __real_SSL_get_stream_read_error_code(ssl, value);
+  return inquiry_mock_scalar(ssl, value, 1);
+}
+
+int __wrap_SSL_get_stream_write_error_code(SSL *ssl, uint64_t *value) {
+  if (!inquiry_mock_enabled)
+    return __real_SSL_get_stream_write_error_code(ssl, value);
+  return inquiry_mock_scalar(ssl, value, 2);
+}
+
+int __wrap_SSL_get_conn_close_info(SSL *ssl, SSL_CONN_CLOSE_INFO *value,
+                                   size_t length) {
+  if (!inquiry_mock_enabled)
+    return __real_SSL_get_conn_close_info(ssl, value, length);
+  CHECK(ssl == inquiry_mock_ssl && inquiry_mock_operation == 3);
+  CHECK((value == NULL) == inquiry_mock_null && length == inquiry_mock_length);
+  ++inquiry_mock_calls;
+  if (value != NULL && inquiry_mock_write) {
+    value->error_code = inquiry_mock_value();
+    value->frame_type = inquiry_mock_value();
+    value->reason = inquiry_mock_zero ? NULL : inquiry_reason;
+    value->reason_len = inquiry_mock_zero ? 0 : sizeof(inquiry_reason) - 1;
+    value->flags = inquiry_mock_zero ? 0 : 3;
+  }
+  return inquiry_mock_result;
+}
+
+static void inquiry_wrapped(SSL *ssl) {
+  cpkt_openssl_u64 scalar, expected;
+  cpkt_openssl_ssl_conn_close_info close_info, original;
+  int results[3], status, write, zero, null_output, operation, result;
+
+  results[0] = -1;
+  results[1] = 0;
+  results[2] = 1;
+  inquiry_mock_ssl = ssl;
+  inquiry_mock_enabled = 1;
+  for (status = 0; status < 3; ++status)
+    for (write = 0; write < (results[status] == 1 ? 1 : 2); ++write)
+      for (zero = 0; zero < 2; ++zero)
+        for (null_output = 0; null_output < 2; ++null_output)
+          for (operation = 0; operation < 4; ++operation) {
+            inquiry_mock_result = results[status];
+            inquiry_mock_write = write || results[status] == 1;
+            inquiry_mock_zero = zero;
+            inquiry_mock_null = null_output;
+            inquiry_mock_operation = operation;
+            inquiry_mock_calls = 0;
+            scalar = cpkt_openssl_u64_make(0x11223344UL, 37UL);
+            memset(&close_info, 0xa5, sizeof(close_info));
+            close_info.error_code = scalar;
+            close_info.frame_type = scalar;
+            close_info.reason = inquiry_reason;
+            close_info.reason_length = 37;
+            close_info.flags = 37;
+            memcpy(&original, &close_info, sizeof(close_info));
+            inquiry_mock_length = null_output ? 7 : sizeof(SSL_CONN_CLOSE_INFO);
+            if (operation == 0)
+              result = cpkt_openssl_SSL_get_handshake_rtt(
+                  ssl, null_output ? NULL : &scalar);
+            else if (operation == 1)
+              result = cpkt_openssl_SSL_get_stream_read_error_code(
+                  ssl, null_output ? NULL : &scalar);
+            else if (operation == 2)
+              result = cpkt_openssl_SSL_get_stream_write_error_code(
+                  ssl, null_output ? NULL : &scalar);
+            else
+              result = cpkt_openssl_SSL_get_conn_close_info(
+                  ssl, null_output ? NULL : &close_info,
+                  null_output ? 7 : sizeof(close_info));
+            CHECK(result == results[status] && inquiry_mock_calls == 1);
+            expected = cpkt_openssl_u64_make(0x11223344UL, 37UL);
+            if (result == 1 && !null_output)
+              expected =
+                  zero ? cpkt_openssl_u64_make(0, 0)
+                       : cpkt_openssl_u64_make(0x12345678UL, 0x9abcdef0UL);
+            CHECK(cpkt_openssl_u64_equal(
+                scalar, operation == 3 ? original.error_code : expected));
+            if (operation == 3 && result == 1 && !null_output) {
+              CHECK(cpkt_openssl_u64_equal(close_info.error_code, expected));
+              CHECK(cpkt_openssl_u64_equal(close_info.frame_type, expected));
+              CHECK(close_info.reason == (zero ? NULL : inquiry_reason));
+              CHECK(close_info.reason_length ==
+                    (zero ? 0 : sizeof(inquiry_reason) - 1));
+              CHECK(close_info.flags == (zero ? 0UL : 3UL));
+            } else {
+              CHECK(memcmp(&close_info, &original, sizeof(close_info)) == 0);
+            }
+          }
+  inquiry_mock_enabled = 0;
+}
+#endif
+
+static void inquiry_results(void) {
+  SSL_CTX *context;
+  SSL *native_ssl, *facade_ssl;
+  int kind, operation;
+
+  for (kind = 0; kind < 3; ++kind) {
+    context = SSL_CTX_new(kind == 0 ? TLS_method() : OSSL_QUIC_client_method());
+    CHECK(context != NULL);
+    native_ssl = kind == 2 ? SSL_new_domain(context, 0) : SSL_new(context);
+    facade_ssl = kind == 2 ? SSL_new_domain(context, 0) : SSL_new(context);
+    CHECK(native_ssl != NULL && facade_ssl != NULL);
+    for (operation = 0; operation < 3; ++operation)
+      inquiry_scalar(native_ssl, facade_ssl, operation);
+    inquiry_close(native_ssl, facade_ssl);
+#ifdef CPKT_OPENSSL_INQUIRY_WRAP
+    if (kind == 0)
+      inquiry_wrapped(facade_ssl);
+#endif
+    SSL_free(facade_ssl);
+    SSL_free(native_ssl);
+    SSL_CTX_free(context);
+  }
+}
+
 /* Native records are used only as independent upstream peers. The facade
  * half of every comparison uses C89 word values and public facade records. */
 static void poll_empty(void) {
@@ -568,6 +785,8 @@ int main(int argc, char **argv) {
     mmsg_invalid();
   else if (strcmp(group, "mmsg_callbacks") == 0)
     mmsg_callbacks();
+  else if (strcmp(group, "inquiry_results") == 0)
+    inquiry_results();
   else
     CHECK(0);
   return EXIT_SUCCESS;

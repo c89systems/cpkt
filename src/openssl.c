@@ -745,7 +745,7 @@ int cpkt_openssl_SSL_get_handshake_rtt(const SSL *ssl,
 
   native_rtt = 0;
   result = SSL_get_handshake_rtt(ssl, rtt_out == NULL ? NULL : &native_rtt);
-  if (result != 0 && rtt_out != NULL) {
+  if (result == 1 && rtt_out != NULL) {
     *rtt_out = cpkt_openssl_public_u64(native_rtt);
   }
   return result;
@@ -1028,7 +1028,7 @@ int cpkt_openssl_SSL_get_stream_read_error_code(
   native_error_code = 0;
   result = SSL_get_stream_read_error_code(
       ssl, error_code_out == NULL ? NULL : &native_error_code);
-  if (result != 0 && error_code_out != NULL) {
+  if (result == 1 && error_code_out != NULL) {
     *error_code_out = cpkt_openssl_public_u64(native_error_code);
   }
   return result;
@@ -1044,7 +1044,7 @@ int cpkt_openssl_SSL_get_stream_write_error_code(
   native_error_code = 0;
   result = SSL_get_stream_write_error_code(
       ssl, error_code_out == NULL ? NULL : &native_error_code);
-  if (result != 0 && error_code_out != NULL) {
+  if (result == 1 && error_code_out != NULL) {
     *error_code_out = cpkt_openssl_public_u64(native_error_code);
   }
   return result;
@@ -1564,7 +1564,7 @@ int cpkt_openssl_SSL_get_conn_close_info(
       ssl, &native_information,
       cpkt_openssl_native_length(information_length, sizeof(*information_out),
                                  sizeof(native_information)));
-  if (result != 0) {
+  if (result == 1) {
     information_out->error_code =
         cpkt_openssl_public_u64(native_information.error_code);
     information_out->frame_type =

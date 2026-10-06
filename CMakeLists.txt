@@ -985,9 +985,18 @@ if(CPKT_BUILD_TESTS)
     cpkt_add_repo_warning_errors(cpkt_openssl_record_boundary_${_cpkt_record_linkage}_test)
     cpkt_group_target_command(target_link_libraries cpkt_openssl_record_boundary_${_cpkt_record_linkage}_test PRIVATE
           cpkt_openssl_${_cpkt_record_linkage})
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND _cpkt_record_linkage STREQUAL "static")
+      cpkt_group_target_command(target_compile_definitions cpkt_openssl_record_boundary_static_test PRIVATE
+            CPKT_OPENSSL_INQUIRY_WRAP=1)
+      cpkt_group_target_command(target_link_options cpkt_openssl_record_boundary_static_test PRIVATE
+            "-Wl,--wrap=SSL_get_handshake_rtt"
+            "-Wl,--wrap=SSL_get_stream_read_error_code"
+            "-Wl,--wrap=SSL_get_stream_write_error_code"
+            "-Wl,--wrap=SSL_get_conn_close_info")
+    endif()
     if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
       foreach(_cpkt_record_case IN ITEMS poll_empty poll_timeout poll_records
-                poll_invalid mmsg_empty mmsg_invalid mmsg_callbacks)
+                poll_invalid mmsg_empty mmsg_invalid mmsg_callbacks inquiry_results)
         cpkt_group_add_test(NAME openssl_${_cpkt_record_case}_${_cpkt_record_linkage}
                   COMMAND cpkt_openssl_record_boundary_${_cpkt_record_linkage}_test
                     ${_cpkt_record_case})

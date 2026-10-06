@@ -2519,6 +2519,13 @@
       "requires": [],
       "registrations": [
         {
+          "name": "openssl_inquiry_results_static",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
           "name": "openssl_poll_empty_static",
           "conditions": [
             "CPKT_BUILD_TESTS",
@@ -2562,6 +2569,13 @@
         },
         {
           "name": "openssl_mmsg_callbacks_static",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        },
+        {
+          "name": "openssl_inquiry_results_shared",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES"
