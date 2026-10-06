@@ -53,7 +53,10 @@ class Workflow(unittest.TestCase):
             self.assertNotIn("command(['"+value,code)
         self.assertIn("sys.platform!='darwin'",code)
         self.assertIn("'cpkt_abi_smoke_shared','cpkt_abi_smoke_static'",code)
-        self.assertIn("combinations('arm64-apple-darwin-native'",code)
+        native=(ROOT/'scripts/darwin.sh').read_text()
+        self.assertIn('compose --group all --preset arm64-apple-darwin-native --base "$base" --fresh-owned',native)
+        self.assertIn('codesign --verify --strict "$executable"',native)
+        self.assertIn('"$executable"',native)
 
 if __name__=='__main__':
     suite=unittest.TestSuite([unittest.defaultTestLoader.loadTestsFromTestCase(Workflow),unittest.TestSuite(Fixtures(name) for name in ('test_authenticated_draft_read_identity','test_digest_hit_zero_network_and_corrupt_miss','test_credentials_only_official_redirects'))])

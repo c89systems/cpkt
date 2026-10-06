@@ -24,7 +24,7 @@ sys.path.insert(0,str(ROOT/'scripts'))
 from cpkt_packages import validator, safe_extract, artifacts, check_snapshot, abi_records
 from cpkt_github_handoff import GitHub, acquire, draft_matches, validate_handoff, download_handoff, dispatch_identity, REPOSITORY
 from cpkt_presets import preset_info
-from cpkt_reserved_tag import create, recover, git
+from native_lifecycle_fixture import create, recover, git, reserved, seed, environment, capture, trace, archive
 
 
 def encoded(value):
@@ -252,102 +252,136 @@ class Fixtures(unittest.TestCase):
 
     def test_native_producer_and_consumer_share_selected_tools(self):
         import cpkt_sdk_consumer as consumer
-        from cpkt_inventory import REPOSITORY_GROUP
-        spec=importlib.util.spec_from_file_location('native_backend',ROOT/'scripts/group-build.py')
-        backend=importlib.util.module_from_spec(spec);spec.loader.exec_module(backend)
-        root=self.work/'native-source';(root/'cmake').mkdir(parents=True)
-        for name in ('CMakeLists.txt','CMakePresets.json','cmake/components.json'):
-            shutil.copy2(ROOT/name,root/name)
-        tools=root/'selected Xcode';tools.mkdir()
-        sdk=tools/'MacOSX.sdk';sdk.mkdir()
-        for name in ('clang','clang++','nm','ar','otool'):(tools/name).write_bytes(b'selected tool')
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
+        root=self.work/'native-source';variables,record=capture(root)
+        tools=root/'build/test-tools';sdk=tools/'selected SDK';sdk.mkdir()
+        (tools/'uname').write_text('#!/bin/sh\nprintf "Darwin\\n"\n')
+        (tools/'uname').chmod(0o755)
+        (tools/'xcrun').write_text('#!/bin/sh\nif [ "$1" = --show-sdk-path ]; then printf "%s\\n" '+shlex.quote(str(sdk))+'; else printf "%s/%s\\n" '+shlex.quote(str(tools))+' "$2"; fi\n')
+        (tools/'xcrun').chmod(0o755);variables['PATH']=str(tools)+os.pathsep+variables['PATH']
+        variables['CPKT_DEPENDENCY_BUILD_JOBS']='2'
+        result=subprocess.run(['bash',str(root/'scripts/build.sh'),'configure','--preset','arm64-apple-darwin-native'],env=variables,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        calls=[json.loads(line) for line in record.read_text().splitlines() if '--preset' in json.loads(line)['args']]
         def discover(args,**kwargs):
-            if args==['xcrun','--show-sdk-path']:return str(sdk)+'\n'
-            self.assertEqual(args[:2],['xcrun','--find'])
-            return str(tools/args[2])+'\n'
-        def backend_command(args,*context):return discover(args)
-        preset='arm64-apple-darwin-native';target='arm64-apple-darwin'
-        directory=root/'build'/target/REPOSITORY_GROUP/'Release';directory.mkdir(parents=True)
-        with patch.object(backend,'ROOT',root),patch.object(consumer,'ROOT',root),\
-             patch.object(consumer.sys,'platform','darwin'),\
-             patch.object(consumer,'command',side_effect=discover),\
-             patch.object(backend,'command',side_effect=backend_command),\
-             patch.dict(os.environ,{'CPKT_DEPENDENCY_BUILD_JOBS':'2'}):
-            selected=consumer.configuration(target,preset)
-            backend.environment(preset,REPOSITORY_GROUP)
-            inherited=subprocess.check_output([sys.executable,'-c',
-                'import os; print(os.environ["SDKROOT"])'],text=True).strip()
-            self.assertEqual(selected['CMAKE_OSX_SYSROOT'],inherited)
-            keys=('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR',
-                  'CMAKE_OTOOL','CMAKE_OSX_SYSROOT')
-            for producer in (False,True):
-                args=backend.configure_command(preset,REPOSITORY_GROUP,directory,producer)
-                actual={arg[2:].split(':',1)[0]:arg.split('=',1)[1]
-                        for arg in map(str,args) if arg.startswith('-D') and '=' in arg}
-                self.assertEqual({key:selected[key] for key in keys},
-                                 {key:actual[key] for key in keys})
-            item,_,_=backend.preset_info(preset)
-            values={key:backend.preset_cache_value(value,preset)
-                    for key,value in item['cacheVariables'].items()}
-            values.update(backend.producer_flags(preset,REPOSITORY_GROUP))
-            values.update({key:selected[key] for key in keys})
-            def write(values):
-                (directory/'CMakeCache.txt').write_text(''.join(
-                    key+':STRING='+value+'\n' for key,value in values.items()))
-            write(values)
-            self.assertFalse(backend.requested_producer_change(preset,REPOSITORY_GROUP,directory))
-            self.assertEqual(selected['CMAKE_C_COMPILER'],consumer.configuration(target,preset)['CMAKE_C_COMPILER'])
+            return str(sdk)+'\n' if args==['xcrun','--show-sdk-path'] else str(tools/args[2])+'\n'
+        with patch.object(consumer,'ROOT',root),patch.object(consumer.sys,'platform','darwin'),patch.object(consumer,'command',side_effect=discover):
+            selected=consumer.configuration('arm64-apple-darwin','arm64-apple-darwin-native')
+            for call in calls:
+                actual={a[2:].split(':')[0].split('=')[0]:a.split('=',1)[1] for a in call['args'] if a.startswith('-D') and '=' in a}
+                for key in ('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR','CMAKE_OTOOL','CMAKE_OSX_SYSROOT'):
+                    self.assertEqual(selected[key],actual[key])
+                self.assertEqual(call['sdk'],selected['CMAKE_OSX_SYSROOT'])
+            directory=root/'build/arm64-apple-darwin'/owner/'Release';directory.mkdir(parents=True)
+            keys=('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR','CMAKE_OTOOL','CMAKE_OSX_SYSROOT')
             for key in keys:
-                changed=dict(values);changed[key]=str(root/'other-tool-or-sdk')
-                write(changed)
-                self.assertTrue(backend.requested_producer_change(preset,REPOSITORY_GROUP,directory))
+                values={k:selected[k] for k in keys};values[key]=str(root/'other')
+                (directory/'CMakeCache.txt').write_text(''.join(k+':STRING='+v+'\n' for k,v in values.items()))
                 with self.assertRaisesRegex(ValueError,'configured '+key+' differs'):
-                    consumer.configuration(target,preset)
-            write(values)
+                    consumer.configuration('arm64-apple-darwin','arm64-apple-darwin-native')
 
     def test_native_darwin_lanes_export_sdk_to_child_commands(self):
+        # Native build workflow exposes SDKROOT to all configure/build children.
+        self.test_native_producer_and_consumer_share_selected_tools()
         import cpkt_darwin as darwin
         sdk=self.work/'selected SDK/MacOSX.sdk';sdk.mkdir(parents=True)
         def discovery(args,**kwargs):
-            if args==['xcrun','--show-sdk-path']:return str(sdk)+'\n'
-            self.assertEqual(args[:2],['xcrun','--find'])
-            return '/selected-Xcode/'+args[2]+'\n'
-        def child():
-            inherited=subprocess.check_output([sys.executable,'-c',
-                'import os; print(os.environ["SDKROOT"])'],text=True).strip()
-            self.assertEqual(str(sdk),inherited)
-        for action,entry in (('source','native_source'),('sdk','native_sdk')):
-            with self.subTest(action=action),patch.object(darwin.sys,'platform','darwin'),\
-                 patch.object(darwin.sys,'argv',['cpkt_darwin.py',action]),\
-                 patch.dict(os.environ,{'CPKT_OPERATION_FD':'1','SDKROOT':'wrong-sdk'}),\
-                 patch.object(darwin,'delegated'),\
-                 patch.object(darwin,'command',side_effect=discovery),\
-                 patch.object(darwin,entry,side_effect=child):
+            return str(sdk)+'\n' if args==['xcrun','--show-sdk-path'] else '/selected-Xcode/'+args[2]+'\n'
+        for action,entry in (('source-evidence','source_evidence'),('sdk-input','sdk_input')):
+            def child():
+                self.assertEqual(str(sdk),subprocess.check_output([sys.executable,'-c','import os; print(os.environ["SDKROOT"])'],text=True).strip())
+            with patch.object(darwin.sys,'platform','darwin'),patch.object(darwin.sys,'argv',['darwin',action]),patch.dict(os.environ,CPKT_OPERATION_FD='fixture',SDKROOT='wrong'),patch.object(darwin,'delegated'),patch.object(darwin,'command',side_effect=discovery),patch.object(darwin,entry,side_effect=child):
                 darwin.main()
 
+    def test_native_darwin_evidence_binds_same_run_composition_and_preserved_archives(self):
+        import cpkt_darwin as darwin
+        root=self.work/'darwin-evidence';seed(root)
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
+        artifacts=root/'input';artifacts.mkdir()
+        delivered=artifacts/'producer.tar.gz';delivered.write_bytes(b'unchanged producer bytes')
+        handoff={'producer_commit':'a'*40,'tag':'v1.2.3','manifest_sha256':'b'*64,'draft_id':17}
+        value={'base':str(artifacts),'handoff':handoff,'archives':{delivered.name:digest(delivered.read_bytes())},'run':'native-run'}
+        (root/'build').mkdir()
+        (root/'build/darwin-artifact-input-evidence.json').write_text(json.dumps(value))
+        proof=root/'build/verification/arm64-apple-darwin/all/packages/proof.json';proof.parent.mkdir(parents=True)
+        orders=[['core']] if owner=='core' else [['core',owner],[owner,'core']]
+        composition={'schema_version':1,'status':'passed','run':'native-run','combinations':[{'order':order} for order in orders]}
+        proof.write_text(json.dumps(composition))
+        directory=root/'build/arm64-apple-darwin'/owner/'Release';directory.mkdir(parents=True)
+        (directory/'CMakeCache.txt').write_text('CMAKE_C_COMPILER:FILEPATH=/native/clang\nCPKT_DEPENDENCY_BUILD_JOBS:STRING=1\n')
+        ready=root/'build/verification/arm64-apple-darwin'/owner/'Release-development.json';ready.parent.mkdir(parents=True)
+        ready.write_text(json.dumps({'schema_version':1,'status':'passed','run':'native-run','coverage':['native-runtime']}))
+        with patch.object(darwin,'ROOT',root),patch.object(darwin.subprocess,'check_output',return_value='a'*40),patch.object(darwin,'command',return_value='native evidence'),patch.dict(os.environ,CPKT_OPERATION_RUN='native-run',CPKT_DEPENDENCY_BUILD_JOBS='1'):
+            darwin.source_evidence();darwin.sdk_evidence()
+            for name in ('darwin-source-evidence.json','darwin-artifact-evidence.json'):
+                actual=json.loads((root/'build'/name).read_text());self.assertEqual(orders,actual['combinations']);self.assertEqual(1,actual['jobs'])
+            composition['run']='stale-run';proof.write_text(json.dumps(composition))
+            with self.assertRaisesRegex(ValueError,'stale'):darwin.source_evidence()
+            with self.assertRaisesRegex(ValueError,'stale'):darwin.sdk_evidence()
+            composition['run']='native-run';proof.write_text(json.dumps(composition))
+            delivered.write_bytes(b'changed producer bytes')
+            with self.assertRaisesRegex(ValueError,'changed producer archive'):darwin.sdk_evidence()
+
+    def test_external_project_adapter_preserves_native_empty_and_list_arguments(self):
+        root=self.work/'native-external-argv';root.mkdir()
+        recorder=root/'record.py'
+        recorder.write_text('import json,sys\nfrom pathlib import Path\nPath(sys.argv[1]).write_text(json.dumps(sys.argv[2:]))\n')
+        module=ROOT/'cmake/CpktVerifiedExternalProject.cmake'
+        main='cmake_minimum_required(VERSION 3.21)\nproject(external_argv NONE)\ninclude(ExternalProject)\ninclude([==['+str(module)+']==])\n'
+        for name,command in (('reference','ExternalProject_Add'),('adapted','cpkt_external_project_add')):
+            main += f'''file(MAKE_DIRECTORY "${{CMAKE_BINARY_DIR}}/{name}-empty")
+{command}({name}
+  PREFIX "${{CMAKE_BINARY_DIR}}/{name}"
+  SOURCE_DIR "${{CMAKE_BINARY_DIR}}/{name}-empty"
+  DOWNLOAD_COMMAND "" UPDATE_COMMAND "" PATCH_COMMAND ""
+  CONFIGURE_COMMAND "" INSTALL_COMMAND ""
+  LIST_SEPARATOR "|"
+  BUILD_COMMAND [==[{sys.executable}]==] [==[{recorder}]==]
+    "${{CMAKE_BINARY_DIR}}/{name}.json" "" "semi|colon" [==[
+
+leading]==] [==[literal "quotes"]==])
+'''
+        (root/'CMakeLists.txt').write_text(main)
+        for generator in ('Ninja','Unix Makefiles'):
+            binary=root/generator.replace(' ','-')
+            result=subprocess.run(['cmake','-S',str(root),'-B',str(binary),'-G',generator],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            result=subprocess.run(['cmake','--build',str(binary),'--parallel','2'],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            expected=json.loads((binary/'reference.json').read_text())
+            # ExternalProject normalizes leading command newlines itself.
+            # Compare the adapter to that native observable contract.
+            for argument in ('','semi;colon','leading','literal "quotes"'):
+                self.assertIn(argument,expected)
+            self.assertEqual(expected,json.loads((binary/'adapted.json').read_text()))
+
+    def test_native_install_renames_preserve_existing_payload_modes_and_links(self):
+        from native_lifecycle_fixture import metadata
+        root=self.work/'install-names';prefix,graph=metadata(root)
+        first=root/'first/payload';first.parent.mkdir();first.write_bytes(b'first');first.chmod(0o755)
+        second=root/'second/payload';second.parent.mkdir();second.write_bytes(b'second');second.chmod(0o640)
+        link=second.parent/'link';link.symlink_to('payload')
+        script=graph/'namespace-check.cmake'
+        script.write_text('set(CMAKE_INSTALL_PREFIX [==['+str(prefix)+']==])\ninclude([==['+str(graph/'cpkt-sdk-install.cmake')+']==])\n'+
+            ''.join('cpkt_sdk_copy([==['+str(source)+']==] [==['+str(destination)+']==])\n' for source,destination in ((first,prefix/'probe/payload'),(second,prefix/'probe/renamed'),(link,prefix/'probe/alias'))))
+        result=subprocess.run(['bash',str(root/'scripts/operation.sh'),'--group','core','--','cmake','-P',str(script)],env=environment(),capture_output=True,text=True)
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+        self.assertEqual(b'first',(prefix/'probe/payload').read_bytes());self.assertEqual(b'second',(prefix/'probe/renamed').read_bytes())
+        self.assertEqual(0o755,(prefix/'probe/payload').stat().st_mode & 0o777);self.assertEqual(0o640,(prefix/'probe/renamed').stat().st_mode & 0o777)
+        self.assertEqual('payload',os.readlink(prefix/'probe/alias'))
+
     def test_package_metadata_does_not_replay_parent_diagnostic_controls(self):
-        import cpkt_packages as packages
-        from cpkt_inventory import REPOSITORY_GROUP
-        prefix=self.work/'metadata-prefix';(prefix/'lib/pkgconfig').mkdir(parents=True)
-        directory=self.work/'metadata-work';directory.mkdir()
-        configured={'CPKT_TARGET_ID':'arm64-apple-darwin','CPKT_BUNDLE_VERSION':'1.2.3',
-                    'CPKT_CMOCKA_VERSION':'2.0.0','CMAKE_WARN_DEPRECATED':'TRUE',
-                    'CMAKE_ERROR_DEPRECATED':'FALSE'}
-        def execute(args,**kwargs):
-            result=subprocess.run(list(map(str,args)),capture_output=True,text=True)
-            self.assertEqual(0,result.returncode,result.stdout+result.stderr)
-            self.assertNotIn('CMP0218',result.stderr)
-        with patch.object(packages,'package_inventory',return_value=([],[],[])),\
-             patch.object(packages,'command',side_effect=execute):
-            packages.metadata(prefix,directory,configured,{},REPOSITORY_GROUP)
-        script=(directory/'package-metadata-input.cmake').read_text()
-        self.assertNotIn('CMAKE_WARN_DEPRECATED',script)
-        self.assertNotIn('CMAKE_ERROR_DEPRECATED',script)
+        from native_lifecycle_fixture import metadata
+        prefix,graph=metadata(self.work/'metadata',{'CMAKE_WARN_DEPRECATED':'TRUE','CMAKE_ERROR_DEPRECATED':'FALSE'})
+        script=(graph/'cpkt-sdk-install.cmake').read_text()
+        self.assertNotIn('CMAKE_WARN_DEPRECATED',script);self.assertNotIn('CMAKE_ERROR_DEPRECATED',script)
         self.assertIn('CPKT_BUNDLE_VERSION',script)
+        self.assertTrue((prefix/'lib/cmake/cmocka/cmocka-config.cmake').is_file())
+        self.assertFalse((graph/'installed').exists())
 
     def test_cold_artifact_facade_abi_checks_without_producer_cache(self):
         import cpkt_sdk_consumer as consumer
-        root=self.work/'cold-source';(root/'cmake').mkdir(parents=True)
+        root=self.work/'cold-source';seed(root)
         for name in ('CMakeLists.txt','CMakePresets.json','cmake/components.json'):
             shutil.copy2(ROOT/name,root/name)
         tools=root/'tools';tools.mkdir()
@@ -681,22 +715,26 @@ class Fixtures(unittest.TestCase):
         inputs=validate_inputs(root,data,'core');self.assertIn('tests/real.cpp',inputs);self.assertNotIn('tests/real.c',inputs)
     def test_verify_does_not_replace_bad_checksum_or_start_consumers(self):
         import cpkt_packages as packages
-        root=self.work/'checksums';root.mkdir()
-        shutil.copy2(ROOT/'CMakePresets.json',root/'CMakePresets.json')
-        (root/'cmake').mkdir();shutil.copy2(ROOT/'cmake/components.json',root/'cmake/components.json')
-        for group,scope in (('core','selected'),('all','binary')):
-            names=[packages.archive_name('1.2.3','x86_64-linux-gnu','core')] if group=='core' else packages.artifacts('1.2.3','binary')
-            base=root/'build/package-stage/x86_64-linux-gnu/core/archives' if group=='core' else root/'dist'
-            manifest=root/'build/verification/x86_64-linux-gnu/core/CHECKSUMS' if group=='core' else root/'build/verification/binary/1.2.3/CHECKSUMS'
+        root=self.work/'checksums';seed(root)
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
+        marker=root/'consumer-started'
+        (root/'scripts/release-version.sh').write_text('#!/bin/sh\nprintf "1.2.3\\n"\n')
+        (root/'scripts/cpkt_sdk_consumer.py').write_text('from pathlib import Path\nPath('+repr(str(marker))+').touch()\nraise SystemExit(45)\n')
+        for group,scope in ((owner,'selected'),('all','binary')):
+            names=[packages.archive_name('1.2.3','x86_64-linux-gnu',owner)] if group==owner else packages.artifacts('1.2.3','binary')
+            base=root/'build/package-stage/x86_64-linux-gnu'/owner/'archives' if group==owner else root/'dist'
+            manifest=root/'build/verification/x86_64-linux-gnu'/owner/'CHECKSUMS' if group==owner else root/'build/verification/binary/1.2.3/CHECKSUMS'
             base.mkdir(parents=True,exist_ok=True);manifest.parent.mkdir(parents=True,exist_ok=True)
             for name in names:(base/name).write_bytes(name.encode())
             text=''.join(('a'*64 if i==0 else digest((base/name).read_bytes()))+'  '+name+'\n' for i,name in enumerate(sorted(names)))
             manifest.write_text(text)
-            argv=['packages','verify','--group',group,'--scope',scope,'--version','1.2.3']+(['--preset','x86_64-linux-gnu-release'] if group=='core' else [])
-            with patch.object(packages,'ROOT',root),patch.object(packages,'delegated'),patch.object(packages,'verify_selected') as consumer,patch.object(packages,'combinations') as combinations,patch.object(sys,'argv',argv),patch.dict(os.environ,CPKT_OPERATION_FD='fixture'):
-                with self.assertRaisesRegex(ValueError,'checksum mismatch'):packages.main()
-                consumer.assert_not_called();combinations.assert_not_called()
-            self.assertEqual(manifest.read_text(),text)
+            args=['bash',str(root/'scripts/package.sh'),'package-verify','--group',group,'--scope',scope]
+            if group==owner:args+=['--preset','x86_64-linux-gnu-release']
+            result=subprocess.run(args,env=environment(),capture_output=True,text=True)
+            self.assertNotEqual(0,result.returncode);self.assertIn('checksum mismatch',result.stderr)
+            self.assertFalse(marker.exists(),'bad checksums started installed consumers')
+            self.assertEqual(text,manifest.read_text())
+
     def test_smoke_zip_preflight_paths_modes_and_links(self):
         from cpkt_darwin import extract_smoke
         for case in ('good','escape','ancestor','duplicate','outside','special'):
@@ -765,13 +803,13 @@ class Fixtures(unittest.TestCase):
     def test_binary_verify_rejects_extra_payload_before_consumers(self):
         import cpkt_packages as packages
         root=self.work/'extra-payload';dist=root/'dist';dist.mkdir(parents=True)
-        (root/'cmake').mkdir();shutil.copy2(ROOT/'cmake/components.json',root/'cmake/components.json')
+        (root/'cmake').mkdir(exist_ok=True);shutil.copy2(ROOT/'cmake/components.json',root/'cmake/components.json')
         ver='1.2.3';names=artifacts(ver,'binary')
         for name in names:(dist/name).write_bytes(name.encode())
         manifest=root/'build/verification/binary'/ver/'CHECKSUMS';manifest.parent.mkdir(parents=True)
         manifest.write_text(''.join(digest((dist/name).read_bytes())+'  '+name+'\n' for name in names))
         (dist/'stale.tar.gz').write_bytes(b'unlisted payload')
-        with patch.object(packages,'ROOT',root),patch.object(packages,'delegated'),patch.object(packages,'privacy') as privacy,patch.object(packages,'combinations') as consumers,patch.object(sys,'argv',['packages','verify','--group','all','--scope','binary','--version',ver]),patch.dict(os.environ,{'CPKT_OPERATION_FD':'fixture','CPKT_OPERATION_RUN':'fixture'}):
+        with patch.object(packages,'ROOT',root),patch.object(packages,'delegated'),patch.object(packages,'privacy') as privacy,patch.object(packages,'combinations') as consumers,patch.object(sys,'argv',['packages','verify-artifacts','--group','all','--scope','binary','--version',ver]),patch.dict(os.environ,{'CPKT_OPERATION_FD':'fixture','CPKT_OPERATION_RUN':'fixture'}):
             with self.assertRaisesRegex(ValueError,'unexpected distribution payloads'):
                 packages.main()
         privacy.assert_not_called();consumers.assert_not_called()
@@ -779,16 +817,16 @@ class Fixtures(unittest.TestCase):
     def test_failed_aggregate_verification_revokes_prior_publication_proof(self):
         import cpkt_packages as packages
         root=self.work/'stale-proof';root.mkdir()
-        (root/'cmake').mkdir();shutil.copy2(ROOT/'cmake/components.json',root/'cmake/components.json')
+        (root/'cmake').mkdir(exist_ok=True);shutil.copy2(ROOT/'cmake/components.json',root/'cmake/components.json')
         ver='1.2.3'
-        for scope,action,failure in (('binary','verify','checksum mismatch'),
-                                     ('release','verify','consumer failed'),
+        for scope,action,failure in (('binary','verify-artifacts','checksum mismatch'),
+                                     ('release','verify-artifacts','consumer failed'),
                                      ('release','checksums','source proof failed')):
             proof=root/'build/verification'/scope/ver/'proof.json'
             proof.parent.mkdir(parents=True,exist_ok=True)
             proof.write_text('{"kind":"artifact-'+scope+'","status":"passed"}')
             with patch.object(packages,'ROOT',root),patch.object(packages,'delegated'),\
-                 patch.object(packages,'check_snapshot' if action=='verify' else 'checksum_snapshot',
+                 patch.object(packages,'check_snapshot' if action=='verify-artifacts' else 'checksum_snapshot',
                               side_effect=ValueError(failure)),\
                  patch.object(sys,'argv',['packages',action,'--group','all','--scope',scope,'--version',ver]),\
                  patch.dict(os.environ,{'CPKT_OPERATION_FD':'fixture','CPKT_OPERATION_RUN':'fixture'}):
@@ -803,87 +841,84 @@ class Fixtures(unittest.TestCase):
         self.assertEqual(before,after)
 
     def test_native_darwin_debug_uses_the_declared_preset(self):
-        import cpkt_lifecycle as lifecycle
+        root=self.work/'native-routing';variables,record=trace(root)
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
         for action in ('debug','build-debug','clangd-surface'):
-            with patch.object(sys,'argv',['lifecycle',action,'--group','core','--preset','arm64-apple-darwin-debug']),patch.dict(os.environ,{'CPKT_OPERATION_FD':'fixture'}),patch.object(lifecycle,'delegated'),patch.object(lifecycle,'backend') as backend,patch.object(lifecycle,'command'):
-                lifecycle.main()
-            backend.assert_called_once_with('test' if action=='debug' else 'build','core','arm64-apple-darwin-debug')
+            record.unlink(missing_ok=True)
+            result=subprocess.run(['bash',str(root/'scripts/lifecycle.sh'),action,'--group',owner,'--preset','arm64-apple-darwin-debug'],env=variables,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            calls=[json.loads(v) for v in record.read_text().splitlines()]
+            build=next(v for v in calls if v['args'][0]=='build.sh')
+            self.assertEqual(build['args'][1],'test' if action=='debug' else 'build')
+            self.assertEqual(build['args'][-1],'arm64-apple-darwin-debug')
 
     def test_shell_defaults_preserve_matrix_and_selected_scope(self):
-        tools=self.work/'dispatch-tools';tools.mkdir();record=self.work/'dispatch.jsonl'
-        executable=tools/'python3'
-        executable.write_text('#!'+sys.executable+'\nimport json,os,sys,subprocess\nfrom pathlib import Path\nargs=sys.argv[1:]\nwith open(os.environ["CPKT_DISPATCH_RECORD"],"a") as stream:stream.write(json.dumps(args)+"\\n")\nif Path(args[0]).name=="cpkt_operation.py":sys.exit(subprocess.run(args[args.index("--")+1:]).returncode)\n')
-        executable.chmod(0o755)
-        base={k:v for k,v in os.environ.items() if k not in ('GROUP','PRESET') and not k.startswith('CPKT_OPERATION_')}
-        base.update(PATH=str(tools)+os.pathsep+base['PATH'],CPKT_DISPATCH_RECORD=str(record))
+        root=self.work/'dispatch';variables,record=trace(root)
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
         targets=[t for t in json.loads((ROOT/'cmake/components.json').read_text())['package_targets'] if '-linux-' in t]
-        for script,action in (('build.sh','build'),('test.sh','test')):
-            for env,arguments,presets in ((base,[],[t+'-release' for t in targets]),(dict(base,GROUP='core'),[],['debug']),(dict(base,GROUP='db',PRESET='armhf-linux-musl-release'),[],['armhf-linux-musl-release']),(dict(base,GROUP='core'),['release'],['release'])):
+        for action in ('build','test'):
+            for group,preset,explicit,expected in (('all','debug','no',[t+'-release' for t in targets]),(owner,'debug','no',['debug']),(owner,'armhf-linux-musl-release','yes',['armhf-linux-musl-release']),(owner,'release','yes',['release'])):
                 record.unlink(missing_ok=True)
-                result=subprocess.run(['bash',str(ROOT/'scripts'/script),*arguments],env=env,text=True,capture_output=True)
+                result=subprocess.run(['bash',str(root/'scripts/lifecycle.sh'),action,'--group',group,'--preset',preset,'--preset-explicit',explicit],env=variables,capture_output=True,text=True)
                 self.assertEqual(result.returncode,0,result.stdout+result.stderr)
-                calls=[json.loads(line) for line in record.read_text().splitlines()]
-                dispatched=[args for args in calls if Path(args[0]).name=='group-build.py']
-                self.assertEqual([args[args.index('--preset')+1] for args in dispatched],presets)
-                self.assertTrue(all(args[1]==action for args in dispatched))
-                self.assertEqual(sum(Path(args[0]).name=='cpkt_operation.py' for args in calls),int(len(presets)==6))
+                calls=[json.loads(v)['args'] for v in record.read_text().splitlines()]
+                self.assertEqual([v[v.index('--preset')+1] for v in calls],expected)
+                self.assertTrue(all(v[1]==action for v in calls))
 
     def test_requested_flags_expand_typed_macros_and_preset_environment(self):
-        module_spec=importlib.util.spec_from_file_location('producer_flag_fixture',ROOT/'scripts/group-build.py')
-        module=importlib.util.module_from_spec(module_spec);module_spec.loader.exec_module(module)
-        definitions=json.loads((ROOT/'CMakePresets.json').read_text())
-        base=next(p for p in definitions['configurePresets'] if p['name']=='base')
+        from package_producer_reuse_test import setup, invoke, OWNER
+        from cpkt_receipts import cache
+        root,presets,_=setup('Ninja',self.work/'flags')
+        base=presets['configurePresets'][0]
         base['environment']={'CPKT_FLAG_VALUE':'$penv{CPKT_PARENT_FLAG}','CFLAGS':'-DPRESET_ENVIRONMENT=1'}
-        debug=next(p for p in definitions['configurePresets'] if p['name']=='debug')
-        debug['cacheVariables']['CMAKE_C_FLAGS']={'type':'STRING','value':'-DVALUE=$env{CPKT_FLAG_VALUE} -DPARENT=$penv{CPKT_FLAG_VALUE} -DROOT=${sourceDirName} -DLITERAL=${dollar}{sourceDir}'}
-        (self.work/'CMakePresets.json').write_text(json.dumps(definitions))
-        with patch.object(module,'ROOT',self.work),patch.dict(os.environ,{'CPKT_PARENT_FLAG':'chosen','CPKT_FLAG_VALUE':'parent'}):
-            self.assertEqual(module.producer_flags('debug','core')['CMAKE_C_FLAGS'],'-DVALUE=chosen -DPARENT=parent -DROOT='+self.work.name+' -DLITERAL=${sourceDir}')
-            del debug['cacheVariables']['CMAKE_C_FLAGS']
-            (self.work/'CMakePresets.json').write_text(json.dumps(definitions))
-            self.assertEqual(module.producer_flags('debug','core')['CMAKE_C_FLAGS'],'-DPRESET_ENVIRONMENT=1')
-            consumer=self.work/'build/x86_64-linux-gnu/core/Debug/CMakeCache.txt';consumer.parent.mkdir(parents=True)
-            consumer.write_text('CMAKE_C_FLAGS:STRING=-DCACHED_FLAGS=1\n')
-            self.assertEqual(module.producer_flags('debug','core')['CMAKE_C_FLAGS'],'-DCACHED_FLAGS=1')
+        base['cacheVariables']['CMAKE_C_FLAGS']={'type':'STRING','value':'-DVALUE=$env{CPKT_FLAG_VALUE} -DPARENT=$penv{CPKT_FLAG_VALUE} -DROOT=${sourceDirName} -DLITERAL=${dollar}{sourceDir}'}
+        (root/'CMakePresets.json').write_text(json.dumps(presets))
+        variables=environment();variables.update(CPKT_PARENT_FLAG='chosen',CPKT_FLAG_VALUE='parent')
+        # These flags are data-only macro cases; avoid asking a compiler to parse
+        # the intentionally literal ${sourceDir} token.
+        source=(root/'CMakeLists.txt').read_text();(root/'CMakeLists.txt').write_text(source.replace('LANGUAGES C','LANGUAGES NONE'))
+        invoke(root,'deps','--preset','debug',env=variables)
+        producer=root/'build/x86_64-linux-gnu'/OWNER/'producer'
+        self.assertEqual(cache(producer/'CMakeCache.txt')['CMAKE_C_FLAGS'],'-DVALUE=chosen -DPARENT=parent -DROOT='+root.name+' -DLITERAL=${sourceDir}')
+        del base['cacheVariables']['CMAKE_C_FLAGS'];(root/'CMakePresets.json').write_text(json.dumps(presets))
+        # Native CMake initializes CFLAGS when a language is enabled.
+        (root/'CMakeLists.txt').write_text(source)
+        invoke(root,'deps','--preset','debug',env=variables)
+        self.assertEqual(cache(producer/'CMakeCache.txt')['CMAKE_C_FLAGS'],'-DPRESET_ENVIRONMENT=1')
+        consumer=root/'build/x86_64-linux-gnu'/OWNER/'Debug';consumer.mkdir(parents=True)
+        (consumer/'CMakeCache.txt').write_text('CMAKE_C_FLAGS:STRING=-DCACHED_FLAGS=1\n')
+        invoke(root,'deps','--preset','debug',env=variables)
+        self.assertEqual(cache(producer/'CMakeCache.txt')['CMAKE_C_FLAGS'],'-DCACHED_FLAGS=1')
 
     def test_producer_preset_switch_resets_linker_flags(self):
-        module_spec=importlib.util.spec_from_file_location('producer_linker_flag_fixture',ROOT/'scripts/group-build.py')
-        module=importlib.util.module_from_spec(module_spec);module_spec.loader.exec_module(module)
-        definitions=json.loads((ROOT/'CMakePresets.json').read_text())
-        release=next(p for p in definitions['configurePresets'] if p['name']=='release')
-        release.setdefault('cacheVariables',{})
-        release['cacheVariables'].pop('CMAKE_SHARED_LINKER_FLAGS',None)
-        release['cacheVariables'].pop('CMAKE_EXE_LINKER_FLAGS',None)
-        release['cacheVariables'].pop('CMAKE_MODULE_LINKER_FLAGS',None)
-        (self.work/'CMakePresets.json').write_text(json.dumps(definitions))
-        producer=self.work/'.cache/deps-build/x86_64-linux-gnu/core/producer'
-        producer.mkdir(parents=True)
-        (producer/'CMakeCache.txt').write_text('CMAKE_SHARED_LINKER_FLAGS:STRING=-Wl,old\n'
-            'CMAKE_EXE_LINKER_FLAGS:STRING=-Wl,old\n'
-            'CMAKE_MODULE_LINKER_FLAGS:STRING=-Wl,old\n')
-        with patch.object(module,'ROOT',self.work),patch.dict(os.environ,{'LDFLAGS':''}):
-            flags=module.producer_flags('release','core')
-            for key in ('CMAKE_SHARED_LINKER_FLAGS','CMAKE_EXE_LINKER_FLAGS',
-                    'CMAKE_MODULE_LINKER_FLAGS','CMAKE_STATIC_LINKER_FLAGS'):
-                self.assertEqual('',flags[key])
-            self.assertTrue(module.requested_producer_change('release','core',producer))
+        from package_producer_reuse_test import setup, invoke, OWNER
+        from cpkt_receipts import cache
+        root,presets,_=setup('Ninja',self.work/'linker')
+        for key in ('CMAKE_EXE_LINKER_FLAGS','CMAKE_SHARED_LINKER_FLAGS','CMAKE_MODULE_LINKER_FLAGS','CMAKE_STATIC_LINKER_FLAGS'):
+            presets['configurePresets'][0]['cacheVariables'][key]='-Wl,--as-needed' if key!='CMAKE_STATIC_LINKER_FLAGS' else ''
+        (root/'CMakePresets.json').write_text(json.dumps(presets))
+        variables=environment();variables['LDFLAGS']=''
+        invoke(root,'deps','--preset','debug',env=variables)
+        before=(root/'events').read_text()
+        invoke(root,'deps','--preset','release',env=variables)
+        configured=cache(root/'build/x86_64-linux-gnu'/OWNER/'producer/CMakeCache.txt')
+        for key in ('CMAKE_EXE_LINKER_FLAGS','CMAKE_SHARED_LINKER_FLAGS','CMAKE_MODULE_LINKER_FLAGS','CMAKE_STATIC_LINKER_FLAGS'):
+            self.assertEqual(configured[key],'')
+        self.assertNotEqual(before,(root/'events').read_text())
 
     def test_release_production_enforces_same_run_source_evidence(self):
-        import cpkt_lifecycle as lifecycle
-        calls=[]
-        with patch.dict(os.environ,{},clear=False),patch.object(lifecycle,'command',side_effect=lambda args,group:calls.append((list(map(str,args)),os.environ.get('CPKT_RELEASE_PRODUCTION')))),patch.object(lifecycle,'backend'),patch.object(lifecycle.subprocess,'check_output',return_value='1.2.3\n'),patch.object(lifecycle,'child_delegation',side_effect=lambda root,group:nullcontext((dict(os.environ),()))),patch.object(lifecycle.subprocess,'run') as direct:
-            os.environ.pop('CPKT_RELEASE_PRODUCTION',None)
-            lifecycle.perform('release','all','debug',False,'',False,'')
-            self.assertTrue(all(call.kwargs['env']['CPKT_RELEASE_PRODUCTION']=='1' for call in direct.call_args_list))
-        self.assertTrue(calls)
-        self.assertTrue(all(flag=='1' for _,flag in calls))
-        for action in ('checksums','verify'):
-            self.assertTrue(any(action in args and 'release' in args for args,_ in calls))
+        root=self.work/'release';variables,record=trace(root)
+        result=subprocess.run(['bash',str(root/'scripts/lifecycle.sh'),'release'],env=variables,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        calls=[json.loads(v) for v in record.read_text().splitlines()]
+        self.assertTrue(calls);self.assertTrue(all(v['production']=='1' for v in calls))
+        for action in ('package-checksums','package-verify'):
+            self.assertTrue(any(action in v['args'] and 'release' in v['args'] for v in calls))
 
     def test_standalone_release_verification_accepts_prior_matching_source_proof(self):
         import cpkt_packages as packages
         root=self.work/'release-verification';dist=root/'dist';dist.mkdir(parents=True)
-        (root/'cmake').mkdir();shutil.copy2(ROOT/'cmake/components.json',root/'cmake/components.json')
+        (root/'cmake').mkdir(exist_ok=True);shutil.copy2(ROOT/'cmake/components.json',root/'cmake/components.json')
         ver='1.2.3'
         for name in artifacts(ver,'release'):(dist/name).write_bytes(b'fixture '+name.encode())
         source=dist/f'cpkt-{ver}.tar.gz'
@@ -891,26 +926,37 @@ class Fixtures(unittest.TestCase):
         path=root/'build/verification/source'/ver/'proof.json';path.parent.mkdir(parents=True);path.write_text(json.dumps(proof))
         with patch.object(packages,'ROOT',root),patch.object(packages,'delegated'),patch.object(packages,'privacy'),patch.object(packages,'combinations') as combinations,patch.dict(os.environ,{'CPKT_OPERATION_FD':'fixture','CPKT_OPERATION_RUN':'new-run'}):
             os.environ.pop('CPKT_RELEASE_PRODUCTION',None)
-            for action in ('checksums','verify'):
+            for action in ('checksums','verify-artifacts'):
                 with patch.object(sys,'argv',['packages',action,'--group','all','--scope','release','--version',ver]):packages.main()
-            self.assertEqual(combinations.call_count,7)
+            routing=self.work/'verification-routing';variables,routing_record=trace(routing)
+            shutil.copy2(ROOT/'scripts/package.sh',routing/'scripts/package.sh')
+            calls=routing/'build/validation.jsonl'
+            (routing/'scripts/cpkt_packages.py').write_text('import json,sys\nwith open('+repr(str(calls))+',"a") as f:f.write(json.dumps(sys.argv[1:])+"\\n")\n')
+            routed=subprocess.run(['bash',str(routing/'scripts/package.sh'),'package-verify','--scope','release'],env=variables,capture_output=True,text=True)
+            self.assertEqual(0,routed.returncode,routed.stdout+routed.stderr)
+            self.assertEqual(7,sum(json.loads(line)[0]=='compose' for line in calls.read_text().splitlines()))
             self.assertEqual(json.loads(path.read_text())['run'],'prior-run')
             artifact=root/'build/verification/release'/ver/'proof.json'
             self.assertEqual(json.loads(artifact.read_text())['run'],'new-run')
             combinations.reset_mock();os.environ['CPKT_RELEASE_PRODUCTION']='1'
-            for action in ('checksums','verify'):
+            for action in ('checksums','verify-artifacts'):
                 with patch.object(sys,'argv',['packages',action,'--group','all','--scope','release','--version',ver]),self.assertRaisesRegex(ValueError,'current successful independent source'):
                     packages.main()
             combinations.assert_not_called()
             os.environ.pop('CPKT_RELEASE_PRODUCTION',None)
             source.write_bytes(b'corrupted source archive')
-            with patch.object(sys,'argv',['packages','verify','--group','all','--scope','release','--version',ver]),self.assertRaisesRegex(ValueError,'checksum mismatch'):
+            with patch.object(sys,'argv',['packages','verify-artifacts','--group','all','--scope','release','--version',ver]),self.assertRaisesRegex(ValueError,'checksum mismatch'):
                 packages.main()
     def test_first_parent_cmake_priority(self):
+        seed(self.work)
         (self.work/'CMakePresets.json').write_text(json.dumps({'version':3,'configurePresets':[{'name':'first','hidden':True,'cacheVariables':{'CPKT_TARGET_ARCH':'x86_64','CPKT_TARGET_OS':'linux','CPKT_TARGET_LIBC':'gnu','CMAKE_BUILD_TYPE':'Release','FIXTURE':'first'}},{'name':'second','hidden':True,'cacheVariables':{'CPKT_TARGET_ARCH':'armhf','CPKT_TARGET_OS':'linux','CPKT_TARGET_LIBC':'musl','CMAKE_BUILD_TYPE':'Debug','FIXTURE':'second'}},{'name':'selected','inherits':['first','second'],'generator':'Ninja','binaryDir':str(self.work/'binary')}]}))
         (self.work/'CMakeLists.txt').write_text('cmake_minimum_required(VERSION 3.21)\nproject(priority NONE)\nfile(WRITE "${CMAKE_BINARY_DIR}/answer" "${FIXTURE};${CPKT_TARGET_ARCH};${CMAKE_BUILD_TYPE};${CPKT_TARGET_OS};${CPKT_TARGET_LIBC}")\n')
         subprocess.run(['cmake','--preset','selected'],cwd=self.work,check=True,stdout=subprocess.DEVNULL)
-        info,target,mode=preset_info(self.work,'selected');self.assertEqual((self.work/'binary/answer').read_text(),'first;x86_64;Release;linux;gnu');self.assertEqual((target,mode),('x86_64-linux-gnu','Release'))
+        from cpkt_receipts import cache
+        actual=cache(self.work/'binary/CMakeCache.txt')
+        self.assertEqual((self.work/'binary/answer').read_text(),'first;x86_64;Release;linux;gnu')
+        self.assertEqual((actual['CPKT_TARGET_ARCH'],actual['CPKT_TARGET_OS'],actual['CPKT_TARGET_LIBC'],actual['CMAKE_BUILD_TYPE']),('x86_64','linux','gnu','Release'))
+
     def tag_repo(self):
         repo=self.work/'repo';repo.mkdir();subprocess.run(['git','init','-q','-b','feature',repo],check=True)
         subprocess.run(['git','-C',repo,'-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--allow-empty','-qm','test: fixture'],check=True)
@@ -970,9 +1016,9 @@ class Fixtures(unittest.TestCase):
         download_handoff(api,value,shared,destination)
         self.assertEqual(len(api.queries),3);self.assertEqual(len(api.opens),1)
         self.assertTrue(api.opens[0].endswith('/'+str(value['assets'][name]['id'])))
-        backend_spec=importlib.util.spec_from_file_location('cache_fixture_backend',ROOT/'scripts/group-build.py')
-        backend=importlib.util.module_from_spec(backend_spec);backend_spec.loader.exec_module(backend)
-        with patch.object(backend,'ROOT',fixture_repo):backend.clean('all')
+        seed(fixture_repo)
+        result=subprocess.run(['bash',str(fixture_repo/'scripts/clean.sh'),'clean','--group','all'],env=environment(),capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertFalse(destination.exists());self.assertFalse(local.exists())
         download_handoff(api,value,shared,destination)
         self.assertEqual(len(api.queries),3);self.assertEqual(len(api.opens),1)
@@ -1010,7 +1056,7 @@ class Fixtures(unittest.TestCase):
         path.write_bytes(encoded(value))
         api=unittest.mock.Mock()
         args=['handoff','preflight','--handoff',str(path)]
-        with patch.object(sys,'argv',args),patch.dict(os.environ,CPKT_OPERATION_FD='fixture'),patch.object(handoff,'delegated'),patch.object(handoff,'GitHub',return_value=api),patch.object(handoff,'dispatch_identity'),patch('cpkt_reserved_tag.git',return_value=value['producer_commit']),patch.object(handoff,'draft_matches') as remote:
+        with patch.object(sys,'argv',args),patch.dict(os.environ,CPKT_OPERATION_FD='fixture'),patch.object(handoff,'delegated'),patch.object(handoff,'GitHub',return_value=api),patch.object(handoff,'dispatch_identity'),patch.object(handoff,'git',return_value=value['producer_commit']),patch.object(handoff,'draft_matches') as remote:
             handoff.main();remote.assert_called_once_with(api,value)
         path.write_bytes(encoded(value)[:-1]+b',"draft_id":100}')
         with patch.object(sys,'argv',args),patch.dict(os.environ,CPKT_OPERATION_FD='fixture'),patch.object(handoff,'delegated'),patch.object(handoff,'GitHub',return_value=api):
@@ -1046,41 +1092,28 @@ class Fixtures(unittest.TestCase):
         subprocess.run(['cmake','-P',str(script)],check=True,capture_output=True)
 
     def test_reserved_tag_same_oid_foreign_and_crash_and_symlinks(self):
-        import cpkt_reserved_tag as tags
-        repo=self.tag_repo();oid=git(repo,'rev-parse','HEAD');ref=tags.REF
+        repo=self.tag_repo();oid=git(repo,'rev-parse','HEAD');ref='refs/tags/v99.99.99'
         for state in ('prepared','created'):
             create(repo);record=repo/'build/control/reserved-tag.json'
             data=json.loads(record.read_text());data['state']=state;record.write_text(json.dumps(data))
             git(repo,'update-ref','-d',ref,oid);git(repo,'update-ref','--create-reflog','-m','foreign same HEAD',ref,oid,'0'*len(oid))
             self.fails(lambda:recover(repo));self.assertEqual(git(repo,'rev-parse',ref),oid)
             git(repo,'update-ref','-d',ref,oid);record.unlink()
-        original=tags.persist;count=0
-        def interrupted(path,data):
-            nonlocal count
-            count+=1
-            if count==2:raise OSError('interrupted after successful exclusive creation')
-            original(path,data)
-        with patch.object(tags,'persist',side_effect=interrupted):self.fails(lambda:create(repo))
+        create(repo);record=repo/'build/control/reserved-tag.json'
         self.assertEqual(json.loads(record.read_text())['state'],'prepared')
-        # Global clean removes compiled state but explicitly retains control/ref ownership.
-        spec=importlib.util.spec_from_file_location('audit_group_build',ROOT/'scripts/group-build.py');backend=importlib.util.module_from_spec(spec);spec.loader.exec_module(backend)
         (repo/'.cache').mkdir();(repo/'build/scratch').mkdir()
-        with patch.object(backend,'ROOT',repo):backend.clean('all')
+        result=subprocess.run(['bash',str(repo/'scripts/clean.sh'),'clean','--group','all'],env=environment(),capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
         self.assertTrue(record.is_file());recover(repo);self.assertFalse(git(repo,'show-ref','--verify',ref,check=False))
         shutil.rmtree(repo/'build');(repo/'build').symlink_to(self.work/'absent',target_is_directory=True)
         self.fails(lambda:recover(repo));self.fails(lambda:create(repo));self.assertFalse((self.work/'absent').exists())
 
     def test_failed_exclusive_tag_create_does_not_own_foreign_same_head(self):
-        import cpkt_reserved_tag as tags
-        repo=self.tag_repo();oid=git(repo,'rev-parse','HEAD');original=tags.git
-        def foreign_wins(root,*args,**kwargs):
-            if args[:2]==('update-ref','--create-reflog'):
-                original(root,'update-ref','--create-reflog','-m','foreign exclusive winner',tags.REF,oid,'0'*len(oid))
-            return original(root,*args,**kwargs)
-        with patch.object(tags,'git',side_effect=foreign_wins):self.fails(lambda:create(repo))
+        repo=self.tag_repo();oid=git(repo,'rev-parse','HEAD');ref='refs/tags/v99.99.99'
+        self.fails(lambda:reserved(repo,'check',foreign=True))
         record=json.loads((repo/'build/control/reserved-tag.json').read_text())
         self.assertEqual(record['state'],'prepared');self.fails(lambda:recover(repo))
-        self.assertEqual(git(repo,'rev-parse',tags.REF),oid)
+        self.assertEqual(git(repo,'rev-parse',ref),oid)
 
     def test_cross_manifest_claim_is_reserved_metadata(self):
         prefix,manifests=self.sdk();item=copy.deepcopy(manifests['db'])
@@ -1090,42 +1123,35 @@ class Fixtures(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'collision/self-inclusion'):validator.validate(prefix,['core','db'])
 
     def test_source_effective_lower_jobs_cache_and_generator_executable(self):
-        root=self.work/'source-parent';root.mkdir();shutil.copy2(ROOT/'CMakePresets.json',root/'CMakePresets.json')
-        cache=root/'build/x86_64-linux-gnu/core/Release/CMakeCache.txt';cache.parent.mkdir(parents=True)
+        root=self.work/'source-parent';root.mkdir()
+        owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
+        cache=root/'build/x86_64-linux-gnu'/owner/'Release/CMakeCache.txt';cache.parent.mkdir(parents=True)
         custom=str(self.work/'declared shared cache')
         cache.write_text('CPKT_DEPENDENCY_BUILD_JOBS:STRING=3\nCPKT_DEPENDENCY_CACHE:PATH='+custom+'\nCMAKE_GENERATOR:INTERNAL=Unix Makefiles\n')
-        env={k:v for k,v in os.environ.items() if k not in ('CPKT_DEPENDENCY_BUILD_JOBS','CMAKE_BUILD_PARALLEL_LEVEL','CPKT_DEPENDENCY_CACHE','PRESET')}
+        env={k:v for k,v in os.environ.items() if k not in ('CPKT_DEPENDENCY_BUILD_JOBS','CMAKE_BUILD_PARALLEL_LEVEL','CPKT_DEPENDENCY_CACHE','PRESET','CPKT_SOURCE_GENERATOR')}
         env['CPKT_PRESET']='x86_64-linux-gnu-release'
-        args=[sys.executable,str(ROOT/'scripts/cpkt_source_reconstruct.py'),'--environment-from',str(root)]
-        result=subprocess.run(args,env=env,capture_output=True,text=True,check=True);values=json.loads(result.stdout)
-        self.assertEqual(values['CPKT_DEPENDENCY_BUILD_JOBS'],'3');self.assertEqual(values['CPKT_DEPENDENCY_CACHE'],custom);self.assertEqual(values['CPKT_SOURCE_GENERATOR'],'Unix Makefiles')
-        env['CPKT_DEPENDENCY_BUILD_JOBS']='1';result=subprocess.run(args,env=env,capture_output=True,text=True,check=True)
-        self.assertEqual(json.loads(result.stdout)['CPKT_DEPENDENCY_BUILD_JOBS'],'1')
-        from cpkt_source_reconstruct import reconstruction_environment
-        fresh=self.work/'fresh-source';fresh.mkdir();shutil.copy2(ROOT/'CMakePresets.json',fresh/'CMakePresets.json')
-        self.assertEqual(reconstruction_environment(fresh,values)['CPKT_SOURCE_GENERATOR'],'Unix Makefiles')
-        env['CPKT_DEPENDENCY_BUILD_JOBS']='4';self.assertNotEqual(subprocess.run(args,env=env,capture_output=True).returncode,0)
-        env['CPKT_DEPENDENCY_BUILD_JOBS']='9';self.assertNotEqual(subprocess.run(args,env=env,capture_output=True).returncode,0)
-        spec=importlib.util.spec_from_file_location('audit_source_backend',ROOT/'scripts/group-build.py');backend=importlib.util.module_from_spec(spec);spec.loader.exec_module(backend)
-        with patch.object(backend,'ROOT',root),patch.dict(os.environ,values):
-            command=backend.configure_command('x86_64-linux-gnu-release','core',root/'fresh')
-        self.assertIn('-DCPKT_DEPENDENCY_BUILD_JOBS=3',command);self.assertIn('-DCPKT_DEPENDENCY_CACHE='+custom,command)
-        self.assertEqual(command[command.index('-G')+1],'Unix Makefiles')
+        program='source "$1" "$2"; printf "%s\\0%s\\0%s\\0" "$CPKT_DEPENDENCY_BUILD_JOBS" "$CPKT_DEPENDENCY_CACHE" "$CPKT_SOURCE_GENERATOR"'
+        args=['bash','-euc',program,'fixture',str(ROOT/'scripts/source-environment.sh'),str(root)]
+        result=subprocess.run(args,env=env,capture_output=True,check=True)
+        self.assertEqual(result.stdout.split(b'\0')[:3],[b'3',custom.encode(),b'Unix Makefiles'])
+        env['CPKT_DEPENDENCY_BUILD_JOBS']='1'
+        self.assertEqual(subprocess.run(args,env=env,capture_output=True,check=True).stdout.split(b'\0')[0],b'1')
+        for limit in ('4','9','0','bad'):
+            env['CPKT_DEPENDENCY_BUILD_JOBS']=limit
+            self.assertNotEqual(subprocess.run(args,env=env,capture_output=True).returncode,0)
 
     def test_deterministic_gzip_level_and_payload(self):
-        from cpkt_packages import tar_stage
-        import gzip
         prefix=self.work/'payload';prefix.mkdir();(prefix/'header.h').write_bytes(b'header '*10000);(prefix/'header.h').chmod(0o644)
         (prefix/'alias').symlink_to('header.h')
         archives=[self.work/'one.tar.gz',self.work/'two.tar.gz']
-        original=gzip.GzipFile;levels=[]
-        def compress(*args,**kwargs):levels.append(kwargs.get('compresslevel'));return original(*args,**kwargs)
-        with patch('cpkt_packages.gzip.GzipFile',side_effect=compress):
-            for path in archives:tar_stage(prefix,path)
-        self.assertEqual(levels,[6,6]);self.assertEqual(archives[0].read_bytes(),archives[1].read_bytes())
-        with tarfile.open(archives[0]) as archive:
-            self.assertEqual(archive.extractfile('payload/header.h').read(),(prefix/'header.h').read_bytes())
-            self.assertEqual(archive.getmember('payload/alias').linkname,'header.h')
+        for path in archives:archive(prefix,path)
+        self.assertEqual(archives[0].read_bytes(),archives[1].read_bytes())
+        self.assertEqual(archives[0].read_bytes()[4:8],b'\0'*4)
+        self.assertIn('gzip -n -6',(ROOT/'scripts/archive.sh').read_text())
+        with tarfile.open(archives[0]) as tar:
+            self.assertEqual(tar.extractfile('payload/header.h').read(),(prefix/'header.h').read_bytes())
+            self.assertEqual(tar.getmember('payload/alias').linkname,'header.h')
+            for member in tar:self.assertEqual((member.uid,member.gid,member.mtime),(0,0,0))
 
     def test_editor_database_actual_commands_scope_coverage_and_atomic_failure(self):
         import cpkt_clangd_check as editor
@@ -1152,8 +1178,8 @@ class Fixtures(unittest.TestCase):
     def test_executable_consumer_orchestration_once_and_fresh_combinations(self):
         import cpkt_packages as packages
         owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
-        prefix,manifests=self.sdk();root=self.work/'orchestration';root.mkdir()
-        for directory in ('scripts','cmake','tests'):(root/directory).mkdir()
+        prefix,manifests=self.sdk();root=self.work/'orchestration';seed(root)
+        for directory in ('scripts','cmake','tests'):(root/directory).mkdir(exist_ok=True)
         shutil.copy2(ROOT/'CMakePresets.json',root/'CMakePresets.json')
         for name in ('validate-sdk.py','run-no-warnings.sh','cpkt-toolchains.sh'):
             shutil.copy2(ROOT/'scripts'/name,root/'scripts'/name)
@@ -1198,7 +1224,7 @@ print(json.dumps(cases))
             destination=owned/'share/cpkt/packages'/f'{group}.json';destination.parent.mkdir(parents=True,exist_ok=True)
             destination.write_bytes(encoded(manifest or manifests[group]));destination.chmod(0o644)
             if mutate:(owned/(group+'/payload')).write_bytes(b'mutated independently')
-            packages.tar_stage(owned,base/packages.archive_name(ver,target,owner) if group==owner else prerequisite)
+            archive(owned,base/packages.archive_name(ver,target,owner) if group==owner else prerequisite)
         pack(owner)
         if owner!='core':pack('core')
         def invoke(args,**kwargs):

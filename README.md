@@ -82,3 +82,5 @@ Shared dependency archives use
 compiler collections use the corresponding `cpkt/toolchains` root. A verified
 SHA-256 cache hit performs no network acquisition. `clean` removes disposable
 repository state and preserves both shared caches.
+
+The native build ownership and specialist validation boundaries are documented in [build lifecycle architecture](docs/build-lifecycle.md).

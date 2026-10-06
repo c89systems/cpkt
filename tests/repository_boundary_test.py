@@ -96,9 +96,6 @@ class Repository(unittest.TestCase):
             root=Path(temporary);(root/'cmake').mkdir()
             (root/'cmake/components.json').write_text(json.dumps({
                 'tests':{'static_archive_pic_link':data['tests']['static_archive_pic_link']}}))
-            assertion=root/'required.cmake'
-            subprocess.run([sys.executable,str(ROOT/'scripts/cpkt_expected_tests.py'),
-                '--root',str(root),'--group',REPOSITORY_GROUP,'--output',str(assertion)],check=True)
             for name,facade_only,registered,success in (
                     ('hardening','ON',False,True),
                     ('ordinary-missing','OFF',False,False),
@@ -109,7 +106,7 @@ class Repository(unittest.TestCase):
                     'set(CPKT_BUILD_TESTS ON)\nset(CPKT_CAN_RUN_TARGET_EXECUTABLES ON)\n'
                     'set(CPKT_FACADE_ONLY '+facade_only+')\n'+
                     ('add_test(NAME static_archive_pic_link COMMAND cmake -E true)\n' if registered else '')+
-                    'include("'+str(assertion)+'")\n')
+                    'set(CPKT_GROUP '+REPOSITORY_GROUP+')\nfile(READ "'+str(root/'cmake/components.json')+'" CPKT_INVENTORY)\ninclude("'+str(ROOT/'cmake/CpktTestInventory.cmake')+'")\ncpkt_assert_test_inventory()\n')
                 result=subprocess.run(['cmake','-S',str(source),'-B',str(root/(name+'-build'))],capture_output=True,text=True)
                 self.assertEqual(success,result.returncode==0,result.stdout+result.stderr)
                 if not success:self.assertIn('Missing required inventory case: static_archive_pic_link',result.stderr)
@@ -143,13 +140,18 @@ class Repository(unittest.TestCase):
 
     @unittest.skipIf(REPOSITORY_GROUP=='core','core has no external provider')
     def test_missing_pin_fails_before_acquisition_or_mutation(self):
-        from cpkt_core import acquire
+        from native_lifecycle_fixture import seed,environment
+        from cpkt_receipts import tree_identity
         (ROOT/'build').mkdir(exist_ok=True)
         with tempfile.TemporaryDirectory(prefix='missing-pin-',dir=ROOT/'build') as temporary:
-            root=Path(temporary);(root/'dependencies').mkdir()
+            root=Path(temporary);seed(root);(root/'dependencies').mkdir()
             (root/'dependencies/cpkt.json').write_text(json.dumps({'schema_version':1,'repository':'c89systems/cpkt','version':'0.1.0','targets':{}}))
-            with patch('subprocess.run',side_effect=AssertionError('unexpected subprocess/network')):
-                with self.assertRaisesRegex(RuntimeError,'no published checksum pin'):acquire(root,'x86_64-linux-gnu')
-            self.assertEqual({'dependencies'},set(p.name for p in root.iterdir()))
+            marker=root/'acquisition-started';cmake=root/'cmake-probe.sh'
+            cmake.write_text('#!/bin/sh\ncase "$*" in *CPKT_CORE_ACTION=acquire*) touch '+str(marker)+'; exit 47 ;; esac\nexec '+shutil.which('cmake')+' "$@"\n');cmake.chmod(0o755)
+            before=tree_identity(root)
+            result=subprocess.run(['bash',str(root/'scripts/core-dependency.sh'),'x86_64-linux-gnu'],env=dict(environment(),CMAKE=str(cmake)),capture_output=True,text=True)
+            self.assertNotEqual(0,result.returncode);self.assertIn('no published checksum pin',result.stderr)
+            self.assertFalse(marker.exists());self.assertFalse((root/'build').exists());self.assertFalse((root/'.cache').exists())
+            self.assertEqual(before,tree_identity(root))
 
 if __name__=='__main__':unittest.main()

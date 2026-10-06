@@ -1,5 +1,5 @@
 include("${CMAKE_CURRENT_LIST_DIR}/CpktReadOnlyToolchain.cmake")
-execute_process(COMMAND python3 "${CMAKE_CURRENT_LIST_DIR}/../scripts/cpkt_afl_discover.py"
+execute_process(COMMAND bash "${CMAKE_CURRENT_LIST_DIR}/../scripts/cpkt-aflpp.sh" discover
   OUTPUT_VARIABLE _description RESULT_VARIABLE _status)
 if(NOT _status EQUAL 0)
   message(FATAL_ERROR "Pinned AFL tooling is absent; prepare it explicitly before selected hardening")

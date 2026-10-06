@@ -141,7 +141,7 @@ def validate_inputs(root, data=None, group='all'):
                     files.update(p.relative_to(root).as_posix() for p in inputs)
     pending=list(files)
     checked=set()
-    suffix=r'(?:py|sh|cmake|hpp|h|cpp|cxx|cc|c|json|patch|series|txt)(?![A-Za-z0-9_.])'
+    suffix=r'(?:py|sh|cmake|hpp|h|cpp|cxx|cc|c|json|patch|series|txt|yaml|yml)(?![A-Za-z0-9_.])'
     while pending:
         name=pending.pop()
         if name in checked or '${' in name:continue

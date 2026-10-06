@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import argparse
+import os
 from pathlib import Path
 import sys
-from cpkt_operation import delegated
+from cpkt_lock import delegated
 from cpkt_inventory import load
 from cpkt_receipts import validate_component, validate_core, publish_component
 
@@ -13,7 +14,7 @@ parser.add_argument('--target', required=True)
 parser.add_argument('--component')
 parser.add_argument('--publish', action='store_true')
 parser.add_argument('--configuration', default='Debug')
-parser.add_argument('--preset', default='debug')
+parser.add_argument('--preset', default=os.environ.get('CPKT_PRESET', 'debug'))
 args = parser.parse_args()
 try:
     delegated(args.root, args.group)
@@ -27,4 +28,4 @@ try:
     else:
         validate_core(args.root, args.target, args.configuration, args.preset)
 except (RuntimeError, OSError, KeyError) as error:
-    sys.exit(str(error) + '\nRepair: make test GROUP=core PRESET=' + args.preset)
+    sys.exit(str(error) + '\nRepair: make test GROUP=' + args.group + ' PRESET=' + args.preset)

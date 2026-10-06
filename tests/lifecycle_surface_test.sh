@@ -12,12 +12,16 @@ for target in ('finalize-slice','format','format-check','test-all','release','re
     assert target in help_output,target
 for other in {'core','db','misc'}-{owner}:
     before=set(root.glob('.cache/*'))
-    result=subprocess.run(['python3','scripts/cpkt_lifecycle.py','debug','--group',other],cwd=root,text=True,capture_output=True)
+    result=subprocess.run(['bash','scripts/lifecycle.sh','debug','--group',other],cwd=root,text=True,capture_output=True)
     assert result.returncode!=0,(other,result.stdout,result.stderr)
     assert before==set(root.glob('.cache/*'))
 for target in ('release','test-all','finalize-slice'):
     result=subprocess.run(['make','--no-print-directory','-n',target],cwd=root,check=True,text=True,capture_output=True)
-    assert 'cpkt_lifecycle.py "'+target+'"' in result.stdout
+    assert 'lifecycle.sh "'+target+'"' in result.stdout
+ordinary=['preflight','debug']+(['e2e-postgres'] if owner=='db' else [])+['clangd-surface','valgrind']+(['fuzz-smoke'] if owner!='db' else [])
+recipes={'release':['lifecycle-version-contract','clean','format','format-check']+ordinary+['release-final-matrix'],'release-pipeline':['format','format-check']+ordinary+['release-matrix'],'test-all':ordinary}
+for action,phases in recipes.items():
+    subprocess.run([sys.executable,str(root/'tests/lifecycle_recipe_contract.py'),action,'\n'.join(phases)],check=True)
 if owner=='core':assert (root/'skills/pkt-systems-cmake-lifecycle/SKILL.md').is_file()
 else:
     assert not (root/'skills').exists()

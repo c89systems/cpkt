@@ -3,7 +3,7 @@ add_custom_command(OUTPUT "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka.h"
     "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka_types.h"
     "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka_bridge.inc"
     "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka_bridge_exports.txt"
-  COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tools/generate_cmocka_c89.py"
+  COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tools/generate_cmocka_c89.py"
     --header "${CPKT_EXTERNAL_ROOT}/cmocka/install/include/cmocka.h"
     --output "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka.h"
   DEPENDS "${CMAKE_SOURCE_DIR}/tools/generate_cmocka_c89.py"
@@ -46,7 +46,7 @@ foreach(_variant static shared)
     cpkt_use_local_runtime(cpkt_cmocka_behavior_${_variant} cpkt::cmocka_shared)
     target_link_libraries(cpkt_cmocka_behavior_${_variant} PRIVATE cpkt_cmocka_${_variant})
     cpkt_group_add_test(NAME cmocka_c89_compile_${_variant}
-      COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/cmocka_downstream_compile.py"
+      COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/cmocka_downstream_compile.py"
         "${CMAKE_C_COMPILER}" "${CMAKE_SOURCE_DIR}/tests/cmocka_downstream_behavior.c"
         "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}" "${CPKT_EXTERNAL_ROOT}/cmocka/install/include"
         "${CMAKE_BINARY_DIR}/cmocka-c89-${_variant}.o")
@@ -56,7 +56,7 @@ foreach(_variant static shared)
     cpkt_use_local_runtime(cpkt_cmocka_surface_${_variant} cpkt::cmocka_shared)
     target_link_libraries(cpkt_cmocka_surface_${_variant} PRIVATE cpkt_cmocka_${_variant})
     cpkt_group_add_test(NAME cmocka_surface_compile_${_variant}
-      COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/cmocka_downstream_compile.py"
+      COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/cmocka_downstream_compile.py"
         "${CMAKE_C_COMPILER}" "${CMAKE_SOURCE_DIR}/tests/cmocka_c89_surface.c"
         "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}" "${CPKT_EXTERNAL_ROOT}/cmocka/install/include"
         "${CMAKE_BINARY_DIR}/cmocka-surface-c89-${_variant}.o")
@@ -66,7 +66,7 @@ foreach(_variant static shared)
       cpkt_group_add_test(NAME cmocka_behavior_${_variant} COMMAND cpkt_cmocka_behavior_${_variant})
       set_tests_properties(cmocka_behavior_${_variant} PROPERTIES LABELS "facade;memcheck")
       cpkt_group_add_test(NAME cmocka_failure_${_variant}
-        COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/cmocka_downstream_failure.py"
+        COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/cmocka_downstream_failure.py"
           ${CPKT_TEST_EXECUTABLE_PREFIX} "$<TARGET_FILE:cpkt_cmocka_behavior_${_variant}>" failure)
     endif()
   endif()

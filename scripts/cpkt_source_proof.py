@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from cpkt_packages import ROOT, sha, write_json, invalidate_release, validator
 from cpkt_inventory import REPOSITORY_GROUP
 from cpkt_receipts import read, readiness_path, group_outputs, verification_inputs, cache
-from cpkt_operation import delegated
+from cpkt_lock import delegated
 
 
 def reconstruction_evidence(source,ver):
@@ -84,7 +84,7 @@ def main():
     if source==ROOT or not source.is_relative_to(ROOT/'build') or not (source/'VERSION').is_file() or (source/'VERSION').read_text().strip()!=ver:
         raise ValueError('source proof requires the independent extracted source/version under build/')
     owner=json.loads((source/'build/control/operation.lock').read_text())
-    if owner.get('status')!='passed' or not any(Path(arg).name=='cpkt_source_reconstruct.py' for arg in owner.get('command',[])):
+    if owner.get('status')!='passed' or not any(Path(arg).name=='source-reconstruct.sh' for arg in owner.get('command',[])):
         raise ValueError('source proof requires the completed independent reconstruction operation')
     coverage,composition=reconstruction_evidence(source,ver)
     write_json(ROOT/'build/verification/source'/ver/'proof.json',{'schema_version':1,'status':'passed','kind':'source-reconstruction',

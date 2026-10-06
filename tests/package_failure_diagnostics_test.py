@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Observe selected package phase failures and interruption in real children."""
 import os
+import shlex
 import fcntl
 from pathlib import Path
 import signal
@@ -13,13 +14,10 @@ if not __debug__:raise SystemExit('Package diagnostic tests require Python asser
 source=Path(sys.argv[1]).resolve()
 with tempfile.TemporaryDirectory(prefix='package diagnostics-',dir=source/'build') as temporary:
     root=Path(temporary)
-    driver=root/'driver.py'
-    driver.write_text('''import os,sys
-sys.path.insert(0,sys.argv[1]+'/scripts')
-from cpkt_package_command import run
-for phase in ('configure','fixture','build','test','package'):
-    run([sys.executable,sys.argv[2],phase],root=sys.argv[3],phase=phase,env=os.environ,pass_fds=())
-''')
+    from native_lifecycle_fixture import seed
+    seed(root)
+    driver=root/'driver.sh'
+    driver.write_text('#!/usr/bin/env bash\nset -euo pipefail\nfor phase in configure fixture build test package; do\n  bash "$1/scripts/package-command.sh" "$3" "$phase" -- '+shlex.quote(sys.executable)+' "$2" "$phase"\ndone\n')
     stub=root/'stub.py'
     stub.write_text('''import os,sys,time,signal
 phase=sys.argv[1]
@@ -38,7 +36,7 @@ if phase==os.environ['DIAG_PHASE']:
         env=dict(os.environ,DIAG_CALLS=str(calls),DIAG_READY=str(ready),DIAG_PHASE=phase,DIAG_MODE=mode,DIAG_STATUS=str(status),CPKT_PRESET=target)
         for key in list(env):
             if key.startswith('CPKT_OPERATION_') or key in ('MAKEFLAGS','MFLAGS','MAKELEVEL'):env.pop(key,None)
-        args=[sys.executable,str(driver),str(source),str(stub),str(root)]
+        args=['bash',str(source/'scripts/operation.sh'),'--root',str(root),'--group','all','--','bash',str(driver),str(source),str(stub),str(root)]
         if via_make:
             import shlex
             (root/'Makefile').write_text('all:\n\t'+shlex.join(args)+'\n');args=['make','--no-print-directory']
@@ -64,12 +62,12 @@ if phase==os.environ['DIAG_PHASE']:
             diagnostics=[line for line in output.splitlines() if line.startswith(prefix)]
             assert len(diagnostics)==1,(name,output)
             diagnostic=diagnostics[0]
-            assert 'phase='+phase in diagnostic and 'target='+target in diagnostic,output
+            assert 'phase='+phase in diagnostic and 'target='+target in diagnostic,(name,output)
             expected_status=128+signum if interruption else 143 if mode=='child' else status
             if not via_make:assert process.returncode==expected_status,(name,output,process.returncode)
             else:assert process.returncode!=0
-            assert 'status='+str(expected_status) in diagnostic,output
-            if interruption:assert 'received '+signal.Signals(signum).name in diagnostic and 'sender' in diagnostic,output
+            assert 'status='+str(expected_status) in diagnostic,(name,output)
+            if interruption:assert 'received '+signal.Signals(signum).name in diagnostic and 'sender' in diagnostic,(name,output)
             else:
                 assert 'command=' in diagnostic and 'received SIGTERM' not in output,output
                 if expected_status==143:assert 'SIGTERM' in output and 'explicit exit' in output,output
@@ -102,11 +100,9 @@ with open(os.environ['TREE_LEASE'],'w') as lease:
 """)
     launcher.write_text("""import os,subprocess,sys,time
 from pathlib import Path
-sys.path.insert(0,os.environ['TREE_SOURCE']+'/scripts')
-from cpkt_package_command import run
 level=int(sys.argv[1])
 if level:
-    run([sys.executable,__file__,str(level-1)],root=os.environ['TREE_ROOT'],phase='build',env=os.environ,pass_fds=(),capture=os.environ['TREE_CAPTURE']=='1')
+    os.execvp('bash',['bash',os.environ['TREE_SOURCE']+'/scripts/package-command.sh',os.environ['TREE_ROOT'],'build','--',sys.executable,__file__,str(level-1)])
 else:
     subprocess.Popen([sys.executable,os.environ['TREE_LEAF']])
     while not Path(os.environ['TREE_READY']).exists():time.sleep(.01)
@@ -115,9 +111,7 @@ else:
     time.sleep(30)
 """)
     driver.write_text("""import os,sys
-sys.path.insert(0,os.environ['TREE_SOURCE']+'/scripts')
-from cpkt_package_command import run
-run([sys.executable,os.environ['TREE_LAUNCHER'],os.environ['TREE_DEPTH']],root=os.environ['TREE_ROOT'],phase='build',env=os.environ,pass_fds=(),capture=os.environ['TREE_CAPTURE']=='1')
+os.execvp('bash',['bash',os.environ['TREE_SOURCE']+'/scripts/package-command.sh',os.environ['TREE_ROOT'],'build','--',sys.executable,os.environ['TREE_LAUNCHER'],os.environ['TREE_DEPTH']])
 """)
     cases=[]
     for capture,depth,exit_leader in ((False,0,False),(True,0,True),(True,2,False)):

@@ -18,7 +18,8 @@ build_dir="$work_dir/build"
 mkdir -p "$source_dir/include/cpkt" "$source_dir/src" "$source_dir/examples" "$source_dir/tests" \
   "$build_dir/generated/opcua/cpkt" "$build_dir/generated/lua/include/cpkt" "$work_dir/bin"
 mkdir -p "$source_dir/scripts" "$source_dir/cmake"
-cp "$repo_dir"/scripts/cpkt_*.py "$source_dir/scripts/"
+cp -a "$repo_dir/scripts" "$source_dir/"
+cp -a "$repo_dir/cmake" "$source_dir/"
 python3 - "$source_dir" "$owner" <<'PY'
 import json,sys
 from pathlib import Path

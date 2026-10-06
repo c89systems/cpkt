@@ -192,7 +192,7 @@ expect_verify_failure "$(make_archive manifest-mismatch cpkt-1.2.3)" \
 rm "$fixture_root/extra-unlisted.txt"
 (cd "$fixture_root" && find . -type f | sed 's#^\./##' | sort > RELEASE_MANIFEST)
 for missing in \
-  scripts/cpkt_package_command.py \
+  scripts/package-command.sh \
   tools/generate_cmocka_c89.py \
   tests/sdk-consumers/cpkt_ssl.c
 do

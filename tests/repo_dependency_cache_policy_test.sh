@@ -30,7 +30,7 @@ if grep -n -E 'add_dependencies\\([^)]*cpkt_deps\\)' "$repo_root/CMakeLists.txt"
   exit 1
 fi
 
-python3 "$repo_root/scripts/cpkt_inventory_cli.py" --root "$repo_root" --group all --closure >/dev/null
+cmake "-DCPKT_REPO_ROOT=$repo_root" -DCPKT_INFO=components -P "$repo_root/cmake/lifecycle-info.cmake" >/dev/null
 for required in 'cpkt_deps_${_component}' 'DEPENDS ${_component_targets}' 'cpkt_deps_all DEPENDS ${_all_dependency_targets}' 'ExternalProject_Add_Step(${_last_project} cpkt-receipt'; do
   if ! grep -F "$required" "$dependencies" >/dev/null; then
     printf 'inventory-owned complete producer policy is missing: %s\n' "$required" >&2
@@ -40,7 +40,7 @@ done
 
 python3 "$repo_root/tests/package_isolation_build_test.py" Isolation.test_stable_inode_bounded_wait_and_owner_interruption
 python3 "$repo_root/tests/package_recipe_graph_test.py" "$repo_root"
-for lifecycle_script in build.sh test.sh package.sh; do
+for lifecycle_script in build.sh lifecycle.sh package.sh; do
   if grep -F 'bash "$repo_root/scripts/clean.sh" all' "$repo_root/scripts/$lifecycle_script" >/dev/null 2>&1; then
     printf 'scripts/%s must not clean generated state during normal lifecycle work\n' "$lifecycle_script" >&2
     exit 1

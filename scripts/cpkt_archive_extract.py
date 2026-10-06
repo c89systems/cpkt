@@ -5,13 +5,13 @@ from pathlib import Path
 import sys
 import tarfile
 from cpkt_packages import ROOT, safe_extract
-from cpkt_operation import delegated, run as locked_run
+from cpkt_lock import delegated, ensure_operation as locked_run
 import os
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('archive',type=Path);parser.add_argument('destination',type=Path);parser.add_argument('root');parser.add_argument('--source',action='store_true')
 args=parser.parse_args()
 if "CPKT_OPERATION_FD" not in os.environ:
- sys.exit(locked_run(ROOT,"all",[sys.executable,__file__]+sys.argv[1:]))
+ locked_run(ROOT,"all")
 delegated(ROOT,"all")
 try:
  if args.source:

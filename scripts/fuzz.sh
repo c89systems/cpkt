@@ -32,12 +32,12 @@ case "$group" in
   *) printf 'unknown GROUP: %s\n' "$group" >&2; exit 2 ;;
 esac
 if [[ -z ${CPKT_OPERATION_FD:-} ]]; then
-  exec python3 "$script_dir/cpkt_operation.py" --group "$group" -- bash "$0" "$mode" --preset "$preset"
+  exec bash "$script_dir/operation.sh" --group "$group" -- bash "$0" "$mode" --preset "$preset"
 fi
-python3 "$script_dir/cpkt_operation.py" --group "$group" --check
+bash "$script_dir/operation.sh" --group "$group" --check
 cd "$repo_root"
 if [[ $group == core || $group == all ]]; then
-  python3 "$script_dir/group-build.py" build --group core --preset fuzz --target cpkt_lua_runtime_fuzz
-  directory=$(python3 "$script_dir/group-build.py" path --group core --preset fuzz)
-  python3 "$script_dir/cpkt_fuzz_run.py" --group core "$mode" "$directory/cpkt_lua_runtime_fuzz" fuzz/seeds/lua
+  bash "$script_dir/build.sh" build --group core --preset fuzz --target cpkt_lua_runtime_fuzz
+  directory=$(bash "$script_dir/build.sh" path --group core --preset fuzz)
+  bash "$script_dir/run-afl-fuzz.sh" "$mode" "$directory/cpkt_lua_runtime_fuzz" fuzz/seeds/lua
 fi

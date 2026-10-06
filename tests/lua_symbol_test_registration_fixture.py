@@ -7,13 +7,6 @@ import tempfile
 
 root = Path(sys.argv[1]).resolve()
 sys.path.insert(0,str(root/'scripts'))
-from cpkt_cmake_inputs import commands
-selected=[]
-for name, arguments, definition in commands((root/'CMakeLists.txt').read_text()):
-    if name=='cpkt_group_add_test' and arguments.split()[:2] in (['NAME','lua_api_inventory'],['NAME','lua_export_policy']):
-        selected.append(definition.replace('${CMAKE_SOURCE_DIR}','${CPKT_SOURCE_ROOT}'))
-if len(selected)!=2:
-    raise SystemExit('real Lua inventory/export registration commands missing')
 with tempfile.TemporaryDirectory(prefix='lua-symbol-registration-',dir=root/'build') as temporary:
     fixture=Path(temporary)
     (fixture/'cmake').mkdir()
@@ -30,6 +23,7 @@ set(CPKT_PYTHON3_EXECUTABLE "'''+sys.executable+'''")
 set(CMAKE_NM nm)
 set(CMAKE_C_COMPILER cc)
 set(_cpkt_lua_inventory_symbol_format darwin)
+set(CMAKE_SOURCE_DIR "'''+str(root)+'''")
 set(CPKT_LUA_FACADE_HEADER "${CMAKE_SOURCE_DIR}/lua.h")
 include("'''+str(root/'cmake/CpktGroups.cmake')+'''")
 foreach(name cpkt::lua_static cpkt::lua_shared cpkt_lua_shared)
@@ -37,7 +31,7 @@ foreach(name cpkt::lua_static cpkt::lua_shared cpkt_lua_shared)
   set_target_properties(${name} PROPERTIES IMPORTED_LOCATION "${CMAKE_SOURCE_DIR}/lua.a"
     INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}")
 endforeach()
-'''+ '\n'.join(selected)+'\n')
+'''+ '\n'.join('include("'+str(root/'cmake'/name)+'")' for name in ('CpktLuaInventoryTest.cmake','CpktLuaExportsTest.cmake'))+'\n')
     subprocess.run(['cmake','-S',str(fixture),'-B',str(fixture/'binary')],check=True,capture_output=True)
     result=subprocess.run(['ctest','--test-dir',str(fixture/'binary'),'-N'],check=True,capture_output=True,text=True)
     for name in ('lua_api_inventory','lua_export_policy'):

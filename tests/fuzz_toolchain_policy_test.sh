@@ -8,7 +8,7 @@ fi
 
 source_dir=$1
 if [[ -z ${CPKT_OPERATION_FD:-} ]]; then
-  exec python3 "$source_dir/scripts/cpkt_operation.py" --group all -- bash "$0" "$source_dir"
+  exec bash "$source_dir/scripts/operation.sh" --group all -- bash "$0" "$source_dir"
 fi
 mkdir -p "$source_dir/build/fixtures"
 work_dir=$(mktemp -d "$source_dir/build/fixtures/fuzz-policy.XXXXXXXX")

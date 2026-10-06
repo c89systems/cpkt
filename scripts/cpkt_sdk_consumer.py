@@ -17,33 +17,13 @@ from cpkt_inventory import load, REPOSITORY_GROUP
 from cpkt_packages import ROOT, command, validator, safe_owned, file_records, abi_records
 from cpkt_receipts import cache
 from cpkt_presets import preset_info
-from cpkt_operation import delegated, run as locked_run
-from cpkt_cmake_inputs import commands
+from cpkt_lock import delegated, ensure_operation as locked_run
 
 
 def facade_abi_defaults(root):
-    """Read release ABI declarations without configuring a producer graph."""
-    required = {facade['abi_version_variable']
-        for component in load(root)['components'].values()
-        if not component.get('external')
-        for facade in component['package']['facades']
-        if facade.get('abi_version_variable')}
-    values = {}
-    for name, arguments, _ in commands((root/'CMakeLists.txt').read_text()):
-        if name.lower() != 'set':
-            continue
-        first = re.match(r'\s*([A-Za-z_][A-Za-z0-9_]*)', arguments)
-        if not first or first[1] not in required:
-            continue
-        tokens = shlex.split(arguments, comments=True)
-        if not tokens or tokens[0] not in required:
-            continue
-        if len(tokens) < 2 or not re.fullmatch(r'0|[1-9][0-9]*', tokens[1]):
-            raise ValueError('facade ABI declaration must be a literal integer: '+tokens[0])
-        values[tokens[0]] = tokens[1]
-    if required != set(values):
-        raise ValueError('missing source facade ABI declarations: '+','.join(sorted(required-set(values))))
-    return values
+    """Read ABI declarations through native CMake, without a producer graph."""
+    encoded=subprocess.check_output(['cmake','-DCPKT_INFO=abi-defaults','-DCPKT_REPO_ROOT='+str(root),'-P',str(root/'cmake/lifecycle-info.cmake')],text=True)
+    return json.loads(encoded)
 
 
 def inspect_notices(prefix,owners):
@@ -300,7 +280,7 @@ def execute(binary,arguments,target,configured,failure=False,static_plugins=Fals
     invocation=runtime_invocation(binary,target,configured,runner)
     case['loader_resolution']=validate_runtime_resolution(binary,target,configured,runner,invocation)
     if failure:
-        from cpkt_operation import operation_fds
+        from cpkt_lock import operation_fds
         result=subprocess.run(invocation[0]+arguments,capture_output=True,text=True,pass_fds=operation_fds())
         if result.returncode!=1 or 'intentional failure 37' not in result.stdout+result.stderr or 'cmocka_downstream_behavior.c' not in result.stdout+result.stderr:raise ValueError('cmocka intentional failure/location semantics changed')
     else:command(invocation[0]+arguments,env={'SASL_PATH':'/cpkt-no-external-sasl-plugins' if static_plugins else str(Path(configured['CPKT_INSTALLED_PREFIX'])/'lib/sasl2')})
@@ -452,7 +432,7 @@ def main():
     args=parser.parse_args();owners=args.owners.split(',');groups=args.groups.split(',')
     scope='all' if args.composition else owners[0] if len(owners)==1 else 'all'
     if not set(owners)<=set(groups):parser.error('consumer owners must be installed selected groups')
-    if 'CPKT_OPERATION_FD' not in os.environ:return locked_run(ROOT,scope,[sys.executable,__file__]+sys.argv[1:])
+    if 'CPKT_OPERATION_FD' not in os.environ:locked_run(ROOT,scope)
     delegated(ROOT,scope)
     print(json.dumps(run_consumers(args.prefix,args.target,args.preset,groups,owners,args.composition)))
 

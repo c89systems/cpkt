@@ -67,10 +67,10 @@ cat > "$work_dir/interrupted.py" <<'PYDRIVER'
 import os, pathlib, signal, sys, time
 sys.path.insert(0,sys.argv[1]+'/scripts')
 import cpkt_archive_assert as archive
-from cpkt_operation import operation_fds, run
+from cpkt_lock import operation_fds, ensure_operation
 import subprocess
 if 'CPKT_OPERATION_FD' not in os.environ:
-    sys.exit(run(sys.argv[1],'core',[sys.executable,__file__,*sys.argv[1:]]))
+    ensure_operation(sys.argv[1],'core')
 if '--child' not in sys.argv:
     process=subprocess.Popen([sys.executable,__file__,*sys.argv[1:],'--child'],pass_fds=operation_fds())
     output=pathlib.Path(sys.argv[3]);deadline=time.monotonic()+10
@@ -118,13 +118,14 @@ mkdir -p \
 cp -a "$source_dir/scripts" "$clean_fixture/"
 cp -a "$source_dir/cmake" "$clean_fixture/"
 cp "$source_dir/CMakePresets.json" "$clean_fixture/"
+mkdir -p "$clean_fixture/scripts/__pycache__" "$clean_fixture/tests/nested/__pycache__"
 for fd_name in CPKT_OPERATION_FD CPKT_OPERATION_CAP_FD; do
   if [[ -n ${!fd_name:-} ]]; then eval "exec ${!fd_name}>&-"; fi
 done
 for key in ${!CPKT_OPERATION_@}; do unset "$key"; done
 unset GROUP
-bash "$clean_fixture/scripts/clean.sh" all
-for removed_path in .cache dist package-assertions-stale; do
+bash "$clean_fixture/scripts/clean.sh" clean --group all
+for removed_path in .cache dist package-assertions-stale scripts/__pycache__ tests/nested/__pycache__; do
   if [[ -e "$clean_fixture/$removed_path" ]]; then
     printf 'clean left generated package assertion state: %s\n' "$removed_path" >&2
     exit 1

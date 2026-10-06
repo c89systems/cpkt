@@ -10,7 +10,7 @@ import tempfile
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 from cpkt_inventory import REPOSITORY_GROUP
-from cpkt_operation import delegated,run
+from cpkt_lock import delegated, ensure_operation
 from cpkt_sdk_consumer import command,execute
 from cpkt_packages import safe_owned
 
@@ -20,7 +20,7 @@ def main():
         parser.add_argument('--'+name,required=True)
     args=parser.parse_args()
     if 'CPKT_OPERATION_FD' not in os.environ:
-        return run(ROOT,REPOSITORY_GROUP,[sys.executable,__file__,*sys.argv[1:]])
+        ensure_operation(ROOT,REPOSITORY_GROUP)
     delegated(ROOT,REPOSITORY_GROUP)
     scratch=safe_owned(Path(args.scratch))
     if not scratch.is_relative_to(ROOT/'build'):

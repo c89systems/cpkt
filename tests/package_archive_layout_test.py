@@ -9,7 +9,7 @@ import tempfile
 import os
 import shutil
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
-from cpkt_operation import operation_fds
+from cpkt_lock import operation_fds
 
 
 if not __debug__:

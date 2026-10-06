@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Inventory-driven split SDK staging, composition and scoped artifact proofs."""
+"""Inventory-driven SDK artifact validation and composition evidence."""
 import argparse
 import ast
 from collections import Counter
 import fnmatch
-import gzip
 import hashlib
 import importlib.util
 import io
@@ -19,10 +18,11 @@ import sys
 import tarfile
 import tempfile
 import time
+import signal
 import zipfile
 
 from cpkt_inventory import load, components_for, GROUPS, REPOSITORY_GROUP
-from cpkt_operation import delegated, run as locked_run, operation_fds, child_delegation
+from cpkt_lock import delegated, operation_fds, child_delegation
 from cpkt_presets import preset_info
 from cpkt_receipts import cache, read, readiness_path, validate_component, verification_inputs, group_outputs, tree_identity, file_identity, tool_runtime_inputs
 
@@ -38,9 +38,26 @@ def command(args, cwd=ROOT, capture=False, group=None, env=None):
     with child_delegation(ROOT, scope) as (delegation, fds):
         if env:
             delegation.update(env)
-        from cpkt_package_command import run
-        phase='configure' if str(args[0])=='cmake' and '--build' not in args else 'build' if '--build' in args else 'fixture' if any('preflight' in str(a) for a in args) else 'test' if any('consumer' in str(a) or 'group-build' in str(a) for a in args) else 'package'
-        return run(args,root=ROOT,phase=phase,env=delegation,pass_fds=fds,capture=capture,cwd=cwd)
+        phase='configure' if str(args[0])=='cmake' and '--build' not in args else 'build' if '--build' in args else 'fixture' if any('preflight' in str(a) for a in args) else 'test' if any('consumer' in str(a) or 'build.sh' in str(a) for a in args) else 'package'
+        process=subprocess.Popen(['bash',str(ROOT/'scripts/package-command.sh'),str(ROOT),phase,'--',*map(str,args)],
+            cwd=cwd,env=delegation,pass_fds=fds,text=True,
+            stdout=subprocess.PIPE if capture else None,stderr=subprocess.PIPE if capture else None)
+        handlers={}
+        received=[]
+        def forward(signum,frame):
+            received.append(signum)
+            try:process.send_signal(signum)
+            except ProcessLookupError:pass
+        try:
+            for signum in (signal.SIGHUP,signal.SIGINT,signal.SIGTERM):
+                handlers[signum]=signal.signal(signum,forward)
+            output,error=process.communicate()
+            if process.returncode or received:
+                if capture:print((output or '')+(error or ''),file=sys.stderr)
+                raise SystemExit(128+received[0] if received else process.returncode)
+            return output or ''
+        finally:
+            for signum,handler in handlers.items():signal.signal(signum,handler)
 
 
 def safe_owned(path):
@@ -159,22 +176,6 @@ def safe_extract(archive, parent, root_name, destination_root=None):
     return parent/destination_root
 
 
-def tar_stage(prefix, archive):
-    archive.parent.mkdir(parents=True, exist_ok=True)
-    temporary = archive.with_name(archive.name+'.tmp')
-    with temporary.open('wb') as raw, gzip.GzipFile(fileobj=raw, mode='wb', filename='', mtime=0, compresslevel=6) as compressed, tarfile.open(fileobj=compressed, mode='w') as output:
-        for path in [prefix] + sorted(prefix.rglob('*')):
-            relative = prefix.name if path == prefix else prefix.name+'/'+path.relative_to(prefix).as_posix()
-            info = output.gettarinfo(str(path), arcname=relative)
-            info.uid=info.gid=0; info.uname=info.gname=''; info.mtime=0
-            if info.isfile():
-                with path.open('rb') as source:
-                    output.addfile(info,source)
-            else:
-                output.addfile(info)
-    temporary.replace(archive)
-
-
 def file_records(prefix):
     return [dict(path=name, type='symlink', target=os.readlink(path)) if path.is_symlink() else
             dict(path=name, type='file', mode=format(stat.S_IMODE(path.stat().st_mode),'04o'),sha256=sha(path))
@@ -214,81 +215,6 @@ def package_inventory(data, group):
     return sorted(set(cmake)),sorted(set(pc)),sorted(set(patterns))
 
 
-def metadata(prefix, directory, configured, data, group):
-    cmake_names,pc_names,_=package_inventory(data,group)
-    variables=dict(configured,_stage_root=str(prefix),CPKT_SOURCE_DIR=str(ROOT),CPKT_METADATA_CMAKE=';'.join(cmake_names),CPKT_METADATA_PC=';'.join(pc_names),CPKT_TARGET_ID=configured['CPKT_TARGET_ID'])
-    script=directory/'package-metadata-input.cmake'
-    # Parent diagnostic controls are not package inputs. Replaying their normal
-    # values changes child diagnostics and triggers CMP0218 on CMake 4.4+.
-    diagnostics={'CMAKE_WARN_DEPRECATED','CMAKE_ERROR_DEPRECATED'}
-    script.write_text('cmake_minimum_required(VERSION 3.21)\n'+''.join('set('+k+' [==['+v+']==])\n' for k,v in variables.items() if not k.startswith('_CMAKE') and k not in diagnostics)+'include("'+str(ROOT/'cmake/package_metadata.cmake')+'")\n')
-    command(['cmake','-P',script],group=group)
-    # Shared cmocka and its facade have distinct installed discovery names.
-    if group=='core':
-        suffix='.dylib' if configured['CPKT_TARGET_ID'].endswith('darwin') else '.so'
-        native=prefix/'lib/cmake/cmocka'
-        native.mkdir(parents=True,exist_ok=True)
-        (native/'cmocka-config.cmake').write_text('''get_filename_component(_cpkt_cmocka_prefix "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
-foreach(v static shared)
-  if(v STREQUAL "static")
-    set(suffix ".a")
-  else()
-    set(suffix "'''+suffix+'''")
-  endif()
-  if(NOT TARGET cpkt::cmocka_${v})
-    add_library(cpkt::cmocka_${v} ${v} IMPORTED)
-    set_target_properties(cpkt::cmocka_${v} PROPERTIES IMPORTED_LOCATION "${_cpkt_cmocka_prefix}/lib/libcmocka${suffix}" INTERFACE_INCLUDE_DIRECTORIES "${_cpkt_cmocka_prefix}/include")
-    if(v STREQUAL "static")
-      set_property(TARGET cpkt::cmocka_static PROPERTY INTERFACE_COMPILE_DEFINITIONS CMOCKA_STATIC)
-      set_property(TARGET cpkt::cmocka_static PROPERTY INTERFACE_LINK_LIBRARIES m)
-    endif()
-  endif()
-endforeach()
-if(NOT TARGET cmocka::cmocka)
-  add_library(cmocka::cmocka ALIAS cpkt::cmocka_shared)
-endif()
-set(CMOCKA_LIBRARY cmocka::cmocka)
-set(CMOCKA_LIBRARIES cmocka::cmocka)
-'''.replace('${v} IMPORTED','${_cpkt_cmocka_type} IMPORTED').replace('  if(NOT TARGET cpkt::cmocka_${v})','  string(TOUPPER "${v}" _cpkt_cmocka_type)\n  if(NOT TARGET cpkt::cmocka_${v})'))
-        native_version = configured['CPKT_CMOCKA_VERSION']
-        version_template = 'set(PACKAGE_VERSION "{version}")\nif(PACKAGE_FIND_VERSION VERSION_GREATER PACKAGE_VERSION)\n set(PACKAGE_VERSION_COMPATIBLE FALSE)\nelse()\n set(PACKAGE_VERSION_COMPATIBLE TRUE)\n if(PACKAGE_FIND_VERSION VERSION_EQUAL PACKAGE_VERSION)\n  set(PACKAGE_VERSION_EXACT TRUE)\n endif()\nendif()\n'
-        (native/'cmocka-config-version.cmake').write_text(version_template.format(version=native_version))
-        facade=prefix/'lib/cmake/CpktCmocka'
-        facade.mkdir(parents=True,exist_ok=True)
-        (facade/'CpktCmockaConfig.cmake').write_text('''include(CMakeFindDependencyMacro)
-find_dependency(cmocka CONFIG REQUIRED)
-get_filename_component(_cpkt_cmocka_prefix "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
-foreach(v static shared)
-  if(v STREQUAL "static")
-    set(suffix ".a")
-  else()
-    set(suffix "'''+suffix+'''")
-  endif()
-  string(TOUPPER "${v}" type)
-  if(NOT TARGET cpkt::cmocka_facade_${v})
-    add_library(cpkt::cmocka_facade_${v} ${type} IMPORTED)
-    set_target_properties(cpkt::cmocka_facade_${v} PROPERTIES IMPORTED_LOCATION "${_cpkt_cmocka_prefix}/lib/libcpkt_cmocka${suffix}" INTERFACE_INCLUDE_DIRECTORIES "${_cpkt_cmocka_prefix}/include" INTERFACE_LINK_LIBRARIES "cpkt::cmocka_${v};m")
-  endif()
-endforeach()
-''')
-        (facade/'CpktCmockaConfigVersion.cmake').write_text(version_template.format(version=configured['CPKT_BUNDLE_VERSION']))
-        for name,libs,cflags,requires in [('cmocka','-lcmocka','',''),('cmocka-shared','-lcmocka','',''),('cmocka-static','${libdir}/libcmocka.a','-DCMOCKA_STATIC',''),('cpkt-cmocka','-lcpkt_cmocka','','cmocka')]:
-            (prefix/'lib/pkgconfig'/f'{name}.pc').write_text('prefix=${pcfiledir}/../..\nlibdir=${prefix}/lib\nincludedir=${prefix}/include\nName: '+name+'\nDescription: cmocka native/C89 test SDK\nVersion: '+(configured['CPKT_BUNDLE_VERSION'] if name=='cpkt-cmocka' else configured['CPKT_CMOCKA_VERSION'])+'\nLibs: -L${libdir} '+libs+'\nLibs.private: -lm\nCflags: -I${includedir} '+cflags+'\n'+('Requires: '+requires+'\n' if requires else ''))
-        (prefix/'lib/pkgconfig/cpkt-core.pc').write_text('prefix=${pcfiledir}/../..\nName: cpkt-core\nDescription: Validated cpkt core identity marker\nVersion: '+configured['CPKT_BUNDLE_VERSION']+'\nLibs:\nCflags:\n')
-    for config in (prefix/'lib/cmake').rglob('*.cmake'):
-        text=config.read_text()
-        text=re.sub(r'find_dependency\(([^\s)]+)([^)]*\bCONFIG\b[^)]*)\)',lambda m:'find_dependency('+m[1]+m[2]+' PATHS "${_cpkt_sdk_prefix}" NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)',text)
-        if re.search(r'(?:Config|config)\.cmake$',config.name) and not re.search(r'(?:ConfigVersion|config-version)\.cmake$',config.name):
-            text='include("${CMAKE_CURRENT_LIST_DIR}/../CpktSDK/Validate.cmake")\ncpkt_sdk_validate('+group+')\ncpkt_sdk_assert_targets('+group+')\n'+text+'\ncpkt_sdk_assert_targets('+group+')\n'
-        config.write_text(text)
-    for pc in (prefix/'lib/pkgconfig').glob('*.pc'):
-        if pc.name=='cpkt-core.pc':continue
-        text=pc.read_text()
-        core_version=configured['CPKT_BUNDLE_VERSION'] if group=='core' else prepared_core(configured['CPKT_BUNDLE_VERSION'],configured['CPKT_TARGET_ID'],os.environ.get('CPKT_PRESET','debug'))[1]['release_version']
-        marker='cpkt-core = '+core_version
-        match=re.search(r'(?m)^Requires:(.*)$',text)
-        text=text[:match.end()]+', '+marker+text[match.end():] if match else text+'Requires: '+marker+'\n'
-        pc.write_text(text)
 
 
 def abi_records(prefix, configured):
@@ -323,107 +249,6 @@ def abi_records(prefix, configured):
     return records
 
 
-def stage(preset,group,ver):
-    data=load(ROOT);_,target,configuration=preset_info(ROOT,preset)
-    if configuration!='Release':raise ValueError('package requires a release preset')
-    directory=ROOT/'build'/target/group/configuration
-    configured=cache(directory/'CMakeCache.txt')
-    development=read(readiness_path(ROOT,target,group,configuration))
-    if development['verification_id']!=verification_inputs(ROOT,group,configured) or development['outputs']!=group_outputs(directory):
-        raise ValueError('development proof stale; run make test GROUP='+group+' PRESET='+preset)
-    proof_path(target,group).unlink(missing_ok=True)
-    core=None
-    if group!='core':
-        core_archive,core=prepared_core(ver,target,preset)
-    workspace=safe_owned(stage_dir(target,group));workspace.mkdir(parents=True,exist_ok=True)
-    prefix=workspace/prefix_name(ver,target)
-    if prefix.exists():shutil.rmtree(prefix)
-    prefix.mkdir()
-    components=[]
-    for name in components_for(data,group):
-        item=data['components'][name];validate_component(ROOT,target,name)
-        install=ROOT/'.cache/deps'/target/item['directory']/'install'
-        for sub in ('include','lib'):
-            for source in sorted((install/sub).rglob('*')):
-                if source.is_dir() and not source.is_symlink():continue
-                rel=source.relative_to(install).as_posix()
-                if rel.endswith('.la') or rel.startswith(('lib/pkgconfig/','lib/cmake/','lib/engines-','lib/ossl-modules/')):continue
-                copy_file(source,prefix/rel)
-        license_path=item['package']['license']
-        license_source=ROOT/license_path[1:] if license_path.startswith('@') else ROOT/'.cache/deps-build'/target/item['directory']/license_path
-        copy_file(license_source,prefix/'share/doc/cpkt'/group/'third_party'/name/'LICENSE')
-        for facade in item['package']['facades']:
-            stem=facade.get('output_name',facade['target'])
-            files=list(directory.glob('lib'+stem+'.*'))
-            if not any(x.suffix=='.a' for x in files) or not any('.so' in x.name or '.dylib' in x.name for x in files):raise ValueError('missing both facade variants: '+stem)
-            for source in sorted(files):copy_file(source,prefix/'lib'/source.name)
-            for header in facade['headers']:
-                sources=list((directory/'generated'/facade['generated']).rglob('*.h')) if header.startswith('@') else [ROOT/'include/cpkt'/header]
-                for source in sources:
-                    if 'include/cpkt/' in source.as_posix():rel=source.as_posix().split('include/',1)[1]
-                    elif header.startswith('@'):
-                        if source.parent.name!='cpkt':continue
-                        rel='cpkt/'+source.name
-                    else:rel='cpkt/'+source.name
-                    if source.name.endswith('_bridge.inc') or 'private' in source.name:continue
-                    if (prefix/'include'/rel).exists():
-                        if sha(source)!=sha(prefix/'include'/rel):raise ValueError('header collision: '+rel)
-                    else:copy_file(source,prefix/'include'/rel)
-        producer=cache(ROOT/'build'/target/group/'producer/CMakeCache.txt')
-        recipe=(ROOT/'cmake/CpktDependencies.cmake').read_text()
-        from cpkt_receipts import function_text
-        recipe=function_text(recipe,item['recipe_functions'][-1])
-        hashes=re.findall(r'SHA256=([0-9a-f]{64})',recipe)
-        if not hashes:raise ValueError('missing pinned source digest: '+name)
-        version_key=item['package']['version_variable']
-        if version_key not in producer:raise ValueError('missing component version: '+name)
-        primary=hashes[0]
-        if item['package'].get('primary_source_project'):
-            project=item['package']['primary_source_project']
-            block=re.search(r'cpkt_cached_external_project_add\(\$\{'+re.escape(project)+r'\}.*?URL_HASH\s+"SHA256=([0-9a-f]{64})"',recipe,re.S)
-            if not block:raise ValueError('missing primary compiled source project: '+name)
-            primary=block[1]
-        components.append(dict(name=name,version=producer[version_key],source_sha256=primary,features={'variants':item['variants'],'recipe_sha256':hashlib.sha256(recipe.encode()).hexdigest(),'recipe_inputs':{p:sha(ROOT/p) for p in sorted(item['recipe_inputs'])},'source_digests':sorted(set(hashes)), 'options':{k:v for k,v in producer.items() if k.startswith('CPKT_'+name.upper().replace('-','_')+'_') and not k.endswith(('PREFIX','DIR','ROOT','LIBRARY'))}},abi={}))
-    for record in components:
-        for facade in data['components'][record['name']]['package']['facades']:
-            for feature,variable in facade.get('features',{}).items():
-                if variable not in configured:raise ValueError('missing compiled facade feature '+variable)
-                record['features'][feature]=configured[variable]
-    docs=prefix/'share/doc/cpkt'/group
-    copy_file(ROOT/'LICENSE',docs/'LICENSE')
-    (docs/'THIRD_PARTY_NOTICES.md').write_text('Bundled '+group+' components and complete license paths:\n\n'+''.join('- '+item['name']+' '+item['version']+': third_party/'+item['name']+'/LICENSE\n' for item in components))
-    (docs/'README.md').write_text('cpkt '+ver+' '+group+' SDK\n\nValidate this installation before CMake/pkg-config discovery. '+('Independently usable core.' if group=='core' else 'Requires the exact core package identity recorded in packages/'+group+'.json.')+'\n')
-    for source in data['groups'][group]['package']['docs']:copy_file(ROOT/source,docs/'docs'/Path(source).name)
-    for source in data['groups'][group]['package']['examples']:copy_file(ROOT/source,docs/'examples'/Path(source).relative_to('examples'))
-    for notice in data['groups'][group]['package']['extra_notices']:
-        for source in sorted((ROOT/notice).rglob('*')):
-            if source.is_file():copy_file(source,docs/'third_party'/Path(notice).name/source.relative_to(ROOT/notice))
-    for item in data['groups'][group]['package']['files']:copy_file(ROOT/item['source'],prefix/item['path'])
-    if group=='core':
-        copy_file(ROOT/'LICENSE',prefix/'share/doc/cpkt/LICENSE')
-        copy_file(ROOT/'docs/sdk-installation.md',prefix/'share/doc/cpkt/README.md')
-        copy_file(ROOT/'scripts/validate-sdk.py',prefix/'share/cpkt/validate-sdk.py')
-        write_json(prefix/'share/cpkt/payload-ownership.json',json.loads((ROOT/'cmake/payload-ownership.json').read_text()))
-        copy_file(ROOT/'cmake/CpktSDKValidate.cmake',prefix/'lib/cmake/CpktSDK/Validate.cmake')
-        # MQTT source support is part of core's installed consumer closure.
-        support=ROOT/'.cache/deps'/target/'mqtt-c/install/share/cpkt/mqtt-c'
-        if support.is_dir():
-            for source in sorted(support.rglob('*')):
-                if source.is_file():copy_file(source,prefix/'share/cpkt/mqtt-c'/source.relative_to(support))
-    if group == 'misc' and not target.endswith('darwin'):
-        for key in ('CPKT_CXX_STDLIB_STATIC_LIBRARY','CPKT_CXX_LIBGCC_STATIC_LIBRARY'):
-            if configured.get(key):copy_file(Path(configured[key]),prefix/'lib/cpkt-cxx'/Path(configured[key]).name)
-    metadata(prefix,workspace,configured,data,group)
-    all_abi=abi_records(prefix,configured)
-    for component in components:
-        native=data['components'][component['name']]['package']['owned_patterns']
-        facade_patterns=['lib/lib'+f.get('output_name',f['target'])+'.*' for f in data['components'][component['name']]['package']['facades']]
-        component['abi']={k:v for k,v in all_abi.items() if any(fnmatch.fnmatchcase(k,p) for p in native+facade_patterns)} or {'shared_surface': 'header-only' if not facade_patterns else 'missing'}
-        if component['abi']=={'shared_surface':'missing'}:raise ValueError('missing component ABI evidence')
-    manifest=make_manifest(prefix,group,ver,target,components,core,configured.get('CPKT_MACOS_DEPLOYMENT_TARGET',configured.get('CMAKE_OSX_DEPLOYMENT_TARGET')))
-    archive=selected_archive(ver,target,group)
-    tar_stage(prefix,archive)
-    return archive,manifest
 
 
 def prepared_core(ver,target,preset):
@@ -705,83 +530,69 @@ def combinations(preset,ver,base,reuse_owned=True):
     return results
 
 
+
+
 def main():
-    parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action',choices=['package','stage','verify','checksums','inventory','compose','stage-target'])
-    parser.add_argument('--group',choices=GROUPS,default=os.environ.get('GROUP','all'))
-    parser.add_argument('--preset',default=os.environ.get('PRESET'))
-    parser.add_argument('--scope',choices=['selected','binary','release'],default=os.environ.get('SCOPE'))
+    parser=argparse.ArgumentParser(description='Structured SDK artifact and evidence validation; Bash owns workflows')
+    parser.add_argument('action',choices=('assert-inputs','verify-selected','compose','checksums','verify-checksums','verify-artifacts','invalidate','invalidate-selected'))
+    parser.add_argument('--group',default='all',choices=GROUPS)
+    parser.add_argument('--preset')
+    parser.add_argument('--scope',choices=('selected','binary','release'),default='binary')
     parser.add_argument('--version')
     parser.add_argument('--base',type=Path)
+    parser.add_argument('--fresh-owned',action='store_true')
     args=parser.parse_args()
-    scope=args.scope or ('binary' if args.group=='all' else 'selected')
-    if (scope=='selected')!=(args.group!='all'):parser.error('selected scope requires a selected group; binary/release requires GROUP=all')
-    if args.group!='all' and not args.preset:parser.error('selected packaging requires explicit release PRESET')
-    if args.preset:
-        _,target,configuration=preset_info(ROOT,args.preset)
-        if configuration!='Release':parser.error('packaging requires a release preset')
-    if args.action=='package':os.environ['CPKT_PACKAGE_ACTIVE']='1'
-    if args.action=='inventory':
-        print('\n'.join(artifacts(args.version or '0.0.0',scope)));return
-    if 'CPKT_OPERATION_FD' not in os.environ:
-        return locked_run(ROOT,args.group,[sys.executable,__file__]+sys.argv[1:])
     delegated(ROOT,args.group)
-    if args.preset:os.environ['CPKT_PRESET']=args.preset
     ver=args.version or version()
     current_run=os.environ.get('CPKT_RELEASE_PRODUCTION')=='1'
-    if args.group=='all' and args.action in ('package','checksums','verify'):
-        # A failed rerun must not leave an earlier aggregate proof publishable.
-        (ROOT/'build/verification'/scope/ver/'proof.json').unlink(missing_ok=True)
-    if args.action=='checksums':
-        snapshot,base=checksum_snapshot(ver,scope,args.group,target if args.preset else None,current_run=current_run)
-        check_snapshot(snapshot,base,ver,scope,args.group,target if args.preset else None,current_run=current_run);return
+    if args.preset:
+        os.environ['CPKT_PRESET']=args.preset
+        _,target,configuration=preset_info(ROOT,args.preset)
+        if configuration!='Release':raise ValueError('SDK artifact validation requires Release')
+    if args.action=='invalidate':
+        invalidate_release(ver);return
+    if args.action=='invalidate-selected':
+        if not args.preset or args.group=='all':raise ValueError('selected invalidation requires preset and owner')
+        proof_path(target,args.group).unlink(missing_ok=True);return
+    if args.action=='assert-inputs':
+        if not args.preset or args.group=='all':raise ValueError('input validation requires preset and owner')
+        directory=ROOT/'build'/target/args.group/configuration
+        configured=cache(directory/'CMakeCache.txt')
+        proof=read(readiness_path(ROOT,target,args.group,configuration))
+        if proof['verification_id']!=verification_inputs(ROOT,args.group,configured) or proof['outputs']!=group_outputs(directory):raise ValueError('package input is not the tested graph')
+        for component in components_for(load(ROOT),args.group):validate_component(ROOT,target,component)
+        return
+    if args.action=='verify-selected':
+        if not args.preset or args.group=='all':raise ValueError('selected validation requires preset and owner')
+        verify_selected(args.preset,args.group,ver);return
     if args.action=='compose':
-        if not args.preset or args.group!='all':parser.error('compose requires all and one release PRESET')
-        combinations(args.preset,ver,args.base or ROOT/'dist');return
-    if args.group!='all':
-        if args.action=='verify':
+        if not args.preset or args.group!='all':raise ValueError('composition requires one preset and aggregate owner')
+        combinations(args.preset,ver,args.base or ROOT/'dist',reuse_owned=not args.fresh_owned)
+        return
+    if args.action in ('checksums','verify-checksums','verify-artifacts') and args.group=='all':
+        safe_owned(ROOT/'build/verification'/args.scope/ver/'proof.json').unlink(missing_ok=True)
+    if args.action=='verify-checksums':
+        if args.scope=='selected':
+            if args.group=='all' or not args.preset:raise ValueError('selected checksums require preset and owner')
             snapshot=ROOT/'build/verification'/target/args.group/'CHECKSUMS'
-            check_snapshot(snapshot,selected_archive(ver,target,args.group).parent,ver,scope,args.group,target)
-        if args.action=='package':
-            command([sys.executable,ROOT/'group-build.py' if False else ROOT/'scripts/group-build.py','test','--group',args.group,'--preset',args.preset],group=args.group)
-        if args.action in ('package','stage'):
-            stage(args.preset,args.group,ver)
-        verify_selected(args.preset,args.group,ver)
-        if args.action!='verify':snapshot,base=checksum_snapshot(ver,scope,args.group,target)
-        else:base=selected_archive(ver,target,args.group).parent
-        check_snapshot(snapshot,base,ver,scope,args.group,target)
+            base=stage_dir(target,args.group)/'archives'
+        else:
+            if args.group!='all' or args.preset:raise ValueError('aggregate checksums reject narrowing')
+            snapshot=ROOT/'dist'/f'cpkt-{ver}-CHECKSUMS' if args.scope=='release' else ROOT/'build/verification/binary'/ver/'CHECKSUMS'
+            base=ROOT/'dist'
+        check_snapshot(snapshot,base,ver,args.scope,args.group,target if args.preset else None,current_run=current_run)
         return
-    if args.action == 'stage-target':
-        if not args.preset:parser.error('stage-target requires a release preset')
-        for group in load(ROOT)['groups']:
-            stage(args.preset,group,ver);verify_selected(args.preset,group,ver)
-        return
-    if args.preset:parser.error('all-matrix package/verify cannot narrow PRESET; use compose for a one-target proof')
-    data=load(ROOT)
-    if args.action=='package':
-        # Structural/runtime preflight precedes every expensive producer.
-        for target in data['package_targets']:
-            command([sys.executable,ROOT/'scripts/group-build.py','preflight','--group','all','--preset',target+'-release'])
-        invalidate_release(ver)
-        (ROOT/'dist').mkdir(exist_ok=True)
-        for target in data['package_targets']:
-            preset=target+'-release'
-            for group in data['groups']:
-                command([sys.executable,ROOT/'scripts/group-build.py','test','--group',group,'--preset',preset],group=group)
-                archive,_=stage(preset,group,ver)
-                verify_selected(preset,group,ver)
-                shutil.copy2(archive,ROOT/'dist'/archive.name)
-            combinations(preset,ver,ROOT/'dist')
-        command([sys.executable,ROOT/'scripts/cpkt_darwin.py','smoke-zip','--version',ver])
-    else:
-        base=ROOT/'dist'
-        snapshot=base/f'cpkt-{ver}-CHECKSUMS' if scope=='release' else ROOT/'build/verification/binary'/ver/'CHECKSUMS'
-        check_snapshot(snapshot,base,ver,scope,current_run=current_run)
-        for target in data['package_targets']:combinations(target+'-release',ver,base)
-        privacy([snapshot]+[base/name for name in artifacts(ver,scope)])
-        write_json(ROOT/'build/verification'/scope/ver/'proof.json',dict(schema_version=1,status='passed',kind='artifact-'+scope,scope=scope,run=os.environ['CPKT_OPERATION_RUN'],manifest_sha256=sha(snapshot),artifacts=check_snapshot(snapshot,base,ver,scope,current_run=current_run)))
+    if args.action=='checksums':
+        snapshot,base=checksum_snapshot(ver,args.scope,args.group,target if args.preset else None,current_run=current_run)
+        check_snapshot(snapshot,base,ver,args.scope,args.group,target if args.preset else None,current_run=current_run);return
+    if args.group!='all' or args.preset:raise ValueError('aggregate validation rejects narrowing')
+    base=ROOT/'dist'
+    snapshot=base/f'cpkt-{ver}-CHECKSUMS' if args.scope=='release' else ROOT/'build/verification/binary'/ver/'CHECKSUMS'
+    check_snapshot(snapshot,base,ver,args.scope,current_run=current_run)
+    privacy([snapshot]+[base/name for name in artifacts(ver,args.scope)])
+    write_json(ROOT/'build/verification'/args.scope/ver/'proof.json',dict(schema_version=1,status='passed',kind='artifact-'+args.scope,scope=args.scope,run=os.environ['CPKT_OPERATION_RUN'],manifest_sha256=sha(snapshot),artifacts=check_snapshot(snapshot,base,ver,args.scope,current_run=current_run)))
 
 
 if __name__=='__main__':
     try:sys.exit(main())
-    except (ValueError,RuntimeError,OSError,KeyError,TypeError) as error:sys.exit('package split: '+str(error))
+    except (ValueError,RuntimeError,OSError,KeyError,TypeError) as error:sys.exit('SDK artifact validation: '+str(error))

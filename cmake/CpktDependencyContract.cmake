@@ -66,11 +66,6 @@ function(cpkt_append_dependency_recipe_function out_var function_name)
   set(${out_var} "${_contract}" PARENT_SCOPE)
 endfunction()
 
-function(cpkt_append_dependency_recipe_preamble out_var)
-  # The effective helper closure is supplied by the component inventory.
-  set(${out_var} "${${out_var}}" PARENT_SCOPE)
-endfunction()
-
 function(cpkt_append_lifecycle_owned_dependency_component_root
     out_paths root root_label component)
   get_filename_component(_root_abs "${root}" ABSOLUTE BASE_DIR "${CMAKE_BINARY_DIR}")
@@ -169,6 +164,16 @@ function(cpkt_prepare_dependency_component)
       CPKT_TOOLCHAIN_COLLECTION_ID CPKT_MACOS_DEPLOYMENT_TARGET)
     cpkt_append_dependency_contract_var(_contract "${_var}")
   endforeach()
+  # Bind the native adapter's actual cold recipe bytes too; an adapter change
+  # must never leave an apparently current compiled-input receipt.
+  if(EXISTS "${CMAKE_SOURCE_DIR}/cmake/CpktVerifiedExternalProject.cmake")
+    cpkt_append_dependency_contract_file(_contract
+      "${CMAKE_SOURCE_DIR}/cmake/CpktVerifiedExternalProject.cmake" "external-project-adapter")
+  endif()
+  if(EXISTS "${CMAKE_SOURCE_DIR}/cmake/CpktLiteralArguments.cmake")
+    cpkt_append_dependency_contract_file(_contract
+      "${CMAKE_SOURCE_DIR}/cmake/CpktLiteralArguments.cmake" "literal-arguments")
+  endif()
   foreach(_var IN LISTS component_VARIABLES)
     cpkt_append_dependency_contract_var(_contract "${_var}")
   endforeach()
@@ -229,7 +234,27 @@ function(cpkt_prepare_dependency_component)
     set(_existing_contract "")
   endif()
 
+  set(_needs_refresh OFF)
   if(NOT _existing_contract STREQUAL "${_contract}")
+    set(_needs_refresh ON)
+  elseif(_can_produce AND CPKT_DEPENDENCY_PRODUCER)
+    # Content verification detects missing/corrupt installs even when native
+    # ExternalProject timestamps have not changed. CMake performs the repair.
+    execute_process(COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/cpkt_receipt_cli.py"
+      --root "${CMAKE_SOURCE_DIR}" --group "${_component_group}" --target "${CPKT_TARGET_ID}"
+      --component "${component_NAME}" --preset "${_repair_preset}"
+      RESULT_VARIABLE _output_status OUTPUT_QUIET ERROR_VARIABLE _output_reason)
+    if(NOT _output_status EQUAL 0)
+      set(_needs_refresh ON)
+    endif()
+  endif()
+  if(_needs_refresh)
+    if(_can_produce)
+      file(GLOB _readiness "${CMAKE_SOURCE_DIR}/build/verification/${CPKT_TARGET_ID}/${_component_group}/*-development.json")
+      if(_readiness)
+        file(REMOVE ${_readiness})
+      endif()
+    endif()
     if(NOT _can_produce)
       message(FATAL_ERROR
         "dependency component ${component_NAME} for ${CPKT_TARGET_ID}: build inputs changed or absent.\n"
@@ -249,7 +274,14 @@ function(cpkt_prepare_dependency_component)
     file(REMOVE "${CMAKE_SOURCE_DIR}/build/verification/${CPKT_TARGET_ID}/${_component_group}/component-${component_NAME}.json")
     file(MAKE_DIRECTORY "${_contract_dir}")
     file(WRITE "${_contract_file}" "${_contract}")
-    message(STATUS "Refreshed dependency ${component_NAME}: effective inputs changed")
+    message(STATUS "Refreshed dependency ${component_NAME}: inputs changed or verified outputs are missing/corrupt")
   endif()
+  # A warm graph must validate receipts without replaying install commands when
+  # native launcher/stamp scripts change. A refresh always uses the full recipe.
+  set(_verified OFF)
+  if(NOT _needs_refresh AND _can_produce AND CPKT_DEPENDENCY_PRODUCER)
+    set(_verified ON)
+  endif()
+  set_property(GLOBAL PROPERTY "CPKT_VERIFIED_COMPONENT_${component_NAME}" "${_verified}")
   set_property(GLOBAL PROPERTY "CPKT_DEPENDENCY_CONTRACT_${component_NAME}" "${_contract_sha256}")
 endfunction()

@@ -49,7 +49,18 @@
         "cmake/exports/cpkt_openssl.txt",
         "cmake/exports/cpkt_sasl.txt",
         "cmake/payload-ownership.json",
-        "src/lua_runtime_hook_policy.h"
+        "src/lua_runtime_hook_policy.h",
+        "cmake/CpktABIVersions.cmake",
+        "cmake/CpktPreflightTests.cmake",
+        "cmake/CpktTestInventory.cmake",
+        "scripts/lifecycle.sh",
+        "scripts/build.sh",
+        "scripts/operation.sh",
+        "cmake/producer-cache.cmake",
+        "cmake/CpktLuaInventoryTest.cmake",
+        "cmake/CpktLuaExportsTest.cmake",
+        "scripts/archive.sh",
+        "scripts/package-command.sh"
       ],
       "core_components": [],
       "profiles": {
@@ -5701,9 +5712,9 @@
       "helper_inputs": [
         "scripts/cpkt_sdk_consumer.py",
         "scripts/cpkt_packages.py",
-        "scripts/cpkt_package_command.py",
+        "scripts/package-command.sh",
         "scripts/cpkt_inventory.py",
-        "scripts/cpkt_operation.py",
+        "scripts/cpkt_lock.py",
         "scripts/cpkt_receipts.py",
         "scripts/validate-sdk.py"
       ]

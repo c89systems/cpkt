@@ -11,6 +11,7 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'scripts'))
 OWNER = json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
 TARGET = 'x86_64-linux-gnu'
 COMPONENT = OWNER+'dep'
@@ -18,7 +19,7 @@ PHASES = [COMPONENT+':'+phase for phase in ('extract','configure','build','insta
 
 
 def invoke(root, *arguments, success=True, env=None):
-    result = subprocess.run([sys.executable, str(root/'scripts/group-build.py'), *arguments],
+    result = subprocess.run(['bash', str(root/'scripts/build.sh'), *arguments],
                             capture_output=True, text=True, env=env)
     if (result.returncode == 0) != success:
         raise RuntimeError(' '.join(arguments)+'\n'+result.stdout+result.stderr)
@@ -30,7 +31,7 @@ def prerequisite(root):
     if OWNER=='core':return None
     prefix=root/'.cache/cpkt'/TARGET/'install'
     (prefix/'lib').mkdir(parents=True)
-    payload=prefix/'lib/core-fixture.a';payload.write_bytes(b'immutable published core')
+    payload=prefix/'lib/core-fixture.a';payload.write_bytes(b'immutable published core');payload.chmod(0o644)
     manifest={'schema_version':1,'group':'core','release_version':'0.1.0',
         'target_id':TARGET,'libc':'gnu','macos_deployment_target':None,
         'components':[{'name':'coredep','version':'1.0','source_sha256':'a'*64,
@@ -40,7 +41,7 @@ def prerequisite(root):
     encoded=lambda data:json.dumps(data,sort_keys=True,separators=(',',':')).encode()
     manifest['package_id']=hashlib.sha256(encoded(manifest)).hexdigest()
     path=prefix/'share/cpkt/packages/core.json';path.parent.mkdir(parents=True)
-    path.write_bytes(encoded(manifest))
+    path.write_bytes(encoded(manifest));path.chmod(0o644)
     (root/'dependencies').mkdir()
     (root/'dependencies/cpkt.json').write_text(json.dumps({'schema_version':1,
         'repository':'c89systems/cpkt','version':'0.1.0','targets':{TARGET:{
@@ -49,13 +50,15 @@ def prerequisite(root):
     return payload
 
 
-def exercise(generator, parent):
+def setup(generator, parent):
     root=parent/(generator.replace(' ','-')+" checkout's files")
     for directory in ('scripts','cmake','tests'):(root/directory).mkdir(parents=True)
     for path in ROOT.glob('scripts/cpkt_*.py'):shutil.copy2(path,root/'scripts'/path.name)
-    for name in ('group-build.py','validate-sdk.py'):shutil.copy2(ROOT/'scripts'/name,root/'scripts'/name)
-    for name in ('CpktGroups.cmake','CpktOperation.cmake','CpktDependencyContract.cmake'):
+    for name in ('validate-sdk.py',):shutil.copy2(ROOT/'scripts'/name,root/'scripts'/name)
+    for path in ROOT.glob('scripts/*.sh'):shutil.copy2(path,root/'scripts'/path.name)
+    for name in ('CpktGroups.cmake','CpktOperation.cmake','CpktDependencyContract.cmake','CpktTestInventory.cmake','CpktSDKInstall.cmake','CpktComponentInventory.cmake','CpktLiteralArguments.cmake','CpktVerifiedExternalProject.cmake','lifecycle-info.cmake','producer-cache.cmake'):
         shutil.copy2(ROOT/'cmake'/name,root/'cmake'/name)
+    (root/'VERSION').write_text('1.2.3\n')
     resolver=root/'scripts/cpkt-toolchains.sh'
     resolver.write_text('#!/bin/sh\nprintf "status=ready\\nsource=synthetic-fixture\\n"\n');resolver.chmod(0o755)
     for name in ('CpktReadOnlyToolchain.cmake','CpktReadOnlyAflToolchain.cmake'):
@@ -98,15 +101,16 @@ if phase=='install':
  (output/'shared.so').write_text(component)
 ''')
     recipe='''include(ExternalProject)
+include("${CMAKE_SOURCE_DIR}/cmake/CpktVerifiedExternalProject.cmake")
 function(cpkt_add_NAME)
  if(CPKT_BUILD_DEPENDENCIES)
-  ExternalProject_Add(NAME_project
+  cpkt_external_project_add(NAME_project
    PREFIX "${CMAKE_SOURCE_DIR}/.cache/deps-build/${CPKT_TARGET_ID}/NAME"
    SOURCE_DIR "${CMAKE_SOURCE_DIR}/tests"
-   DOWNLOAD_COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/phase.py" "${CMAKE_SOURCE_DIR}" NAME extract
-   CONFIGURE_COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/phase.py" "${CMAKE_SOURCE_DIR}" NAME configure
-   BUILD_COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/phase.py" "${CMAKE_SOURCE_DIR}" NAME build
-   INSTALL_COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/phase.py" "${CMAKE_SOURCE_DIR}" NAME install)
+   DOWNLOAD_COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/phase.py" "${CMAKE_SOURCE_DIR}" NAME extract
+   CONFIGURE_COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/phase.py" "${CMAKE_SOURCE_DIR}" NAME configure
+   BUILD_COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/phase.py" "${CMAKE_SOURCE_DIR}" NAME build
+   INSTALL_COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/phase.py" "${CMAKE_SOURCE_DIR}" NAME install)
   set_property(GLOBAL APPEND PROPERTY CPKT_DEPENDENCY_TARGETS NAME_project)
  endif()
 endfunction()
@@ -140,8 +144,8 @@ if(CPKT_DEPENDENCY_PRODUCER)
  set(CPKT_ACTIVE_COMPONENTS COMPONENT)
  cpkt_synthetic_producer()
 else()
- add_custom_target(cpkt_operation_guard COMMAND "${CPKT_OPERATION_PYTHON}"
-  "${CMAKE_SOURCE_DIR}/scripts/cpkt_operation.py" --root "${CMAKE_SOURCE_DIR}" --group "${CPKT_GROUP}" --check VERBATIM)
+ add_custom_target(cpkt_operation_guard COMMAND bash
+  "${CMAKE_SOURCE_DIR}/scripts/operation.sh" --root "${CMAKE_SOURCE_DIR}" --group "${CPKT_GROUP}" --check VERBATIM)
  cpkt_group_add_executable(cpkt_${CPKT_GROUP}_probe main.c)
  cpkt_group_add_test(NAME ${CPKT_GROUP}_behavior COMMAND cpkt_${CPKT_GROUP}_probe)
  cpkt_group_set_tests_properties(${CPKT_GROUP}_behavior PROPERTIES LABELS example)
@@ -149,7 +153,12 @@ else()
 endif()
 '''.replace(' COMPONENT)', ' '+COMPONENT+')')
     (root/'CMakeLists.txt').write_text(main)
-    env={key:value for key,value in os.environ.items() if not key.startswith('CPKT_OPERATION_') and key not in ('GROUP','PRESET')}
+    return root,presets,main
+
+
+def exercise(generator,parent):
+    root,presets,main=setup(generator,parent)
+    env={key:value for key,value in os.environ.items() if not key.startswith('CPKT_OPERATION_') and key not in ('GROUP','PRESET','CPKT_CONFIGURED_BINARY_DIR','CPKT_CONFIGURED_GROUP')}
     if OWNER!='core':
         failure=invoke(root,'build','--preset','debug',success=False,env=env)
         assert 'make deps-core' in failure.stderr
@@ -174,10 +183,29 @@ endif()
     receipt=root/'build/verification'/TARGET/OWNER/'Debug-development.json'
     for clean in (('--target','clean'),('--clean-first',)):
         direct=subprocess.run(['cmake','--build',str(binary.parent),*clean],cwd=root,env=env,capture_output=True,text=True)
-        assert direct.returncode and 'operation delegation' in direct.stdout+direct.stderr
+        assert direct.returncode and 'operation delegation' in direct.stdout+direct.stderr,(direct.returncode,direct.stdout,direct.stderr)
         assert binary.is_file()
     invoke(root,'test','--preset','debug',env=env)
     identity=receipt.read_bytes();before=events()
+    # A changed native launcher/stamp command is bookkeeping, not a compiled
+    # component input. Both generators must retain exact installed bytes/runs.
+    from cpkt_receipts import tree_identity
+    installed=root/'.cache/deps'/TARGET/COMPONENT/'install'
+    original_install=tree_identity(installed)
+    component_receipt=root/'build/verification'/TARGET/OWNER/('component-'+COMPONENT+'.json')
+    original_component=component_receipt.read_bytes()
+    (root/'CMakeLists.txt').write_text(main+'\nset_property(GLOBAL PROPERTY RULE_LAUNCH_CUSTOM "${_cpkt_build_launcher} ")\n')
+    invoke(root,'deps','--preset','debug',env=env)
+    assert events()==before and tree_identity(installed)==original_install
+    assert component_receipt.read_bytes()==original_component
+    (root/'CMakeLists.txt').write_text(main)
+    adapter=root/'cmake/CpktVerifiedExternalProject.cmake'
+    adapter.write_text(adapter.read_text()+'\n# changed native recipe bytes\n')
+    invoke(root,'test','--preset','debug',env=env)
+    assert events()[len(before):]==PHASES
+    assert tree_identity(installed)==original_install
+    identity=receipt.read_bytes();before=events()
+
     invoke(root,'build','--preset','release',env=env)
     invoke(root,'build','--group','all','--preset','debug','--target',binary.name,env=env)
     assert events()==before and receipt.read_bytes()==identity
@@ -193,6 +221,13 @@ endif()
     artifact=root/'.cache/deps'/TARGET/COMPONENT/'install/static.a'
     value=artifact.read_bytes();stat=artifact.stat();artifact.write_bytes(b'corrupt')
     os.utime(artifact,ns=(stat.st_atime_ns,stat.st_mtime_ns))
+    direct=subprocess.run(['bash',str(root/'scripts/operation.sh'),'--root',str(root),'--group',OWNER,'--',
+        'cmake','--build',str(root/'build'/TARGET/OWNER/'producer'),'--target','cpkt_deps_'+COMPONENT],
+        cwd=root,env=dict(env,CPKT_PRESET='release'),capture_output=True,text=True)
+    assert direct.returncode and 'outputs missing/corrupt' in direct.stdout+direct.stderr
+    assert 'Repair: make test GROUP='+OWNER+' PRESET=release' in direct.stdout+direct.stderr
+    assert artifact.read_bytes()==b'corrupt' and events()==before
+
     invoke(root,'test','--preset','debug',env=env)
     assert artifact.read_bytes()==value and events()[len(before):]==PHASES
     unchanged_core()
@@ -223,17 +258,18 @@ endif()
     invoke(root,'test','--preset','debug',env=env)
     sibling=root/'build'/TARGET/'foreign/sentinel';sibling.parent.mkdir(parents=True);sibling.write_text('untouched')
     inode=(root/'build/control/operation.lock').stat().st_ino
-    invoke(root,'clean','--group',OWNER,env=env)
+    subprocess.run(['bash',str(root/'scripts/clean.sh'),'clean','--group',OWNER],env=env,check=True,capture_output=True,text=True)
     assert sibling.read_text()=='untouched' and not artifact.exists()
     assert inode==(root/'build/control/operation.lock').stat().st_ino
     unchanged_core()
-    invoke(root,'clean','--group','all',env=env)
+    subprocess.run(['bash',str(root/'scripts/clean.sh'),'clean','--group','all'],env=env,check=True,capture_output=True,text=True)
     assert inode==(root/'build/control/operation.lock').stat().st_ino
     assert sorted(path.name for path in (root/'build').iterdir())==['control']
     assert not (root/'scripts/__pycache__').exists()
     print(generator+': owning producer reuse, failure revocation, immutable prerequisite and cleanup passed')
 
 
-(ROOT/'build').mkdir(exist_ok=True)
-with tempfile.TemporaryDirectory(prefix='producer-reuse-',dir=ROOT/'build') as temporary:
-    for generator in ('Ninja','Unix Makefiles'):exercise(generator,Path(temporary))
+if __name__=='__main__':
+    (ROOT/'build').mkdir(exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='producer-reuse-',dir=ROOT/'build') as temporary:
+        for generator in ('Ninja','Unix Makefiles'):exercise(generator,Path(temporary))

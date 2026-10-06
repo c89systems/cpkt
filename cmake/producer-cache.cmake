@@ -1,0 +1,23 @@
+cmake_minimum_required(VERSION 3.21)
+if(NOT EXISTS "${CPKT_PRODUCER}/CMakeCache.txt")
+  return()
+endif()
+file(READ "${CPKT_PRODUCER}/CMakeCache.txt" _cache)
+if(EXISTS "${CPKT_CONSUMER}/CMakeCache.txt")
+  file(READ "${CPKT_CONSUMER}/CMakeCache.txt" _consumer)
+endif()
+foreach(_key CMAKE_C_FLAGS CMAKE_CXX_FLAGS CMAKE_EXE_LINKER_FLAGS
+    CMAKE_SHARED_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS CMAKE_STATIC_LINKER_FLAGS)
+  string(REGEX MATCH "${_key}:[^\n]*" _old "${_cache}")
+  string(REGEX MATCH "${_key}:[^\n]*" _selected "${_consumer}")
+  if(_old AND _selected)
+    string(REPLACE "${_old}" "${_selected}" _cache "${_cache}")
+  elseif(_old)
+    # Delete the complete comment/entry block. Orphan // comments followed by
+    # blank lines are invalid CMake cache syntax. With no selected consumer,
+    # native CMake initializes flags from the selected preset/environment.
+    string(REGEX MATCH "(^|\n)(//[^\n]*\n)*${_key}:[^\n]*\n" _block "${_cache}")
+    string(REPLACE "${_block}" "\n" _cache "${_cache}")
+  endif()
+endforeach()
+file(WRITE "${CPKT_PRODUCER}/CMakeCache.txt" "${_cache}")

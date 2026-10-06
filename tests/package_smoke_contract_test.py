@@ -3,6 +3,7 @@
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -14,9 +15,9 @@ from contextlib import nullcontext
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 import cpkt_sdk_consumer as consumer
-import cpkt_lifecycle as lifecycle
 from cpkt_inventory import load,validate_inputs
-from cpkt_packages import metadata,validator,file_records,make_manifest
+from cpkt_packages import validator,file_records,make_manifest
+from native_lifecycle_fixture import metadata,trace,capture,environment,seed
 from cpkt_receipts import cache
 
 class Contracts(unittest.TestCase):
@@ -25,23 +26,19 @@ class Contracts(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory(dir=ROOT/'build/package-isolation-work/fixtures');self.work=Path(self.tmp.name)
     def tearDown(self):self.tmp.cleanup()
     def test_native_cmocka_config_preserves_upstream_result_variables(self):
-        prefix=self.work/'sdk'
-        (prefix/'lib/cmake').mkdir(parents=True)
-        (prefix/'lib/pkgconfig').mkdir(parents=True)
-        configured={'CPKT_TARGET_ID':'x86_64-linux-gnu',
-            'CPKT_CMOCKA_VERSION':'1.1.7','CPKT_BUNDLE_VERSION':'0.12.0'}
-        with patch('cpkt_packages.command',return_value=''):
-            metadata(prefix,self.work,configured,load(ROOT),'core')
+        prefix,graph=metadata(self.work/'sdk')
         config=(prefix/'lib/cmake/cmocka/cmocka-config.cmake').read_text()
         self.assertIn('set(CMOCKA_LIBRARY cmocka::cmocka)',config)
         self.assertIn('set(CMOCKA_LIBRARIES cmocka::cmocka)',config)
+
     def test_discovery_only_pinned_tools(self):
         report='status=ready\ncc=/verified/bin/gcc\ncxx=/verified/bin/g++\nnm=/verified/bin/nm\nar=/verified/bin/ar\nreadelf=/verified/bin/readelf\nsysroot=/verified/sysroot\n'
         calls=[]
         def invoke(args,**kwargs):calls.append(list(map(str,args)));return report
         with patch.object(consumer,'command',invoke),patch.object(consumer,'ROOT',self.work):
+            seed(self.work)
             shutil.copy(ROOT/'CMakePresets.json',self.work/'CMakePresets.json')
-            (self.work/'cmake').mkdir()
+            (self.work/'cmake').mkdir(exist_ok=True)
             shutil.copy(ROOT/'cmake/components.json',self.work/'cmake/components.json')
             shutil.copy(ROOT/'CMakeLists.txt',self.work/'CMakeLists.txt')
             actual=consumer.configuration('x86_64-linux-gnu','x86_64-linux-gnu-release')
@@ -100,35 +97,54 @@ class Contracts(unittest.TestCase):
             self.assertIn(relative+'/CMakeLists.txt',data['groups'][item['group']]['package']['examples'])
         self.assertIn("delivered=prefix/'share/doc/cpkt'",(ROOT/'scripts/cpkt_sdk_examples.py').read_text())
     def test_recipe_scope_and_order(self):
-        steps=[]
-        def command(args,group):steps.append(('command',list(map(str,args)),group))
-        def backend(action,group,preset,*extra):steps.append(('backend',action,group,preset,list(extra)))
-        with patch.object(lifecycle,'command',command),patch.object(lifecycle,'backend',backend),patch.object(lifecycle.subprocess,'check_output',return_value='0.0.0\n'),patch.object(lifecycle,'child_delegation',return_value=nullcontext(({},()))),patch.object(lifecycle.subprocess,'run',side_effect=lambda args,**kwargs:steps.append(('command',list(map(str,args)), 'db'))):
-            lifecycle.perform('release','all','debug',False,'',False,'')
-        self.assertIn('cpkt_reserved_tag.py',' '.join(steps[0][1]));self.assertEqual(steps[1][1],'clean')
-        own=[item for item in steps if item[0]=='backend']
-        self.assertLess(next(n for n,v in enumerate(own) if v[1]=='preflight'),next(n for n,v in enumerate(own) if v[1]=='test'))
-        commands=[' '.join(item[1]) for item in steps if item[0]=='command']
-        self.assertLess(next(n for n,v in enumerate(commands) if 'format' in v),next(n for n,v in enumerate(commands) if 'source-archive-verify' in v))
-        source=[value for value in commands if 'package-source.sh' in value];self.assertEqual(len(source),1)
-        package=[value for value in commands if 'cpkt_packages.py' in value];self.assertEqual(len(package),3)
-        self.assertIn('package --group all --scope binary',package[0]);self.assertIn('--scope release',package[1]);self.assertIn('--scope release',package[2])
-        with self.assertRaises(ValueError),patch.dict(os.environ,{'CPKT_LIVE_CHECKS':'0'}):lifecycle.perform('prerelease-live','all','debug',False,'',False,'')
+        root=self.work/'release';variables,record=trace(root)
+        result=subprocess.run(['bash',str(root/'scripts/lifecycle.sh'),'release'],env=variables,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        calls=[json.loads(v)['args'] for v in record.read_text().splitlines()]
+        self.assertEqual(calls[0][0],'version-contract.sh');self.assertEqual(calls[1][0],'clean.sh')
+        self.assertLess(next(i for i,v in enumerate(calls) if 'preflight' in v),next(i for i,v in enumerate(calls) if 'test' in v))
+        self.assertLess(next(i for i,v in enumerate(calls) if 'format' in v),next(i for i,v in enumerate(calls) if 'source-archive-verify.sh' in v))
+        packages=[v for v in calls if v[0]=='package.sh']
+        self.assertEqual(len(packages),3)
+        self.assertIn('binary',packages[0]);self.assertIn('release',packages[1]);self.assertIn('release',packages[2])
+        result=subprocess.run(['bash',str(root/'scripts/lifecycle.sh'),'prerelease-live'],env=dict(variables,CPKT_LIVE_CHECKS='0'),capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0)
+
     def test_job_defaults_and_explicit_limits(self):
-        spec=importlib.util.spec_from_file_location('group_backend',ROOT/'scripts/group-build.py');backend=importlib.util.module_from_spec(spec);spec.loader.exec_module(backend)
-        directory=self.work/'graph';directory.mkdir()
-        selected={'cacheVariables':{}}
-        with patch.object(backend,'preset_info',return_value=(selected,'x86_64-linux-gnu','Release')),patch.dict(os.environ,{},clear=True),patch.object(backend.sys,'platform','linux'):
-            self.assertIn('-DCPKT_DEPENDENCY_BUILD_JOBS=8',backend.configure_command('release','core',directory))
-            (directory/'CMakeCache.txt').write_text('CPKT_DEPENDENCY_BUILD_JOBS:STRING=3\n')
-            self.assertIn('-DCPKT_DEPENDENCY_BUILD_JOBS=3',backend.configure_command('release','core',directory))
-            with patch.dict(os.environ,{'CPKT_DEPENDENCY_BUILD_JOBS':'6'}):self.assertIn('-DCPKT_DEPENDENCY_BUILD_JOBS=6',backend.configure_command('release','core',directory))
-            (directory/'CMakeCache.txt').unlink();selected['cacheVariables']['CPKT_DEPENDENCY_BUILD_JOBS']='5'
-            self.assertIn('-DCPKT_DEPENDENCY_BUILD_JOBS=5',backend.configure_command('release','core',directory))
-            selected['cacheVariables'].clear()
-            with patch.object(backend.sys,'platform','darwin'):self.assertIn('-DCPKT_DEPENDENCY_BUILD_JOBS=2',backend.configure_command('native','core',directory))
-            with patch.dict(os.environ,{'CPKT_DEPENDENCY_BUILD_JOBS':'9'}),self.assertRaises(RuntimeError):backend.configure_command('release','core',directory)
-            with patch.object(backend.sys,'platform','darwin'),patch.dict(os.environ,{'CPKT_DEPENDENCY_BUILD_JOBS':'3'}),self.assertRaises(RuntimeError):backend.configure_command('native','core',directory)
-            with patch.object(backend.sys,'platform','darwin'),patch.dict(os.environ,{'CPKT_DEPENDENCY_BUILD_JOBS':'1'}):self.assertIn('-DCPKT_DEPENDENCY_BUILD_JOBS=1',backend.configure_command('native','core',directory))
+        root=self.work/'jobs';variables,record=capture(root)
+        owner=load(ROOT)['repository_group'];directory=root/'build/x86_64-linux-gnu'/owner/'Release';directory.mkdir(parents=True)
+        def jobs(value=None,darwin=False):
+            env=dict(variables)
+            for key in ('CPKT_DEPENDENCY_BUILD_JOBS','CMAKE_BUILD_PARALLEL_LEVEL'):env.pop(key,None)
+            if value is not None:env['CPKT_DEPENDENCY_BUILD_JOBS']=value
+            if darwin:
+                tools=root/'build/test-tools';(tools/'uname').write_text('#!/bin/sh\nprintf "Darwin\\n"\n');(tools/'uname').chmod(0o755)
+                env['PATH']=str(tools)+os.pathsep+env['PATH']
+            return subprocess.run(['bash','-euc','source "$1"; cpkt_jobs "$2"','fixture',str(root/'scripts/lifecycle-common.sh'),str(directory)],env=env,capture_output=True,text=True)
+        self.assertEqual(jobs().stdout.strip(),'8')
+        (directory/'CMakeCache.txt').write_text('CPKT_DEPENDENCY_BUILD_JOBS:STRING=3\n');self.assertEqual(jobs().stdout.strip(),'3')
+        self.assertEqual(jobs('6').stdout.strip(),'6');self.assertNotEqual(jobs('9').returncode,0)
+        (directory/'CMakeCache.txt').unlink();self.assertEqual(jobs(darwin=True).stdout.strip(),'2')
+        self.assertNotEqual(jobs('3',True).returncode,0);self.assertEqual(jobs('1',True).stdout.strip(),'1')
+        # Preset job values are evaluated by CMake, then respected by Bash.
+        from package_producer_reuse_test import setup,invoke,OWNER
+        root2,presets,_=setup('Ninja',self.work/'preset-jobs')
+        presets['configurePresets'][0]['cacheVariables']['CPKT_DEPENDENCY_BUILD_JOBS']='5'
+        (root2/'CMakePresets.json').write_text(json.dumps(presets))
+        invoke(root2,'deps','--preset','debug',env=environment())
+        self.assertEqual(cache(root2/'build/x86_64-linux-gnu'/OWNER/'producer/CMakeCache.txt')['CPKT_DEPENDENCY_BUILD_JOBS'],'5')
+        producer=root2/'build/x86_64-linux-gnu'/OWNER/'producer/CMakeCache.txt'
+        producer.write_text(re.sub(r'(CPKT_DEPENDENCY_BUILD_JOBS:[^=\n]+=)5',r'\g<1>2',producer.read_text()))
+        invoke(root2,'deps','--preset','debug',env=environment())
+        self.assertEqual(cache(producer)['CPKT_DEPENDENCY_BUILD_JOBS'],'2')
+        invoke(root2,'configure','--preset','debug',env=environment())
+        consumer=root2/'build/x86_64-linux-gnu'/OWNER/'Debug/CMakeCache.txt'
+        self.assertEqual(cache(consumer)['CPKT_DEPENDENCY_BUILD_JOBS'],'5')
+        self.assertEqual(cache(producer)['CPKT_DEPENDENCY_BUILD_JOBS'],'2')
+        consumer.write_text(re.sub(r'(CPKT_DEPENDENCY_BUILD_JOBS:[^=\n]+=)5',r'\g<1>3',consumer.read_text()))
+        invoke(root2,'configure','--preset','debug',env=environment())
+        self.assertEqual(cache(consumer)['CPKT_DEPENDENCY_BUILD_JOBS'],'3')
+        self.assertEqual(cache(producer)['CPKT_DEPENDENCY_BUILD_JOBS'],'2')
+
 
 if __name__=='__main__':unittest.main()

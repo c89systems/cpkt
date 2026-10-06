@@ -9,8 +9,8 @@ import subprocess
 import sys
 import zipfile
 
-from cpkt_packages import ROOT, command, version, stage, verify_selected, selected_archive, combinations, archive_name, prefix_name, safe_extract, validator, write_json, sha, invalidate_release, privacy
-from cpkt_operation import delegated, run as locked_run
+from cpkt_packages import ROOT, command, version,  verify_selected, selected_archive, combinations, archive_name, prefix_name, safe_extract, validator, write_json, sha, invalidate_release, privacy
+from cpkt_lock import delegated, ensure_operation as locked_run
 from cpkt_inventory import REPOSITORY_GROUP
 from cpkt_receipts import read
 
@@ -92,61 +92,66 @@ def smoke_zip(ver,base=None):
     return destination
 
 
-def native_source():
-    if sys.platform!='darwin' or os.uname().machine!='arm64':raise ValueError('native source proof requires arm64 Darwin')
-    os.environ['CPKT_DEPENDENCY_BUILD_JOBS']='2'
-    for variable,tool in [('CPKT_DARWIN_HOST_MIG','mig'),('CPKT_DARWIN_HOST_MIGCOM','migcom'),('CPKT_OTOOL','otool'),('CMAKE_OTOOL','otool')]:
-        os.environ[variable]=command(['xcrun','--find',tool],capture=True).strip()
-    preset='arm64-apple-darwin-native';ver=version();target='arm64-apple-darwin'
-    command([sys.executable,ROOT/'scripts/group-build.py','preflight','--group','all','--preset',preset])
-    for group in (REPOSITORY_GROUP,):
-        command([sys.executable,ROOT/'scripts/group-build.py','test','--group',group,'--preset',preset],group=group)
-        archive,_=stage(preset,group,ver);verify_selected(preset,group,ver)
-        invalidate_release(ver);(ROOT/'dist').mkdir(exist_ok=True);shutil.copy2(archive,ROOT/'dist'/archive.name)
-    # Installed composition is verified below against delivered archive bytes.
-    results=combinations(preset,ver,ROOT/'dist')
-    smoke_zip(ver)
+def source_evidence():
+    # Bash has completed the native source/runtime/installed-consumer workflow.
+    # Record its actual tool and archive evidence without rebuilding anything.
+    from cpkt_receipts import cache
+    directory=ROOT/'build/arm64-apple-darwin'/REPOSITORY_GROUP/'Release'
+    configured=cache(directory/'CMakeCache.txt')
     commit=subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip()
-    write_json(ROOT/'build/darwin-source-evidence.json',{'schema_version':1,'status':'passed','kind':'native-source','commit':commit,'platform':os.uname().release,'compiler':command(['xcrun','clang','--version'],capture=True),'sdk':command(['xcrun','--show-sdk-version'],capture=True).strip(),'deployment_floor':'15.0','jobs':2,'coverage':[read(ROOT/'build/verification'/target/g/'Release-development.json')['coverage'] for g in (REPOSITORY_GROUP,)],'combinations':[r['order'] for r in results]})
+    proof=read(ROOT/'build/verification/arm64-apple-darwin'/REPOSITORY_GROUP/'Release-development.json')
+    composition=read(ROOT/'build/verification/arm64-apple-darwin/all/packages/proof.json')
+    if proof['run']!=os.environ['CPKT_OPERATION_RUN'] or composition['run']!=proof['run']:raise ValueError('stale native source/composition proof')
+    write_json(ROOT/'build/darwin-source-evidence.json',{'schema_version':1,'status':'passed','kind':'native-source','commit':commit,'platform':os.uname().release,'compiler':command([configured['CMAKE_C_COMPILER'],'--version'],capture=True),'sdk':command(['xcrun','--show-sdk-version'],capture=True).strip(),'deployment_floor':'15.0','jobs':int(configured.get('CPKT_DEPENDENCY_BUILD_JOBS','2')),'coverage':[proof['coverage']],'combinations':[r['order'] for r in composition['combinations']]})
 
 
-def native_sdk():
+def sdk_input():
     if sys.platform!='darwin' or os.uname().machine!='arm64':raise ValueError('artifact runtime proof requires actual native arm64 Darwin')
     base=Path(os.environ.get('CPKT_DARWIN_ARTIFACT_DIR',str(ROOT/'build/darwin-artifact-input')))
     from cpkt_github_handoff import validate_handoff
     handoff=validate_handoff(validator.decode((base/'handoff.json').read_bytes()))
     commit=subprocess.check_output(['git','-C',str(ROOT),'rev-parse','HEAD'],text=True).strip()
     if commit!=handoff['producer_commit'] or os.environ.get('CPKT_EXPECTED_PRODUCER_COMMIT',commit)!=commit:raise ValueError('artifact lane checked-out producer commit mismatch')
+    before={}
     for name,item in handoff['assets'].items():
         if '-arm64-apple-darwin' in name or name.endswith('-CHECKSUMS'):
             if sha(base/name)!=item['sha256'] or (base/name).stat().st_size!=item['size']:raise ValueError('artifact input bytes changed: '+name)
-    before={name:sha(base/name) for name in handoff['assets'] if '-arm64-apple-darwin' in name}
-    results=combinations('arm64-apple-darwin-native',handoff['version'],base,reuse_owned=False)
-    # Actual original smoke executables are exercised without any SDK mutation.
-    zip_path=base/f'cpkt-{handoff["version"]}-arm64-apple-darwin-smoke-test.zip'
+        if '-arm64-apple-darwin' in name:before[name]=sha(base/name)
+    write_json(ROOT/'build/darwin-artifact-input-evidence.json',{'base':str(base),'handoff':handoff,'archives':before,'run':os.environ['CPKT_OPERATION_RUN']})
+    print(base)
+
+
+def sdk_smoke():
+    value=validator.decode((ROOT/'build/darwin-artifact-input-evidence.json').read_bytes())
+    if value['run']!=os.environ['CPKT_OPERATION_RUN']:raise ValueError('stale Darwin artifact input proof')
     destination=ROOT/'build/darwin-artifact-smoke'
     if destination.exists():shutil.rmtree(destination)
-    destination.mkdir()
-    extract_smoke(zip_path,destination)
-    for name in ('cpkt_abi_smoke_static','cpkt_abi_smoke_shared'):
-        executable=destination/'darwin-smoke-test/bin'/name
-        command(['codesign','--verify','--strict',executable])
-        command([executable])
-    for name,digest in before.items():
+    extract_smoke(Path(value['base'])/f'cpkt-{value["handoff"]["version"]}-arm64-apple-darwin-smoke-test.zip',destination)
+
+
+def sdk_evidence():
+    value=validator.decode((ROOT/'build/darwin-artifact-input-evidence.json').read_bytes())
+    if value['run']!=os.environ['CPKT_OPERATION_RUN']:raise ValueError('stale Darwin artifact input proof')
+    handoff=value['handoff'];base=Path(value['base'])
+    for name,digest in value['archives'].items():
         if sha(base/name)!=digest:raise ValueError('artifact verification changed producer archive')
-    write_json(ROOT/'build/darwin-artifact-evidence.json',{'schema_version':1,'status':'passed','kind':'native-producer-artifact','producer_commit':commit,'tag':handoff['tag'],'manifest_sha256':handoff['manifest_sha256'],'archives':before,'draft_id':handoff['draft_id'],'jobs':2,'combinations':[r['order'] for r in results]})
+    results=read(ROOT/'build/verification/arm64-apple-darwin/all/packages/proof.json')
+    if results['run']!=value['run']:raise ValueError('stale native artifact composition proof')
+    write_json(ROOT/'build/darwin-artifact-evidence.json',{'schema_version':1,'status':'passed','kind':'native-producer-artifact','producer_commit':handoff['producer_commit'],'tag':handoff['tag'],'manifest_sha256':handoff['manifest_sha256'],'archives':value['archives'],'draft_id':handoff['draft_id'],'jobs':int(os.environ.get('CPKT_DEPENDENCY_BUILD_JOBS',os.environ.get('CMAKE_BUILD_PARALLEL_LEVEL','2'))),'combinations':[r['order'] for r in results['combinations']]})
 
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('action',choices=['source','sdk','smoke-zip']);parser.add_argument('--version')
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('action',choices=['source-evidence','sdk-input','sdk-smoke','sdk-evidence','smoke-zip']);parser.add_argument('--version')
     args=parser.parse_args()
-    if 'CPKT_OPERATION_FD' not in os.environ:return locked_run(ROOT,'all',[sys.executable,__file__]+sys.argv[1:])
+    if 'CPKT_OPERATION_FD' not in os.environ:locked_run(ROOT,'all')
     delegated(ROOT,'all')
     if sys.platform=='darwin':
         from cpkt_darwin_tools import discover
         os.environ['SDKROOT']=discover(command)['CMAKE_OSX_SYSROOT']
-    if args.action=='source':native_source()
-    elif args.action=='sdk':native_sdk()
+    if args.action=='source-evidence':source_evidence()
+    elif args.action=='sdk-input':sdk_input()
+    elif args.action=='sdk-smoke':sdk_smoke()
+    elif args.action=='sdk-evidence':sdk_evidence()
     else:smoke_zip(args.version or version())
 
 

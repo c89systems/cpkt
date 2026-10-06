@@ -62,6 +62,9 @@ Rules:
   signal-resistant grandchildren, exited leaders, captured output pipes and
   nested wrappers through observable cancellation tests; never kill unrelated
   host processes or infer ownership from a machine-wide process search.
+- Persistent service execution must close the actual issued lock/scope descriptor
+  numbers, including recovered or narrowed handles, and remove operation bearer
+  fields before exec. Verify non-default descriptor numbers, not only FDs 9/10.
 - After public API edits, run header, C-only consumer, install-tree, and package checks relevant to the changed surface.
 - After package, dependency, release, RPATH/RUNPATH, install-name, or artifact layout edits, run package verification or the closest available local packaging gate.
 - After e2e service edits, run `dev-reset`, `dev-up`, and `test-e2e` or the closest project-specific local e2e gate.
@@ -103,8 +106,8 @@ External tool discovery:
 - Package generation must use discovered target-correct mutation tools, such as `strip` and `install_name_tool`, rather than host tools with the same basename when mutation is deliberately required. For Darwin final artifacts, prefer verify-only packaging with correct link/install-time Mach-O metadata over post-package mutation.
 - Package verification must use the discovered target-correct inspection tools, such as `readelf` and `otool`, and should report the exact lookup path tried when a required verification tool is unavailable.
 - Absence of an optional inspection tool may skip only that optional inspection and only with an explicit message. Absence of a tool required to prove a release invariant is a verification failure, not a silent pass.
-- Repositories that package cross-target artifacts should centralize this logic in one helper instead of reimplementing lookup in package, smoke, and privacy scripts. Use `scripts/discover_target_tools.sh` when the behavior exists.
-- `scripts/discover_target_tools.sh` should accept at least a configured build directory or preset-derived build directory, a target ID, and optional project-prefixed overrides. It should print stable `KEY=value` shell assignments or another simple machine-readable format for `CC`, `STRIP`, `INSTALL_NAME_TOOL`, `OTOOL`, `READELF`, and any target host prefix it derived.
+- Repositories that package cross-target artifacts should centralize this logic in one helper instead of reimplementing lookup in package, smoke, and privacy scripts. For these SDK providers, artifact validators use `scripts/configured_build.py` against the producing CMake cache and `scripts/cpkt_darwin_tools.py` for native Apple tools. These are focused validation adapters, not build configuration or preset interpreters. Other projects may expose an equivalent Bash tool query such as `scripts/discover_target_tools.sh`.
+- If a project exposes `scripts/discover_target_tools.sh`, it should accept at least a configured build directory or preset-derived build directory, a target ID, and optional project-prefixed overrides. It should print stable `KEY=value` shell assignments or another simple machine-readable format for `CC`, `STRIP`, `INSTALL_NAME_TOOL`, `OTOOL`, `READELF`, and any target host prefix it derived.
 - The helper should read configured CMake cache values from the same build directory that produced the artifact being packaged or verified. It must not infer target tools from an unrelated host/debug build.
 - Package generation, package verification, Darwin smoke bundle creation, and release privacy verification should consume the same discovered tool values. A mismatch between generation and verification tool discovery is a lifecycle bug. Missing Darwin mutation tools are acceptable only for verify-only package flows that do not mutate final Mach-O artifacts.
 - Add tests for the discovery helper with temporary fake toolchain directories. Cover configured CMake cache values, target-prefixed osxcross sibling tools, unprefixed compiler sibling tools, `PATH` fallback, and refusal to select a known host tool for a cross-built Darwin artifact.
@@ -392,7 +395,7 @@ Make rules:
 - `make prerelease-live` is credentialed or external-provider verification and must refuse to run without an explicit project-prefixed opt-in variable.
 - `make prerelease-hardening` is expensive and may combine deterministic, live, long fuzz, benchmark, and release-matrix gates.
 - `make release-matrix` builds, tests, packages, checksums, and verifies the release target set without requiring a clean tree. `make release` is the clean final pipeline.
-- `make lifecycle-version-contract` is the focused pre-clean release contract for exact lightweight-tag version behavior through release-owned script and Make surfaces. It may create and delete only the reserved temporary lightweight tag used by the project test, must fail on an unowned pre-existing reserved tag, may recover only the exact lightweight object identified by a lifecycle-owned record under `build/`, must persist that record only after exclusive tag creation succeeds, and must compare-and-delete the recorded object during recovery/trap cleanup while preserving changed or unowned refs, must create the reserved tag with signing disabled so it remains lightweight and noninteractive, must reject annotated or signed semver tag objects on `HEAD`, must clean its own tag with a trap, and must not be called from `test`, `test-all`, `prerelease`, `release-pipeline`, `release-matrix`, or `package-verify`. It should not configure CMake solely to test tag mutation; CMake version behavior is covered when the Make-owned release graph invokes CMake build and package surfaces.
+- `make lifecycle-version-contract` is the focused pre-clean release contract for exact lightweight-tag version behavior through release-owned script and Make surfaces. It may create and delete only the reserved temporary lightweight tag used by the project test, must fail on an unowned pre-existing reserved tag, may recover only the exact lightweight object identified by a lifecycle-owned record under `build/`, may persist a nonce-bearing intent before exclusive creation to recover a crash before the success record is published; recovery must authenticate the exact zero-to-object Git reflog entry carrying that nonce, and an intent alone never authorizes deletion of a foreign ref, and must compare-and-delete the recorded object during recovery/trap cleanup while preserving changed or unowned refs, must create the reserved tag with signing disabled so it remains lightweight and noninteractive, must reject annotated or signed semver tag objects on `HEAD`, must clean its own tag with a trap, and must not be called from `test`, `test-all`, `prerelease`, `release-pipeline`, `release-matrix`, or `package-verify`. It should not configure CMake solely to test tag mutation; CMake version behavior is covered when the Make-owned release graph invokes CMake build and package surfaces.
 - `make package-verify` must include privacy verification for all checksum-listed artifacts in its declared selected/binary/release scope. `make verify-release-privacy` may expose the same invariant, but cannot replace package verification. Partial scope cannot satisfy complete-release proof; see [packaging.md](packaging.md).
 - `make package-source-smoke` extracts the source archive and proves it can configure, build, test, and resolve the same version without repository metadata.
 - `make release` is the final clean release action and gate. Its first recipe command must be `make lifecycle-version-contract`, followed by `make clean`, followed by the shared release proof graph. It must fail on warnings for project-owned and otherwise controllable code using `-Werror` or the platform equivalent, while allowing documented exclusions for upstream dependency warnings outside practical project control.
@@ -407,10 +410,10 @@ Use these script names when the behavior exists:
 
 - `scripts/deps.sh`
 - `scripts/build.sh`
-- `scripts/test.sh`
-- `scripts/host_test.sh`
+- `scripts/build.sh test` (native CMake/CTest workflow)
+- `scripts/lifecycle.sh debug`
 - `scripts/cross_build.sh`
-- `scripts/cross_test.sh`
+- `scripts/lifecycle.sh cross-test`
 - `scripts/fuzz.sh`
 - `scripts/package.sh`
 - `scripts/package-verify.sh`
@@ -445,3 +448,5 @@ Script safety contract:
 - Never remove source-controlled files, parent directories, home directories, or arbitrary user-provided paths.
 - Print actionable errors with the failed surface, phase, and next step. Use the structured diagnostic block for important lifecycle failures.
 - Keep procedural orchestration in readable Bash scripts exposed through short Make recipes. Keep CMake build rules in CMake, and justify any focused Python exception under [Tool ownership and simplicity](#tool-ownership-and-simplicity).
+
+For the SDK family, `scripts/build.sh path --group all --preset <preset>` resolves the documented graph profile; native CMake evaluates actual preset variables, toolchains, flags and environment. `CpktTestInventory.cmake` evaluates required registrations in the configured graph. Native CMake install rules own staging, `scripts/archive.sh` owns deterministic GNU tar output, and `docs/build-lifecycle.md` records each specialist Python exception.

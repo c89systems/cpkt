@@ -13,12 +13,13 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import subprocess
 import urllib.error
 import urllib.parse
 import urllib.request
 
 from cpkt_packages import ROOT, artifacts, canonical, sha, write_json, check_snapshot, safe_owned
-from cpkt_operation import delegated, run as locked_run
+from cpkt_lock import delegated, ensure_operation as locked_run
 from cpkt_receipts import read
 
 REPOSITORY='c89systems/cpkt'
@@ -27,6 +28,11 @@ API='https://api.github.com'
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):return None
+
+
+def git(root,*arguments):
+    result=subprocess.run(['git','-C',str(root),*arguments],capture_output=True,text=True,check=True)
+    return result.stdout.strip()
 
 
 class GitHub:
@@ -234,7 +240,6 @@ def stage(api,commit,tag,ver):
     if proof.get('kind')!='artifact-release' or proof.get('manifest_sha256')!=sha(manifest):raise ValueError('full local release-scope proof is required before draft staging')
     local=check_snapshot(manifest,ROOT/'dist',ver,'release',current_run=False)
     if proof.get('artifacts')!=local:raise ValueError('full local release payload identities changed')
-    from cpkt_reserved_tag import git
     if git(ROOT,'rev-parse','HEAD')!=commit or git(ROOT,'rev-parse','refs/tags/'+tag)!=commit or git(ROOT,'cat-file','-t','refs/tags/'+tag)!='commit' or git(ROOT,'status','--porcelain'):raise ValueError('draft staging requires clean exact tagged producer commit')
     ref=api.json('/repos/'+REPOSITORY+'/git/ref/tags/'+urllib.parse.quote(tag,safe=''))
     if ref['object']!={'type':'commit','sha':commit,'url':ref['object'].get('url')}:raise ValueError('existing remote final lightweight tag does not match producer')
@@ -258,7 +263,7 @@ def main():
     parser.add_argument('--authorize-release',action='store_true',help='Explicit final release operation; never set by automatic local gates')
     args=parser.parse_args()
     if args.action=='stage' and not args.authorize_release:parser.error('draft staging needs explicit --authorize-release after full local proof')
-    if 'CPKT_OPERATION_FD' not in os.environ:return locked_run(ROOT,'all',[sys.executable,__file__]+sys.argv[1:])
+    if 'CPKT_OPERATION_FD' not in os.environ:locked_run(ROOT,'all')
     delegated(ROOT,'all');api=GitHub()
     if args.action=='stage':stage(api,args.producer_commit,args.tag,args.version);return
     if not args.handoff:parser.error('authenticated draft read preflight/download requires --handoff')
@@ -266,7 +271,6 @@ def main():
     handoff=validate_handoff(validator.decode(args.handoff.read_bytes()))
     if args.producer_commit and args.producer_commit!=handoff['producer_commit']:raise ValueError('expected producer commit mismatch')
     if args.action=='verify-draft':draft_matches(api,handoff);return
-    from cpkt_reserved_tag import git
     dispatch_identity(handoff,git(ROOT,'rev-parse','HEAD'),os.environ)
     if args.action=='preflight':draft_matches(api,handoff);return
     # Acquisition uses shared archive cache, not compiled outputs or bearer data.

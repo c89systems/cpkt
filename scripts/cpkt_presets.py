@@ -1,28 +1,20 @@
-"""Resolve the authoritative preset inheritance and owned configuration name."""
-import json
+"""Read native CMake configuration; do not interpret preset inheritance."""
 from pathlib import Path
+import subprocess
 
 
 def preset_info(root, preset):
-    definitions = {p['name']: p for p in json.loads((Path(root) / 'CMakePresets.json').read_text())['configurePresets']}
-    if preset not in definitions or definitions[preset].get('hidden'):
-        raise RuntimeError('unknown preset: ' + preset)
-    def resolve(name):
-        item = definitions[name]
-        result = {'cacheVariables': {}, 'environment': {}}
-        parents = item.get('inherits', [])
-        for parent in reversed([parents] if isinstance(parents, str) else parents):
-            inherited = resolve(parent)
-            result.update({k: v for k, v in inherited.items() if k not in ('cacheVariables','environment')})
-            result['cacheVariables'].update(inherited['cacheVariables'])
-            result['environment'].update(inherited.get('environment',{}))
-        result.update({k: v for k, v in item.items() if k not in ('cacheVariables','environment')})
-        result['cacheVariables'].update(item.get('cacheVariables', {}))
-        result['environment'].update(item.get('environment', {}))
-        return result
-    item = resolve(preset)
-    variables = item['cacheVariables']
-    target = variables['CPKT_TARGET_ARCH'] + ('-apple-darwin' if variables['CPKT_TARGET_OS'] == 'darwin'
-             else '-linux-' + variables['CPKT_TARGET_LIBC'])
-    configuration = {'valgrind': 'Valgrind', 'fuzz': 'Fuzz', 'opcua-fuzz': 'Fuzz'}.get(preset, variables['CMAKE_BUILD_TYPE'])
-    return item, target, configuration
+    from cpkt_receipts import cache
+    root=Path(root)
+    binary=Path(subprocess.check_output(['bash',str(root/'scripts/build.sh'),'path','--group','all','--preset',preset],text=True).strip())
+    target, group, configuration=binary.relative_to(root/'build').parts
+    configured=cache(binary/'CMakeCache.txt') if (binary/'CMakeCache.txt').is_file() else {}
+    # The documented layout provides only the operation profile. All compiler,
+    # feature, generator and flag decisions come from CMake's actual cache.
+    expected=target.split('-')
+    variables=dict(configured)
+    variables.setdefault('CPKT_TARGET_ARCH',expected[0])
+    variables.setdefault('CPKT_TARGET_OS','darwin' if target.endswith('darwin') else 'linux')
+    variables.setdefault('CPKT_TARGET_LIBC',expected[-1])
+    variables.setdefault('CMAKE_BUILD_TYPE','Release' if configuration=='Release' else 'Debug')
+    return {'cacheVariables':variables,'generator':configured.get('CMAKE_GENERATOR','Ninja'),'binaryDir':str(binary)},target,configuration

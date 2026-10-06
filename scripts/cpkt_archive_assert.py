@@ -10,7 +10,7 @@ import tempfile
 import signal
 from contextlib import contextmanager
 from cpkt_packages import ROOT, safe_owned, safe_extract, prefix_name, validator, prepared_core, command, version
-from cpkt_operation import delegated, run as locked_run
+from cpkt_lock import delegated, ensure_operation as locked_run
 
 def main():
     values={}
@@ -27,7 +27,7 @@ def main():
     parser.add_argument('--preset');parser.add_argument('--consumers',action='store_true')
     selected=parser.parse_args(args)
     if not selected.archive or not selected.target or not selected.version:parser.error('archive, target and version are required')
-    if 'CPKT_OPERATION_FD' not in os.environ:return locked_run(ROOT,selected.group,[sys.executable,__file__]+sys.argv[1:])
+    if 'CPKT_OPERATION_FD' not in os.environ:locked_run(ROOT,selected.group)
     delegated(ROOT,selected.group)
     expected=prefix_name(selected.version,selected.target)
     # Reject obsolete test-only payloads even if a forged manifest declares them.

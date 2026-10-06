@@ -5,9 +5,9 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 case ${GROUP:-all} in all|all) ;; *) printf 'this operation requires GROUP=all|all\n' >&2; exit 2 ;; esac
 if [[ -z ${CPKT_OPERATION_FD:-} ]]; then
-  exec python3 "$repo_root/scripts/cpkt_operation.py" --group all -- bash "$0" "$@"
+  exec bash "$repo_root/scripts/operation.sh" --group all -- bash "$0" "$@"
 fi
-python3 "$repo_root/scripts/cpkt_operation.py" --group all --check
+bash "$repo_root/scripts/operation.sh" --group all --check
 
 bundle_version=$(bash "$repo_root/scripts/release-version.sh" "$repo_root")
 if [ -z "$bundle_version" ]; then

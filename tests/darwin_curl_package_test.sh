@@ -12,9 +12,9 @@ fi
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 if [[ -z ${CPKT_OPERATION_FD:-} ]]; then
-  exec python3 "$repo_root/scripts/cpkt_operation.py" --group core -- bash "$0" "$@"
+  exec bash "$repo_root/scripts/operation.sh" --group core -- bash "$0" "$@"
 fi
-python3 "$repo_root/scripts/cpkt_operation.py" --group core --check
+bash "$repo_root/scripts/operation.sh" --group core --check
 prefix=$1
 if [[ ! -d "$prefix" ]]; then
   printf 'pass an already validated native core SDK prefix\n' >&2

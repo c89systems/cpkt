@@ -13,9 +13,9 @@ fi
 case "$group" in core|all) ;; *) printf 'unknown GROUP: %s\n' "$group" >&2; exit 2 ;; esac
 export GROUP="$group"
 if [[ -z ${CPKT_OPERATION_FD:-} ]]; then
-  exec python3 "${SOURCE_DIR}/scripts/cpkt_operation.py" --group "$group" -- bash "$0" "$SOURCE_DIR" "$BUILD_DIR"
+  exec bash "${SOURCE_DIR}/scripts/operation.sh" --group "$group" -- bash "$0" "$SOURCE_DIR" "$BUILD_DIR"
 fi
-python3 "${SOURCE_DIR}/scripts/cpkt_operation.py" --group "$group" --check
+bash "${SOURCE_DIR}/scripts/operation.sh" --group "$group" --check
 host_os=$(uname -s)
 expected_target=x86_64-linux-gnu
 if [[ $host_os == Darwin ]]; then expected_target=arm64-apple-darwin; fi
@@ -26,7 +26,7 @@ if ! grep -q "^CPKT_TARGET_ID:.*=$expected_target$" "$BUILD_DIR/CMakeCache.txt" 
 fi
 
 if [[ $group == all ]]; then
-  group=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["repository_group"])' "$SOURCE_DIR/cmake/components.json")
+  group=$(cmake "-DCPKT_REPO_ROOT=$SOURCE_DIR" -DCPKT_INFO=owner -P "$SOURCE_DIR/cmake/lifecycle-info.cmake")
 fi
 export GROUP="$group"
 

@@ -11,7 +11,6 @@ import shlex
 from functools import lru_cache
 
 from cpkt_inventory import load, components_for, record
-from cpkt_cmake_inputs import owned_definitions
 
 
 def digest(value):
@@ -51,64 +50,34 @@ def cache(path):
             if ':' in line and '=' in line and not line.startswith(('#', '//'))}
 
 
-def function_text(text, name):
-    found = re.search(r'(?:function|macro)\(' + re.escape(name) + r'(?:\s|\)).*?(?:endfunction|endmacro)\(\)', text, re.S)
-    if not found:
-        raise RuntimeError('recipe/helper missing: ' + name)
-    return found.group(0)
-
-
 def component_inputs(root, target, name, configuration_cache):
-    data = load(root)
-    item = data['components'][name]
-    recipe = (root / 'cmake/CpktDependencies.cmake').read_text()
-    registration = re.search(r'cpkt_prepare_dependency_component\(\s*NAME ' + re.escape(name)
-                             + r'\s+.*?RECIPE_FUNCTIONS .*?\)', recipe, re.S)
-    if not registration:
-        raise RuntimeError('component registration missing: ' + name)
-    text = registration.group(0)
-    pins = {}
-    top = (root / 'CMakeLists.txt').read_text()
-    variables = re.search(r'VARIABLES\s+(.*?)(?:\bDEPENDS|\bINPUT_FILES|\bRECIPE_FUNCTIONS)', text, re.S)
-    for variable in variables.group(1).split() if variables else []:
-        declaration = re.search(r'set\(' + re.escape(variable) + r'\s+(.*?)\)', top, re.S)
-        pins[variable] = declaration.group(0) if declaration else configuration_cache.get(variable)
-    paths = set(item['recipe_inputs'])
-    functions = {name: function_text(recipe, name) for name in item['helpers']}
-    for body in functions.values():
-        paths.update(re.findall(r'cmake/[A-Za-z0-9_./-]+\.cmake', body))
-    # Archive transport and expected-contract bookkeeping have independent schemas.
-    paths -= {'cmake/CpktDependencyArchiveCache.cmake', 'cmake/CpktDependencyContract.cmake'}
-    inputs = {'schema_version': 1, 'record': {k:v for k,v in item.items() if k != 'package'}, 'functions': functions,
-              'registration': text, 'pins': pins,
-              'files': {p: file_identity(root / p) for p in sorted(paths)}, 'target': target}
-    variables = ('CMAKE_C_COMPILER', 'CMAKE_CXX_COMPILER', 'CMAKE_AR', 'CMAKE_LINKER',
-                 'CMAKE_RANLIB', 'CMAKE_STRIP', 'CMAKE_NM', 'CMAKE_OBJCOPY', 'CMAKE_OBJDUMP',
-                 'CMAKE_READELF', 'CMAKE_TOOLCHAIN_FILE', 'CMAKE_SYSROOT', 'CMAKE_OSX_SYSROOT',
-                 'CMAKE_OSX_DEPLOYMENT_TARGET', 'CPKT_MACOS_DEPLOYMENT_TARGET',
-                 'CPKT_TOOLCHAIN_COLLECTION_ID', 'CMAKE_C_FLAGS', 'CMAKE_CXX_FLAGS',
-                 'CMAKE_SHARED_LINKER_FLAGS', 'CMAKE_EXE_LINKER_FLAGS',
-                 'CPKT_CXX_STDLIB_STATIC_LIBRARY', 'CPKT_CXX_LIBGCC_STATIC_LIBRARY')
-    inputs['toolchain'] = {key: configuration_cache.get(key, '') for key in variables}
-    if target.endswith('darwin'):
-        inputs['toolchain'].update({key: configuration_cache.get(key, '') for key in
-            ('CMAKE_OTOOL', 'CPKT_OTOOL', 'CMAKE_INSTALL_NAME_TOOL',
-             'CPKT_DARWIN_HOST_MIG', 'CPKT_DARWIN_HOST_MIGCOM', 'CPKT_DARWIN_HOST_MIG_REVISION')})
-        inputs['compiler_backends'] = darwin_backend_inputs(configuration_cache)
-    inputs['tools'] = {key: file_identity(Path(value).resolve()) for key, value in inputs['toolchain'].items()
-                      if key != 'CMAKE_SYSROOT' and value and Path(value).is_file()}
-    toolchain = configuration_cache.get('CMAKE_TOOLCHAIN_FILE')
+    # CMake owns recipe, feature and dependency-graph identities. Content
+    # verification additionally binds the actual tools and runtime/header bytes.
+    contract=root/'.cache/dependency-contracts'/target/(name+'.txt')
+    text=contract.read_text()
+    if not re.match(r'^sha256:[a-f0-9]{64}\n',text):
+        raise RuntimeError('missing/unknown native component contract: '+name)
+    if digest(text.split('\n',1)[1].encode()) != text.split('\n',1)[0][7:]:
+        raise RuntimeError('corrupt native component contract: '+name)
+    inputs={'native_contract':digest(text.encode()),'target':target}
+    toolchain=configuration_cache.get('CMAKE_TOOLCHAIN_FILE')
     if toolchain:
-        directory = Path(toolchain).parent
-        inputs['toolchain_helpers'] = {p.name: file_identity(p) for p in sorted(directory.glob('*common*.cmake'))}
+        directory=Path(toolchain).parent
+        inputs['toolchain_helpers']={p.name:file_identity(p) for p in sorted(directory.glob('*common*.cmake'))}
         if 'CpktToolchainDiscovery.cmake' in Path(toolchain).read_text():
-            inputs['toolchain_helpers']['CpktToolchainDiscovery.cmake'] = file_identity(directory/'CpktToolchainDiscovery.cmake')
-    inputs['runtime_inputs'] = tool_runtime_inputs(configuration_cache.get('CMAKE_SYSROOT',''), configuration_cache.get('CMAKE_OSX_SYSROOT',''))
-    resolver = root / 'scripts/cpkt-toolchains.sh'
-    if resolver.is_file():
-        inputs['toolchain_resolver'] = file_identity(resolver)
-    inputs['dependencies'] = {dependency: component_input_id(root, target, dependency)
-                              for dependency in item['dependencies']}
+            inputs['toolchain_helpers']['CpktToolchainDiscovery.cmake']=file_identity(directory/'CpktToolchainDiscovery.cmake')
+    resolver=root/'scripts/cpkt-toolchains.sh'
+    if resolver.is_file():inputs['toolchain_resolver']=file_identity(resolver)
+    variables=('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_AR','CMAKE_LINKER',
+               'CMAKE_RANLIB','CMAKE_STRIP','CMAKE_NM','CMAKE_OBJCOPY','CMAKE_OBJDUMP',
+               'CMAKE_READELF','CMAKE_TOOLCHAIN_FILE','CMAKE_OTOOL','CPKT_OTOOL',
+               'CMAKE_INSTALL_NAME_TOOL','CPKT_DARWIN_HOST_MIG','CPKT_DARWIN_HOST_MIGCOM',
+               'CPKT_CXX_STDLIB_STATIC_LIBRARY','CPKT_CXX_LIBGCC_STATIC_LIBRARY')
+    inputs['tools']={key:file_identity(Path(value).resolve())
+                    for key in variables if (value:=configuration_cache.get(key,'')) and Path(value).is_file()}
+    inputs['runtime_inputs']=tool_runtime_inputs(configuration_cache.get('CMAKE_SYSROOT',''),configuration_cache.get('CMAKE_OSX_SYSROOT',''))
+    if target.endswith('darwin'):
+        inputs['compiler_backends']=darwin_backend_inputs(configuration_cache)
     return digest(canonical(inputs))
 
 
@@ -272,7 +241,7 @@ def verification_inputs(root, group, configured):
                 for component in components_for(data,group,True)}}
             continue
         if name == 'CMakeLists.txt':
-            identities[name] = {'definitions': owned_definitions(path.read_text(),data,group)}
+            identities[name] = file_identity(path)
             continue
         if name == 'cmake/components.json':
             identities[name] = {'group':{k:v for k,v in data['groups'][group].items() if k != 'package'},
@@ -296,7 +265,8 @@ def verification_inputs(root, group, configured):
                                 pending.append(child.relative_to(root).as_posix())
     records = {kind: {name: item for name, item in data[kind].items() if item['group'] == group}
                for kind in ('targets', 'tests')}
-    flags = {k: v for k, v in configured.items() if k.startswith(('CMAKE_C_FLAGS','CMAKE_CXX_FLAGS')) or k in
+    abi_keys={'core':('CMOCKA','NGHTTP2','LIBSSH2','MQTTC','OPENSSL','LUA','LUA_RUNTIME','GSSAPI','SASL'), 'db':('POSTGRES','SQLITE'), 'misc':('OPCUA','PDF','AUDIO','SUS')}
+    flags = {k: v for k, v in configured.items() if k in { 'CPKT_'+name+'_ABI_VERSION' for name in abi_keys[group]} or k.startswith(('CMAKE_C_FLAGS','CMAKE_CXX_FLAGS')) or k in
              ('CMAKE_CROSSCOMPILING_EMULATOR', 'CMAKE_BUILD_TYPE', 'CPKT_TARGET_ID', 'CPKT_BUILD_TESTS')}
     helpers = {}
     top = (root / 'CMakeLists.txt').read_text()
@@ -306,12 +276,13 @@ def verification_inputs(root, group, configured):
         found = re.search(r'function\(' + name + r'\b.*?endfunction\(\)', top, re.S)
         if found:
             helpers[name] = found.group(0)
-    for name in ('cmake/CpktLocalRuntime.cmake','cmake/CpktGroups.cmake','scripts/cpkt_expected_tests.py'):
+    for name in ('cmake/CpktLocalRuntime.cmake','cmake/CpktGroups.cmake','cmake/CpktTestInventory.cmake'):
         common = root/name
         if common.is_file():
             helpers[name] = file_identity(common)
     environment = {key: os.environ.get(key, '') for key in data['groups'][group].get('verification_environment', [])}
-    definitions = owned_definitions((root / 'CMakeLists.txt').read_text(), data, group)
+    directory=root/'build'/configured['CPKT_TARGET_ID']/group/configured['CMAKE_BUILD_TYPE']
+    definitions=file_identity(directory/'CTestTestfile.cmake') if (directory/'CTestTestfile.cmake').is_file() else {}
     tools = {}
     for key in ('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_CROSSCOMPILING_EMULATOR'):
         value = configured.get(key,'').split(';')[0]

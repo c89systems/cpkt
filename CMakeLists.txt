@@ -11,6 +11,7 @@ if(NOT CPKT_PROJECT_VERSION_RESULT EQUAL 0)
   message(FATAL_ERROR "failed to resolve cpkt release version")
 endif()
 project(cpkt VERSION "${CPKT_PROJECT_VERSION}" LANGUAGES C CXX)
+include(cmake/CpktABIVersions.cmake)
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CPKT_OSXCROSS_ROOT)
   set(_cpkt_osxcross_link_launcher "${_cpkt_build_launcher}")
   foreach(_cpkt_argument IN ITEMS "${CMAKE_COMMAND}" "-E" "env"
@@ -35,7 +36,7 @@ option(CPKT_CALLER_OWNED_DEPENDENCY_ROOTS "Treat explicitly overridden dependenc
 option(CPKT_ENABLE_FUZZING "Build AFL++ GCC-plugin facade fuzz targets." OFF)
 option(CPKT_FACADE_ONLY "Build only repo-owned facade hardening targets." OFF)
 if(CPKT_BUILD_DEPENDENCIES AND NOT CPKT_DEPENDENCY_PRODUCER)
-  message(FATAL_ERROR "Use scripts/group-build.py configure/build to prepare the single owning producer; repository consumer graphs import successful output only")
+  message(FATAL_ERROR "Use scripts/build.sh configure/build to prepare the owning producer; consumer graphs import verified outputs")
 endif()
 option(CPKT_SUS_CPU_ONLY "Build the cpkt_sus whisper.cpp dependency set with CPU backends only." ON)
 function(cpkt_normalize_arch arch out_var)
@@ -222,19 +223,6 @@ function(cpkt_register_local_runtime_checks)
       list(APPEND _cpkt_local_executables "$<TARGET_FILE:${_cpkt_target}>")
     endif()
   endforeach()
-  if(CPKT_COMPOSITION_ONLY)
-    foreach(_group core db misc)
-      file(GLOB _cpkt_owner_files "${CMAKE_SOURCE_DIR}/build/${CPKT_TARGET_ID}/${_group}/${CMAKE_BUILD_TYPE}/*")
-      foreach(_file IN LISTS _cpkt_owner_files)
-        if(NOT IS_DIRECTORY "${_file}")
-          file(READ "${_file}" _magic LIMIT 4 HEX)
-          if(_magic STREQUAL "7f454c46" AND NOT _file MATCHES "[.](so([.][0-9]+)*|o)$")
-            list(APPEND _cpkt_local_executables "${_file}")
-          endif()
-        endif()
-      endforeach()
-    endforeach()
-  endif()
   set(_cpkt_runtime_policy_name local_executable_runtime_policy)
   if(NOT CPKT_GROUP STREQUAL "core")
     string(APPEND _cpkt_runtime_policy_name "_${CPKT_GROUP}")
@@ -245,7 +233,7 @@ function(cpkt_register_local_runtime_checks)
 endfunction()
 if(NOT CPKT_DEPENDENCY_PRODUCER)
   add_custom_target(cpkt_operation_guard
-    COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/scripts/cpkt_operation.py"
+    COMMAND bash "${CMAKE_SOURCE_DIR}/scripts/operation.sh"
       --root "${CMAKE_SOURCE_DIR}" --group "${CPKT_GROUP}" --check
     VERBATIM)
   cmake_language(DEFER CALL cpkt_validate_owned_graph)
@@ -310,14 +298,7 @@ set(CPKT_MQTTC_COMMIT "0f4c34c8cc00b16cfee094745d68b8cdbaecd8e0" CACHE STRING "P
 set(CPKT_KRB5_VERSION "1.22.2" CACHE STRING "Pinned MIT Kerberos release.")
 set(CPKT_CYRUS_SASL_VERSION "2.1.28" CACHE STRING "Pinned Cyrus SASL release.")
 set(CPKT_OPENLDAP_VERSION "2.6.15" CACHE STRING "Pinned OpenLDAP LTS release.")
-set(CPKT_LUA_ABI_VERSION "0" CACHE STRING "Lua C89 facade ABI major. Do not bump without maintainer approval.")
-set(CPKT_LUA_RUNTIME_ABI_VERSION "0" CACHE STRING "Lua runtime facade ABI major. Do not bump without maintainer approval.")
-set(CPKT_GSSAPI_ABI_VERSION "0" CACHE STRING "GSSAPI facade ABI major. Do not bump without maintainer approval.")
-set(CPKT_SASL_ABI_VERSION "0" CACHE STRING "Cyrus SASL facade ABI major. Do not bump without maintainer approval.")
-set(CPKT_OPENSSL_ABI_VERSION "0" CACHE STRING "OpenSSL C89 facade ABI major. Do not bump without maintainer approval.")
-set(CPKT_MQTTC_ABI_VERSION "0" CACHE STRING "MQTT-C facade ABI major. Do not bump without maintainer approval.")
-set(CPKT_NGHTTP2_ABI_VERSION "0" CACHE STRING "nghttp2 C89 facade ABI major. Do not bump without maintainer approval.")
-set(CPKT_LIBSSH2_ABI_VERSION "0" CACHE STRING "libssh2 C89 facade ABI major. Do not bump without maintainer approval.")
+# ABI declarations live in cmake/CpktABIVersions.cmake.
 if(NOT CPKT_SUS_CPU_ONLY)
   message(FATAL_ERROR "CPKT_SUS_CPU_ONLY=OFF is reserved for a later GPU-backend packaging phase")
 endif()
@@ -469,22 +450,13 @@ if(CPKT_ALLOW_DEPENDENCY_ROOT_OVERRIDE
     AND _cpkt_dependency_build_root_explicit)
   set(CPKT_DEPENDENCY_BUILD_ROOT_LIFECYCLE_OWNED OFF)
 endif()
-set(_cpkt_inventory_arguments "")
-if(NOT CPKT_BUILD_TESTS)
-  list(APPEND _cpkt_inventory_arguments --no-tests)
-endif()
-execute_process(COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/scripts/cpkt_inventory_cli.py"
-  --root "${CMAKE_SOURCE_DIR}" --group "${CPKT_GROUP}" --closure --cmake ${_cpkt_inventory_arguments}
-  OUTPUT_VARIABLE CPKT_ACTIVE_COMPONENTS OUTPUT_STRIP_TRAILING_WHITESPACE
-  RESULT_VARIABLE _cpkt_inventory_status)
-if(NOT _cpkt_inventory_status EQUAL 0)
-  message(FATAL_ERROR "Invalid component inventory")
-endif()
+include(cmake/CpktComponentInventory.cmake)
+cpkt_select_components(CPKT_ACTIVE_COMPONENTS)
 if(CPKT_GROUP MATCHES "^(db|misc)$")
   if(NOT CPKT_PREREQUISITE_CONFIGURATION)
     set(CPKT_PREREQUISITE_CONFIGURATION "${CMAKE_BUILD_TYPE}")
   endif()
-  execute_process(COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/scripts/cpkt_receipt_cli.py"
+  execute_process(COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/cpkt_receipt_cli.py"
       --root "${CMAKE_SOURCE_DIR}" --group "${CPKT_GROUP}" --target "${CPKT_TARGET_ID}"
       --configuration "${CPKT_PREREQUISITE_CONFIGURATION}" --preset "$ENV{CPKT_PRESET}"
       RESULT_VARIABLE _core_status)
@@ -854,18 +826,16 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   cpkt_group_set_target_properties(cpkt_sasl_shared PROPERTIES BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN" BUILD_WITH_INSTALL_RPATH ON)
 endif()
 if(CPKT_BUILD_TESTS)
+  include(cmake/CpktPreflightTests.cmake)
+  cpkt_register_preflight_tests("${CMAKE_SOURCE_DIR}")
   if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    cpkt_group_add_test(NAME sdk_runtime_loader
-        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/sdk_runtime_loader_test.py"
-          --scratch "${CMAKE_BINARY_DIR}" --target "${CPKT_TARGET_ID}"
-          --compiler "${CMAKE_C_COMPILER}" --readelf "${CMAKE_READELF}"
-          --sysroot "${CMAKE_SYSROOT}")
+    # Fixture registration is shared in CpktPreflightTests.cmake.
     cpkt_group_set_tests_properties(sdk_runtime_loader PROPERTIES LABELS "packaging;smoke" TIMEOUT 30)
   endif()
   cpkt_group_add_test(NAME package_isolation_build
-      COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/package_isolation_build_test.py")
+      COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/package_isolation_build_test.py")
   cpkt_group_add_test(NAME package_producer_reuse
-      COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/package_producer_reuse_test.py")
+      COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/package_producer_reuse_test.py")
   cpkt_group_add_test(NAME auth_package_discovery
       COMMAND "${Python3_EXECUTABLE}"
         "${CMAKE_SOURCE_DIR}/tests/auth_package_discovery_test.py" "${CMAKE_SOURCE_DIR}"
@@ -878,9 +848,7 @@ if(CPKT_BUILD_TESTS)
         "${CMAKE_SOURCE_DIR}")
   cpkt_group_set_tests_properties(selected_test_executables PROPERTIES LABELS "packaging;smoke" TIMEOUT 30)
   include(cmake/CpktTestPslog.cmake)
-  cpkt_group_add_test(NAME krb5_trace_prototypes
-      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/krb5_trace_prototypes_test.py"
-        "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_C_COMPILER}")
+  # Fixture registration is shared in CpktPreflightTests.cmake.
   cpkt_group_set_tests_properties(krb5_trace_prototypes PROPERTIES LABELS "packaging;smoke" TIMEOUT 30)
   if(CPKT_SELECT_core OR CPKT_SELECT_misc)
     cpkt_add_test_pslog()
@@ -1346,24 +1314,8 @@ if(CPKT_BUILD_TESTS)
                 "$<TARGET_FILE:cpkt_curl_async_dns_${_cpkt_curl_linkage}_test>")
       cpkt_group_set_tests_properties(curl_async_dns_${_cpkt_curl_linkage} curl_multi_socket_${_cpkt_curl_linkage} PROPERTIES LABELS "integration;smoke" TIMEOUT 30)
     endforeach()
-    cpkt_group_add_test(
-          NAME patch_series_portability
-          COMMAND "${CMAKE_COMMAND}"
-            "-DCPKT_SOURCE_DIR=${CMAKE_SOURCE_DIR}"
-            "-DCPKT_PATCH_TEST_ROOT=${CMAKE_BINARY_DIR}"
-            -P "${CMAKE_SOURCE_DIR}/tests/patch_series_portability_test.cmake")
-    cpkt_group_add_test(
-          NAME static_archive_member_cleanup
-          COMMAND "${CMAKE_COMMAND}"
-            "-DCPKT_SOURCE_DIR=${CMAKE_SOURCE_DIR}"
-            "-DCPKT_TEST_BINARY_DIR=${CMAKE_BINARY_DIR}"
-            "-DCPKT_TEST_CC=${CMAKE_C_COMPILER}"
-            "-DCPKT_TEST_AR=${CMAKE_AR}"
-            "-DCPKT_TEST_RANLIB=${CMAKE_RANLIB}"
-            "-DCPKT_TEST_EXECUTABLE_PREFIX=${CPKT_TEST_EXECUTABLE_PREFIX}"
-            "-DCPKT_TEST_RUNTIME_LINK_OPTIONS=${CPKT_LOCAL_RUNTIME_LINK_OPTIONS}"
-            "-DCPKT_TEST_RUNTIME_LOADER=${CPKT_RUNTIME_LOADER}"
-            -P "${CMAKE_SOURCE_DIR}/tests/static_archive_member_cleanup_test.cmake")
+    # Fixture registration is shared in CpktPreflightTests.cmake.
+    # Fixture registration is shared in CpktPreflightTests.cmake.
     cpkt_group_set_tests_properties(patch_series_portability static_archive_member_cleanup PROPERTIES LABELS "packaging;smoke" TIMEOUT 30)
     cpkt_group_add_test(NAME lua_facade_unit COMMAND cpkt_lua_facade_test)
     foreach(_cpkt_bio_linkage IN ITEMS static shared)
@@ -1629,8 +1581,7 @@ if(CPKT_BUILD_TESTS)
               COMMAND
                 "${CMAKE_SOURCE_DIR}/tests/privacy_scan_failure_test.sh")
       cpkt_group_set_tests_properties(privacy_scan_failure PROPERTIES LABELS "packaging" TIMEOUT 30)
-      cpkt_group_add_test(NAME source_archive_verify_failure
-              COMMAND bash "${CMAKE_SOURCE_DIR}/tests/source_archive_verify_failure_test.sh")
+      # Fixture registration is shared in CpktPreflightTests.cmake.
       cpkt_group_set_tests_properties(source_archive_verify_failure PROPERTIES LABELS "packaging;smoke" TIMEOUT 30)
       foreach(_cpkt_install_generator IN ITEMS Ninja Makefiles)
         if(_cpkt_install_generator STREQUAL "Makefiles")
@@ -1638,14 +1589,10 @@ if(CPKT_BUILD_TESTS)
         else()
           set(_cpkt_install_generator_name "Ninja")
         endif()
-        cpkt_group_add_test(NAME dependency_install_order_${_cpkt_install_generator}
-                  COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/dependency_install_order_test.py"
-                    "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${_cpkt_install_generator_name}")
+        # Fixture registration is shared in CpktPreflightTests.cmake.
         cpkt_group_set_tests_properties(dependency_install_order_${_cpkt_install_generator} PROPERTIES LABELS "packaging;smoke" TIMEOUT 30)
       endforeach()
-      cpkt_group_add_test(NAME zlib_feature_namespace
-              COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/zlib_feature_namespace_test.py"
-                "${CMAKE_SOURCE_DIR}" "${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_C_COMPILER}")
+      # Fixture registration is shared in CpktPreflightTests.cmake.
       cpkt_group_set_tests_properties(zlib_feature_namespace PROPERTIES LABELS "packaging;smoke" TIMEOUT 30)
       cpkt_group_add_test(
               NAME dependency_component_targets
@@ -1708,9 +1655,9 @@ if(CPKT_BUILD_TESTS)
                 "${CMAKE_SOURCE_DIR}")
       cpkt_group_set_tests_properties(fuzz_toolchain_policy PROPERTIES LABELS "fuzz;smoke" TIMEOUT 30)
       cpkt_group_add_test(NAME package_integration_contracts
-              COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/package_integration_contract_test.py")
+              COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/package_integration_contract_test.py")
       cpkt_group_add_test(NAME github_actions_contracts
-              COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/github_actions_contract_test.py")
+              COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/github_actions_contract_test.py")
       cpkt_group_add_test(
               NAME lifecycle_surface
               COMMAND
@@ -1913,34 +1860,13 @@ if(CPKT_BUILD_TESTS)
   else()
     set(_cpkt_lua_inventory_symbol_format elf)
   endif()
-  cpkt_group_add_test(
-      NAME lua_api_inventory
-      COMMAND
-        "${CPKT_PYTHON3_EXECUTABLE}"
-        "${CMAKE_SOURCE_DIR}/tools/generate_lua_api_inventory.py"
-        --include-dir "$<TARGET_PROPERTY:cpkt::lua_static,INTERFACE_INCLUDE_DIRECTORIES>"
-        --native-library "$<TARGET_FILE:cpkt::lua_shared>"
-        --facade-library "$<TARGET_FILE:cpkt_lua_shared>"
-        --facade-header "${CPKT_LUA_FACADE_HEADER}"
-        --symbol-tool "${CMAKE_NM}"
-        --symbol-format "${_cpkt_lua_inventory_symbol_format}"
-        --output "${CMAKE_CURRENT_BINARY_DIR}/lua-api-inventory.json")
+  include(cmake/CpktLuaInventoryTest.cmake)
   cpkt_group_add_test(
       NAME lua_gc_facade_generation
       COMMAND
         bash "${CMAKE_SOURCE_DIR}/tests/lua_gc_facade_generation_test.sh"
         "${CPKT_LUA_FACADE_SOURCE}")
-  cpkt_group_add_test(
-      NAME lua_export_policy
-      COMMAND
-        bash
-        "${CMAKE_SOURCE_DIR}/tests/lua_export_policy_test.sh"
-        "$<TARGET_FILE:cpkt_lua_shared>"
-        "${CMAKE_SYSTEM_NAME}"
-        "${CMAKE_NM}"
-        "${CMAKE_SOURCE_DIR}/cmake/exports/cpkt_lua.txt"
-        "${CMAKE_C_COMPILER}"
-        "${CMAKE_SYSROOT}")
+  include(cmake/CpktLuaExportsTest.cmake)
 endif()
 if(CPKT_ENABLE_FUZZING)
   cpkt_add_lua_runtime_mock_test(cpkt_lua_runtime_fuzz fuzz/lua_runtime_fuzz.c)
@@ -1963,7 +1889,7 @@ if(CPKT_BUILD_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 if(CPKT_BUILD_TESTS)
   cpkt_group_add_test(NAME repository_boundary
-      COMMAND "${CPKT_OPERATION_PYTHON}" "${CMAKE_SOURCE_DIR}/tests/repository_boundary_test.py")
+      COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/repository_boundary_test.py")
 endif()
 
 # Each linked shared module proves an owned static native/facade archive is PIC.

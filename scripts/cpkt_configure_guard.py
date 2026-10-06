@@ -5,7 +5,7 @@ import os
 import re
 from pathlib import Path
 import sys
-from cpkt_operation import delegated
+from cpkt_lock import delegated
 from cpkt_receipts import cache, validate_core
 
 parser = argparse.ArgumentParser(description=__doc__)
@@ -31,7 +31,7 @@ try:
             if (parts[2] == 'producer') != (args.producer == 'ON'):
                 raise RuntimeError('producer and consumer graph directories cannot be interchanged')
     if args.producer == 'ON' and args.group == 'all':
-        raise RuntimeError('a producer graph owns one shipped group; use scripts/group-build.py deps --group all')
+        raise RuntimeError('a producer graph owns one shipped group; use scripts/build.sh deps --group all')
     previous = cache(args.binary/'CMakeCache.txt') if (args.binary/'CMakeCache.txt').is_file() else {}
     target = args.target or os.environ.get('CPKT_RESOLVED_TARGET') or previous.get('CPKT_TARGET_ID','')
     if not target and args.arch and args.os:
@@ -46,9 +46,9 @@ try:
             raise RuntimeError('managed binary directory target does not match '+target)
     if args.group in ('db','misc'):
         if not target:
-            raise RuntimeError('cannot resolve core prerequisite before configure; use scripts/group-build.py configure --group '+args.group+' --preset debug')
+            raise RuntimeError('cannot resolve core prerequisite before configure; use scripts/build.sh configure --group '+args.group+' --preset debug')
         validate_core(root,target,args.prerequisite or configuration,os.environ.get('CPKT_PRESET','debug'))
-    if target:
+    if target and args.producer != 'ON':
         directory = root/'build/verification'/target/args.group
         receipt_configuration = configuration
         if args.binary.is_relative_to(root/'build'/target/args.group):

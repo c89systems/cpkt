@@ -6,9 +6,9 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
 case ${GROUP:-all} in all) ;; *) printf 'this operation requires GROUP=all\n' >&2; exit 2 ;; esac
 if [[ -z ${CPKT_OPERATION_FD:-} ]]; then
-  exec python3 "$repo_root/scripts/cpkt_operation.py" --group all -- bash "$0" "$@"
+  exec bash "$repo_root/scripts/operation.sh" --group all -- bash "$0" "$@"
 fi
-python3 "$repo_root/scripts/cpkt_operation.py" --group all --check
+bash "$repo_root/scripts/operation.sh" --group all --check
 
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   printf 'usage: %s <archive.tar.gz> [expected-version]\n' "$0" >&2
@@ -192,12 +192,10 @@ if [[ -n ${CPKT_SOURCE_ARCHIVE_TOOLCHAIN_FILE:-} && $(realpath "$CPKT_SOURCE_ARC
   printf 'source reconstruction requires the selected pinned native GNU toolchain, not an arbitrary override\n' >&2
   exit 1
 fi
-reconstruction_environment=$(python3 "$repo_root/scripts/cpkt_source_reconstruct.py" --environment-from "$repo_root")
-# JSON is parsed into quoted shell exports; configured paths are never shell code.
-eval "$(python3 -c 'import json,shlex,sys; print("\n".join("export "+k+"="+shlex.quote(v) for k,v in json.loads(sys.argv[1]).items()))' "$reconstruction_environment")"
+source "$repo_root/scripts/source-environment.sh" "$repo_root"
 mkdir -p "$repo_root/build/verification/source/$expected_version"
 reconstruction_log="$repo_root/build/verification/source/$expected_version/reconstruction.log"
-python3 "$repo_root/scripts/cpkt_operation.py" --root "$repo_root" --group all \
-  --source-root "$source_root" -- python3 "$source_root/scripts/cpkt_source_reconstruct.py" 2>&1 | tee "$reconstruction_log"
+bash "$repo_root/scripts/operation.sh" --root "$repo_root" --group all \
+  --source-root "$source_root" -- bash "$source_root/scripts/source-reconstruct.sh" 2>&1 | tee "$reconstruction_log"
 python3 "$repo_root/scripts/cpkt_source_proof.py" "$archive_path" "$expected_version" "$source_root"
 printf '[package] verified source archive %s\n' "$archive_path"

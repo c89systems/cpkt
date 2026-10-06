@@ -18,20 +18,17 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
 from cpkt_inventory import load, components_for, record
 from cpkt_receipts import publish, read, tree_identity, file_identity, validate_core, component_input_id, group_outputs
-from cpkt_operation import run, delegated
+from cpkt_lock import delegated
+from native_lifecycle_fixture import seed, environment
 
 
 class Isolation(unittest.TestCase):
     def setUp(self):
-        self.environment={key:value for key,value in os.environ.items() if not key.startswith('CPKT_OPERATION_')}
+        self.environment=environment()
         (ROOT / 'build').mkdir(exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(prefix='isolation-regression-', dir=ROOT / 'build')
         self.root = Path(self.temp.name)
-        (self.root / 'cmake').mkdir()
-        shutil.copy(ROOT / 'cmake/components.json', self.root / 'cmake/components.json')
-        (self.root / 'scripts').mkdir()
-        for name in ('cpkt_operation.py','cpkt_inventory.py','cpkt_receipts.py','cpkt_helper_proof.py','cpkt_helper_dispatch.py','cpkt_cmake_inputs.py','cpkt_clangd_check.py','cpkt_make_program.py','cpkt_build_guard.py'):
-            shutil.copy(ROOT / 'scripts' / name, self.root / 'scripts' / name)
+        seed(self.root)
 
     def tearDown(self):
         self.temp.cleanup()
@@ -65,55 +62,80 @@ class Isolation(unittest.TestCase):
                     registration['name']+' is required on Darwin despite Linux-only registration')
 
     def command(self, group, *arguments, timeout='0.3', env=None, cwd=None):
-        return subprocess.run([sys.executable, str(self.root / 'scripts/cpkt_operation.py'),
+        arguments=list(arguments)
+        if len(arguments)>1 and str(arguments[1]).endswith('operation.sh'):arguments[0]='bash'
+        return subprocess.run(['bash', str(self.root / 'scripts/operation.sh'),
             '--root', str(self.root), '--group', group, '--timeout', timeout, '--', *arguments],
             capture_output=True, text=True, env=env if env is not None else self.environment, cwd=cwd)
 
+    def test_service_execution_closes_reissued_descriptors_and_clears_ownership(self):
+        owner=load(self.root)['repository_group']
+        probe=self.root/'service-probe.py'
+        probe.write_text('import errno,os,sys\n'
+            'assert not any(key.startswith("CPKT_OPERATION_") for key in os.environ)\n'
+            'for descriptor in map(int,sys.argv[1:]):\n'
+            '  try:os.fstat(descriptor)\n'
+            '  except OSError as error:assert error.errno==errno.EBADF\n'
+            '  else:raise AssertionError("service retained repository ownership")\n'
+            'print("service owns no lock descriptors")\n')
+        driver=self.root/'service-driver.py'
+        driver.write_text('import fcntl,os,subprocess,sys\n'
+            'issued=[]\n'
+            'for key in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"):\n'
+            '  previous=int(os.environ[key]);descriptor=fcntl.fcntl(previous,fcntl.F_DUPFD,20)\n'
+            '  os.close(previous);os.environ[key]=str(descriptor);issued.append(descriptor)\n'
+            'raise SystemExit(subprocess.call(["bash",sys.argv[1],sys.executable,sys.argv[2],*map(str,issued)],pass_fds=tuple(issued)))\n')
+        result=self.command(owner,sys.executable,str(driver),str(self.root/'scripts/service-exec.sh'),str(probe))
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+        self.assertIn('service owns no lock descriptors',result.stdout)
+
+    def test_procedural_workflows_reject_forged_operation_before_children(self):
+        owner=load(self.root)['repository_group']
+        marker=self.root/'unexpected-child'
+        for script in ('build.sh','package.sh','require-native-hardening-host.sh'):
+            (self.root/'scripts'/script).write_text('#!/usr/bin/env bash\nprintf child > "'+str(marker)+'"\n')
+        variables=dict(self.environment,GROUP='all',CPKT_OPERATION_FD='9998',CPKT_OPERATION_CAP_FD='9999',
+                       CPKT_OPERATION_ROOT=str(self.root),CPKT_OPERATION_RUN='forged',CPKT_OPERATION_SCOPE='all')
+        commands=[('release.sh','prerelease'),('darwin.sh','test-darwin-sdk'),
+                  ('memcheck.sh','--group',owner,'--preset','valgrind')]
+        if owner=='misc':commands.append(('misc-workflow.sh','cpktxscribe'))
+        for script,*arguments in commands:
+            with self.subTest(script=script):
+                result=subprocess.run(['bash',str(self.root/'scripts'/script),*arguments],env=variables,capture_output=True,text=True)
+                self.assertNotEqual(0,result.returncode,result.stdout+result.stderr)
+                self.assertIn('operation',result.stderr)
+                self.assertFalse(marker.exists(),'forged operation reached child work')
+
     def test_package_stage_launcher_preserves_release_readiness(self):
-        target='x86_64-linux-gnu';group='core'
-        binary=self.root/'build'/target/group/'Release';binary.mkdir(parents=True)
-        (binary/'CMakeCache.txt').write_text('CPKT_TARGET_ID:INTERNAL='+target+'\n'
-            'CPKT_GROUP:STRING='+group+'\nCMAKE_BUILD_TYPE:STRING=Release\n')
-        ready=self.root/'build/verification'/target/group/'Release-development.json'
-        ready.parent.mkdir(parents=True);ready.write_text('passed')
-        staged=self.root/'staged.txt'
-        package=self.root/'scripts/cpkt_packages.py'
-        package.write_text('import pathlib,sys\npathlib.Path('+repr(str(staged))+').write_text(" ".join(sys.argv[1:]))\n')
-        guard=str(self.root/'scripts/cpkt_build_guard.py')
-        result=self.command(group,sys.executable,guard,str(self.root),group,
-                            sys.executable,str(package),'stage','--group',group,'--preset','release',
-                            cwd=binary)
-        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
-        self.assertTrue(ready.exists())
-        self.assertEqual('stage --group core --preset release',staged.read_text())
-        ready.write_text('passed')
-        result=self.command(group,sys.executable,guard,str(self.root),group,
-                            sys.executable,str(package),'stage','--group','db','--preset','release',
-                            cwd=binary)
-        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
-        self.assertFalse(ready.exists(),'a different group cannot retain this graph readiness')
+        owner=load(self.root)['repository_group'];target='x86_64-linux-gnu'
+        binary=self.root/'build'/target/owner/'Release';binary.mkdir(parents=True)
+        ready=self.root/'build/verification'/target/owner/'Release-development.json';ready.parent.mkdir(parents=True);ready.write_text('passed')
+        staged=self.root/'staged';package=self.root/'scripts/package.sh'
+        package.write_text('#!/usr/bin/env bash\nprintf "%s\n" "$@" > "$(dirname "$0")/../staged"\n')
+        args=['bash',str(self.root/'scripts/build-guard.sh'),str(self.root),owner,'bash',str(package),'package-stage','--group',owner,'--preset','release','--scope','selected']
+        result=self.command(owner,*args,cwd=binary)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr);self.assertTrue(ready.exists())
+        self.assertIn('package-stage',staged.read_text())
+        result=self.command(owner,'bash',str(self.root/'scripts/build-guard.sh'),str(self.root),owner,'bash','-c','true','--check',cwd=binary)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr);self.assertFalse(ready.exists(),'an arbitrary --check flag bypassed invalidation')
 
     def test_compiler_and_default_temporary_files_stay_in_repository(self):
         code='import os,tempfile,pathlib; p=tempfile.NamedTemporaryFile(delete=False); p.close(); print(p.name); pathlib.Path(p.name).unlink()'
         result=self.command('core',sys.executable,'-c',code)
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertTrue(Path(result.stdout.strip()).is_relative_to(self.root/'build/control/tmp'))
-        root=self.root/'build/control';(root/'tmp').mkdir();(root/'tmp').rename(root/'real-tmp');(root/'tmp').symlink_to(root/'real-tmp',target_is_directory=True)
+        root=self.root/'build/control';(root/'tmp').mkdir(exist_ok=True);(root/'tmp').rename(root/'real-tmp');(root/'tmp').symlink_to(root/'real-tmp',target_is_directory=True)
         result=self.command('core',sys.executable,'-c',code)
-        self.assertNotEqual(result.returncode,0);self.assertIn('temporary ancestry',result.stderr)
+        self.assertNotEqual(result.returncode,0);self.assertIn('symlink',result.stderr)
 
     def test_dist_cleanup_preserves_database_and_build_state(self):
-        module_spec=importlib.util.spec_from_file_location('dist_cleanup_backend',ROOT/'scripts/group-build.py')
-        module=importlib.util.module_from_spec(module_spec);module_spec.loader.exec_module(module)
         state=self.root/'build/devenv/data';state.mkdir(parents=True)
         (state/'database').write_bytes(b'important database state')
         dist=self.root/'dist';dist.mkdir();(dist/'package').write_bytes(b'obsolete package')
-        before=tree_identity(self.root/'build')
-        with patch.object(module,'ROOT',self.root),patch.object(module,'command') as command:
-            module.clean('all',dist_only=True)
-        self.assertFalse(dist.exists())
-        self.assertEqual(before,tree_identity(self.root/'build'))
-        command.assert_not_called()
+        before=tree_identity(state)
+        result=subprocess.run(['bash',str(self.root/'scripts/clean.sh'),'clean-dist','--group','all'],env=self.environment,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertFalse(dist.exists());self.assertEqual(before,tree_identity(state))
 
     def test_hardening_configure_revokes_only_its_owned_proof(self):
         shutil.copy(ROOT/'scripts/cpkt_configure_guard.py',self.root/'scripts/cpkt_configure_guard.py')
@@ -204,17 +226,17 @@ class Isolation(unittest.TestCase):
 
     def test_configured_preset_resolution_and_selector_rejection(self):
         from configured_build import binary_dir
-        query=[sys.executable,str(ROOT/'scripts/cpkt_inventory_cli.py')]
+        query=['cmake','-DCPKT_REPO_ROOT='+str(ROOT),'-DCPKT_INFO=components','-P',str(ROOT/'cmake/lifecycle-info.cmake')]
         result=subprocess.run(query,env=dict(self.environment,GROUP='all'),capture_output=True,text=True,check=True)
-        self.assertEqual(set(components_for(load(ROOT),'core')),set(json.loads(result.stdout)['components']))
-        result=subprocess.run(query+['--group','misc'],env=self.environment,capture_output=True,text=True)
+        self.assertEqual(set(components_for(load(ROOT),'core')),set(result.stdout.splitlines()))
+        result=subprocess.run(['bash',str(ROOT/'scripts/build.sh'),'path','--group','misc'],env=self.environment,capture_output=True,text=True)
         self.assertNotEqual(0,result.returncode)
         shutil.copy(ROOT/'CMakePresets.json',self.root/'CMakePresets.json')
         directory=self.root/'build/x86_64-linux-gnu/core/Release'
         directory.mkdir(parents=True)
         cache=directory/'CMakeCache.txt'
         cache.write_text('CPKT_TARGET_ID:INTERNAL=x86_64-linux-gnu\nCPKT_GROUP:STRING=core\n')
-        with patch.dict(os.environ,{'GROUP':'all','PRESET':'release'},clear=True):
+        with patch.dict(os.environ,dict(self.environment,GROUP='all',PRESET='release'),clear=True):
             self.assertEqual(directory,binary_dir(self.root,'x86_64-linux-gnu'))
             with self.assertRaisesRegex(RuntimeError,'resolves to'):
                 binary_dir(self.root,'aarch64-linux-gnu')
@@ -225,24 +247,23 @@ class Isolation(unittest.TestCase):
         before=events.read_bytes() if events.is_file() else None
         for arguments,environment in ((['scripts/fuzz.sh','smoke','--group','db'],self.environment),
                 (['scripts/fuzz.sh','smoke','--unknown'],self.environment),
-                ([sys.executable,'scripts/group-build.py','build','--group','db','--target','cpkt_pdf_shared'],self.environment),
-                ([sys.executable,'scripts/group-build.py','clean','--group','db','--dist-only'],self.environment)):
-            result=subprocess.run(arguments if arguments[0]==sys.executable else ['bash',*arguments],
+                (['bash','scripts/build.sh','build','--group','db','--target','cpkt_pdf_shared'],self.environment),
+                (['bash','scripts/clean.sh','clean-dist','--group','db'],self.environment)):
+            result=subprocess.run(arguments if arguments[0] in (sys.executable,'bash') else ['bash',*arguments],
                                   cwd=ROOT,env=environment,capture_output=True,text=True)
             self.assertNotEqual(0,result.returncode)
         self.assertEqual(before,events.read_bytes() if events.is_file() else None)
 
     def test_aggregate_examples_skip_groups_without_example_tests(self):
-        module_spec=importlib.util.spec_from_file_location('lifecycle_backend',ROOT/'scripts/cpkt_lifecycle.py')
-        module=importlib.util.module_from_spec(module_spec);module_spec.loader.exec_module(module)
-        with patch.object(module,'backend') as backend:
-            module.perform('examples','all','debug',False,None,False,None)
-            self.assertEqual([('test','core','debug','--regex','example')],
-                             [call.args for call in backend.call_args_list])
-            backend.reset_mock()
-            with self.assertRaisesRegex(ValueError,'no example tests for GROUP=db'):
-                module.perform('examples','db','debug',True,None,False,None)
-            backend.assert_not_called()
+        owner=load(self.root)['repository_group'];trace=self.root/'trace'
+        (self.root/'scripts/build.sh').write_text('#!/usr/bin/env bash\nprintf "%s\n" "$@" > "$(dirname "$0")/../trace"\n')
+        result=subprocess.run(['bash',str(self.root/'scripts/lifecycle.sh'),'examples','--group','all','--preset','debug'],env=self.environment,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+        self.assertEqual(trace.read_text().splitlines(),['test','--regex','example','--group','all','--preset','debug'])
+        trace.unlink()
+        foreign=next(value for value in ('core','db','misc') if value!=owner)
+        result=subprocess.run(['bash',str(self.root/'scripts/lifecycle.sh'),'examples','--group',foreign],env=self.environment,capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0);self.assertFalse(trace.exists())
 
     def test_public_graph_omissions_link_edges_and_mock_privacy(self):
         for name in ('CpktGroups.cmake','CpktOperation.cmake','CpktPackage.cmake'):
@@ -284,7 +305,7 @@ include(cmake/CpktPackage.cmake)
             str(self.root/'build/x86_64-linux-gnu/core/Debug'),'-DCPKT_GROUP=db',
             '-DCPKT_TARGET_ID=x86_64-linux-gnu')
         self.assertNotEqual(0,result.returncode)
-        self.assertIn('invalid choice',result.stdout+result.stderr)
+        self.assertIn('not owned',result.stdout+result.stderr)
 
     def test_effective_contract_closure_ignores_unrelated_inputs(self):
         data={'schema_version':1,'repository_group':'core','groups':{'core':{'requires':[]}},
@@ -301,7 +322,23 @@ include(cmake/CpktPackage.cmake)
         for group in ('core',):
             cache=self.root/'build/synthetic'/group/'producer/CMakeCache.txt';cache.parent.mkdir(parents=True)
             cache.write_text('CMAKE_GENERATOR:STRING=Ninja\nCPKT_DEPENDENCY_BUILD_JOBS:STRING=2\n')
-        identities=lambda:{name:component_input_id(self.root,'synthetic',name) for name in ('a','b','c')}
+        def identities():
+            script=self.root/'build/contracts.cmake'
+            script.write_text('cmake_minimum_required(VERSION 3.21)\nset(CMAKE_SOURCE_DIR "'+str(self.root)+'")\n'
+                'set(CMAKE_BINARY_DIR "'+str(self.root/'build')+'")\nset(CPKT_BUILD_DEPENDENCIES ON)\n'
+                'set(CPKT_GROUP core)\nset(CPKT_TARGET_ID synthetic)\nset(CPKT_EXTERNAL_ROOT_LIFECYCLE_OWNED ON)\n'
+                'set(CPKT_DEPENDENCY_BUILD_ROOT_LIFECYCLE_OWNED ON)\n'
+                'set(CPKT_DEPENDENCY_CONTRACT_ROOT "'+str(self.root/'.cache/dependency-contracts')+'")\n'
+                'file(READ "'+str(self.root/'cmake/components.json')+'" CPKT_INVENTORY)\n'
+                'include("'+str(ROOT/'cmake/CpktDependencyContract.cmake')+'")\n'
+                'include("'+str(top)+'")\n'+
+                ''.join('cpkt_prepare_dependency_component(NAME '+name+' VARIABLES '+name.upper()+'_PIN '
+                    'BUILD_ROOT "'+str(self.root/'.cache/deps-build/synthetic'/name)+'" '
+                    'INSTALL_ROOT "'+str(self.root/'.cache/deps/synthetic'/name/'install')+'" '
+                    'DEPENDS '+('a' if name=='c' else '')+')\n' for name in data['components']))
+            subprocess.run(['cmake','-P',str(script)],check=True,capture_output=True)
+            return {name:component_input_id(self.root,'synthetic',name) for name in data['components']}
+
         before=identities()
         (self.root/'README.md').write_text('unrelated docs')
         for cache in self.root.glob('build/synthetic/*/producer/CMakeCache.txt'):
@@ -342,6 +379,7 @@ include(cmake/CpktPackage.cmake)
         self.assertEqual(before,verification_inputs(self.root,'core',configured))
         path.write_text(path.read_text().replace('function(cpkt_add_a)\n  set(value one)',
                                                 'function(cpkt_add_a)\n  set(value relevant)'))
+        identities()
         self.assertNotEqual(before,verification_inputs(self.root,'core',configured))
 
     def test_core_verification_tracks_runtime_mock_helper(self):
@@ -355,12 +393,16 @@ include(cmake/CpktPackage.cmake)
         helper=re.search(r'function\(cpkt_add_lua_runtime_mock_test\b.*?endfunction\(\)',original,re.S)
         self.assertIsNotNone(helper)
         invocation='cpkt_add_lua_runtime_mock_test(cpkt_lua_runtime_mock_test tests/lua_runtime_mock_test.c)'
+        data['targets']['cpkt_lua_runtime_mock_test']['source_inputs']=['tests/lua_runtime_mock_test.c']
+        (self.root/'tests').mkdir(exist_ok=True)
+        (self.root/'tests/lua_runtime_mock_test.c').write_text('original source')
+        (self.root/'cmake/components.json').write_text(json.dumps(data))
         top.write_text(helper.group(0)+'\n'+invocation+'\n')
         configured={'CPKT_TARGET_ID':'synthetic','CMAKE_BUILD_TYPE':'Debug'}
         before=verification_inputs(self.root,'core',configured)
         top.write_text(top.read_text().replace('-std=c99','-std=c89'))
         self.assertNotEqual(before,verification_inputs(self.root,'core',configured))
-        top.write_text(helper.group(0)+'\n'+invocation.replace('lua_runtime_mock_test.c','lua_facade_test.c')+'\n')
+        (self.root/'tests/lua_runtime_mock_test.c').write_text('changed source')
         self.assertNotEqual(before,verification_inputs(self.root,'core',configured))
         self.assertNotIn('db',data['groups'])
 
@@ -413,37 +455,30 @@ include(cmake/CpktPackage.cmake)
             path.write_bytes(original)
 
     def test_managed_graph_directory_cannot_be_a_symlink(self):
-        module_spec=importlib.util.spec_from_file_location('group_build_path_fixture',ROOT/'scripts/group-build.py')
-        module=importlib.util.module_from_spec(module_spec);module_spec.loader.exec_module(module)
-        graph=self.root/'build/x86_64-linux-gnu/core/Release'
-        graph.parent.mkdir(parents=True)
-        sibling=self.root/'build/sibling';sibling.mkdir(parents=True)
+        owner=load(self.root)['repository_group']
+        graph=self.root/'build/x86_64-linux-gnu'/owner/'Release';graph.parent.mkdir(parents=True)
+        sibling=self.root/'build/sibling';sibling.mkdir(parents=True);(sibling/'sentinel').write_text('untouched')
         graph.symlink_to(sibling,target_is_directory=True)
-        with patch.object(module,'ROOT',self.root):
-            with self.assertRaisesRegex(RuntimeError,'symlink'):
-                module.owned_path(graph)
-            graph.unlink()
-            self.assertEqual(graph,module.owned_path(graph))
+        result=subprocess.run(['bash',str(self.root/'scripts/build.sh'),'configure','--group',owner,'--preset','release'],env=self.environment,capture_output=True,text=True)
+        self.assertNotEqual(result.returncode,0);self.assertIn('symlink',result.stderr)
+        self.assertEqual('untouched',(sibling/'sentinel').read_text());self.assertFalse((self.root/'.cache').exists())
 
     def test_verification_tracks_owned_abi_and_generator_inputs(self):
         from cpkt_receipts import verification_inputs
-        top=ROOT/'CMakeLists.txt'
-        original=top.read_text()
-        configured={'CPKT_TARGET_ID':'x86_64-linux-gnu','CMAKE_BUILD_TYPE':'Debug','CPKT_BUILD_TESTS':'ON'}
-        read_text=Path.read_text
-        with patch('cpkt_receipts.component_input_id',return_value='unchanged recipe'):
-            before=verification_inputs(ROOT,'core',configured)
-            changes=(
-                (original.replace('set(CPKT_LUA_ABI_VERSION "0"','set(CPKT_LUA_ABI_VERSION "1"'),True),
-                (original.replace('--include-dir "$<TARGET_PROPERTY:cpkt::nghttp2_static,INTERFACE_INCLUDE_DIRECTORIES>"',
-                                  '--include-dir "/changed/nghttp2/header"'),True),
-                ('set(CPKT_OPCUA_ABI_VERSION "1")\n'+original,False))
-            for changed,affects_core in changes:
-                self.assertTrue(original!=changed,"test mutation must change the configured declaration")
-                def replacement(path,*args,**kwargs):
-                    return changed if path==top else read_text(path,*args,**kwargs)
-                with patch.object(Path,'read_text',replacement):
-                    self.assertEqual(affects_core,verification_inputs(ROOT,'core',configured)!=before)
+        data={'schema_version':1,'repository_group':'core','groups':{'core':{'requires':[]}},
+              'components':{},'targets':{},'tests':{}}
+        (self.root/'cmake/components.json').write_text(json.dumps(data));(self.root/'CMakeLists.txt').write_text('')
+        directory=self.root/'build/x86_64-linux-gnu/core/Debug';directory.mkdir(parents=True)
+        definitions=directory/'CTestTestfile.cmake';definitions.write_text('add_test(generated original)')
+        configured={'CPKT_TARGET_ID':'x86_64-linux-gnu','CMAKE_BUILD_TYPE':'Debug','CPKT_BUILD_TESTS':'ON',
+                    'CPKT_LUA_ABI_VERSION':'0'}
+        before=verification_inputs(self.root,'core',configured)
+        configured['CPKT_LUA_ABI_VERSION']='1'
+        self.assertNotEqual(before,verification_inputs(self.root,'core',configured))
+        configured['CPKT_LUA_ABI_VERSION']='0';configured['CPKT_OPCUA_ABI_VERSION']='1'
+        self.assertEqual(before,verification_inputs(self.root,'core',configured))
+        definitions.write_text('add_test(generated changed-nghttp2-header)')
+        self.assertNotEqual(before,verification_inputs(self.root,'core',configured))
 
     def test_osxcross_link_launcher_preserves_quoted_paths(self):
         original=(ROOT/'CMakeLists.txt').read_text()
@@ -526,7 +561,7 @@ include(cmake/CpktPackage.cmake)
             group_outputs(directory)
 
     def test_live_delegation_nested_and_scope_rejection(self):
-        check = str(self.root / 'scripts/cpkt_operation.py')
+        check = str(self.root / 'scripts/operation.sh')
         result = self.command('core', sys.executable, check, '--root', str(self.root), '--group', 'core', '--check')
         self.assertEqual(0, result.returncode, result.stderr)
         result = self.command('core', sys.executable, check, '--root', str(self.root), '--group', 'db', '--check')
@@ -537,16 +572,16 @@ include(cmake/CpktPackage.cmake)
             '  try:os.close(int(os.environ[key]))\n'
             '  except OSError as error:\n'
             '    if error.errno != errno.EBADF:raise\n'
-            'raise SystemExit(subprocess.call([sys.executable,*sys.argv[1:]]))\n')
+            'raise SystemExit(subprocess.call(["bash",*sys.argv[1:]]))\n')
         result=self.command('core',sys.executable,str(closed),check,'--root',str(self.root),
                             '--group','db','--check')
         self.assertNotEqual(0,result.returncode,'descriptor recovery widened db into core')
 
     def test_reopened_fd_and_separate_source_context(self):
-        check = str(self.root/'scripts/cpkt_operation.py')
+        check = str(self.root/'scripts/operation.sh')
         reopened = self.root/'reopened.py'
         reopened.write_text('import os,sys\nsys.path.insert(0,'+repr(str(self.root/'scripts'))+')\n'
-            'from cpkt_operation import delegated\n'
+            'from cpkt_lock import delegated\n'
             'fd=os.open('+repr(str(self.root/'build/control/operation.lock'))+',os.O_RDWR)\n'
             'os.environ["CPKT_OPERATION_FD"]=str(fd)\n'
             'delegated('+repr(str(self.root))+',"all")\n')
@@ -554,10 +589,10 @@ include(cmake/CpktPackage.cmake)
         self.assertNotEqual(0,result.returncode)
         self.assertIn('not the owning lock description',result.stderr)
         extracted = self.root/'extracted'
-        extracted.mkdir(); (extracted/'CMakeLists.txt').write_text('# separate source context\n')
+        extracted.mkdir(); seed(extracted); (extracted/'CMakeLists.txt').write_text('# separate source context\n')
         child=self.root/'child.py'
         child.write_text('import os,sys\nsys.path.insert(0,'+repr(str(self.root/'scripts'))+')\n'
-            'from cpkt_operation import delegated\n'
+            'from cpkt_lock import delegated\n'
             'delegated('+repr(str(extracted))+',"all")\n'
             'assert os.environ["CPKT_OPERATION_ROOT"]=='+repr(str(extracted))+'\n')
         result=self.command('all',sys.executable,check,'--root',str(self.root),'--group','all',
@@ -574,19 +609,32 @@ include(cmake/CpktPackage.cmake)
         self.assertNotEqual(0, result.returncode)
         tamper=self.root/'tamper.py'
         tamper.write_text('import os,sys\nsys.path.insert(0,'+repr(str(self.root/'scripts'))+')\n'
-            'from cpkt_operation import delegated\nos.environ["CPKT_OPERATION_SCOPE"]="all"\n'
+            'from cpkt_lock import delegated\nos.environ["CPKT_OPERATION_SCOPE"]="all"\n'
             'delegated('+repr(str(self.root))+',"all")\n')
         result=self.command('all',sys.executable,check,'--root',str(self.root),'--group','core','--',sys.executable,str(tamper))
         self.assertNotEqual(0,result.returncode)
         self.assertIn('scope string does not match',result.stderr)
+        # Native CMake/CTest close unknown descriptors; a narrowed recovery must
+        # retain its scope, and forged environment scope must still be rejected.
+        closed=self.root/'recover-narrowed.py'
+        closed.write_text('import os,sys\n'
+            'for key in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"):os.close(int(os.environ[key]))\n'
+            'if len(sys.argv)>1:os.environ["CPKT_OPERATION_SCOPE"]="all"\n'
+            'sys.path.insert(0,'+repr(str(self.root/'scripts'))+')\n'
+            'from cpkt_lock import delegated\ndelegated('+repr(str(self.root))+',"'+'core'+'")\n')
+        nested=['bash',check,'--root',str(self.root),'--group','core','--',sys.executable,str(closed)]
+        result=self.command('all',*nested)
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+        result=self.command('all',*nested,'forge')
+        self.assertNotEqual(0,result.returncode)
 
     def test_stable_inode_bounded_wait_and_owner_interruption(self):
         script = self.root / 'hold.py'
         ready = self.root / 'ready'
         # The parent's pipe keeps the child alive until explicitly released.
         # EOF also releases it if an assertion or the test process fails.
-        script.write_text('import sys\nfrom pathlib import Path\nPath(' + repr(str(ready)) + ').write_text("yes")\nsys.stdin.buffer.read(1)\n')
-        owner = subprocess.Popen([sys.executable, str(self.root / 'scripts/cpkt_operation.py'),
+        script.write_text('import os,sys,subprocess\ncode='+repr('import sys; from pathlib import Path; Path('+repr(str(ready))+').write_text("yes"); sys.stdin.buffer.read(1)')+'\nsubprocess.run([sys.executable,"-c",code],start_new_session=True,pass_fds=tuple(int(os.environ[k]) for k in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD")))\n')
+        owner = subprocess.Popen(['bash', str(self.root / 'scripts/operation.sh'),
                     '--root', str(self.root), '--group', 'all', '--', sys.executable, str(script)],
                     env=self.environment, stdin=subprocess.PIPE)
         try:
@@ -619,35 +667,24 @@ include(cmake/CpktPackage.cmake)
                 owner.wait(timeout=10)
 
     def test_ctest_failure_stops_later_cases_and_rejects_readiness(self):
-        spec=importlib.util.spec_from_file_location('fail_fast_backend',ROOT/'scripts/group-build.py')
-        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-        directory=self.root/'build/fail-fast';directory.mkdir(parents=True)
-        marker=directory/'later-case'
-        (directory/'CMakeCache.txt').write_text('CPKT_TARGET_ID:STRING=x86_64-linux-gnu\n')
-        (directory/'CTestTestfile.cmake').write_text(
-            'add_test(first_failure '+json.dumps(sys.executable)+' "-c" "raise SystemExit(1)")\n'
-            'add_test(later_case '+json.dumps(sys.executable)+' "-c" '+
-            json.dumps('from pathlib import Path; Path('+repr(str(marker))+').write_text("ran")')+')\n')
-        selection={'tests':{'first_failure':{'group':'tooling'},'later_case':{'group':'tooling'}}}
-        def execute(arguments, *args, **kwargs):
-            result=subprocess.run(list(map(str,arguments)),capture_output=True,text=True,env=self.environment)
-            result.check_returncode()
-            return result.stdout
-        receipt=self.root/'build/verification/x86_64-linux-gnu/core/Debug-development.json'
-        receipt.parent.mkdir(parents=True);receipt.write_text('stale success')
-        with patch.dict(os.environ), patch.object(module,'ROOT',self.root), patch.object(module,'build',return_value=directory), \
-                patch.object(module,'preset_info',return_value=('debug','x86_64-linux-gnu','Debug')), \
-                patch.object(module,'load',return_value=selection), patch.object(module,'command',side_effect=execute), \
-                patch.object(module,'publish') as publish:
-            with self.assertRaises(subprocess.CalledProcessError):
-                module.test('debug','core')
-            self.assertFalse(marker.exists(), 'selected CTest continued after failure')
-            self.assertFalse(receipt.exists(), 'failed suite retained successful readiness')
-            publish.assert_not_called()
-            with self.assertRaises(subprocess.CalledProcessError):
-                module.composition_tests(directory,'x86_64-linux-gnu')
-            self.assertFalse(marker.exists(), 'composition CTest continued after failure')
-            publish.assert_not_called()
+        from package_producer_reuse_test import setup, invoke, prerequisite, OWNER
+        root,_,source=setup('Ninja',self.root/'failure');prerequisite(root)
+        source=source.replace('cpkt_group_add_test(NAME ${CPKT_GROUP}_behavior COMMAND cpkt_${CPKT_GROUP}_probe)',
+            'cpkt_group_add_test(NAME ${CPKT_GROUP}_behavior COMMAND cpkt_${CPKT_GROUP}_probe)\n'
+            'add_test(NAME later_case COMMAND cmake -E touch "${CMAKE_BINARY_DIR}/later-case")')
+        data=json.loads((root/'cmake/components.json').read_text());data['tests']['later_case']={'group':OWNER}
+        (root/'cmake/components.json').write_text(json.dumps(data))
+        (root/'CMakeLists.txt').write_text(source)
+        invoke(root,'test','--preset','debug',env=self.environment)
+        directory=root/'build/x86_64-linux-gnu'/OWNER/'Debug'
+        marker=directory/'later-case';marker.unlink()
+        (root/'main.c').write_text('int main(void) { return 1; }\n')
+        failed=invoke(root,'test','--preset','debug',env=self.environment,success=False)
+        self.assertFalse(marker.exists(),'selected CTest continued after failure')
+        self.assertFalse((root/'build/verification/x86_64-linux-gnu'/OWNER/'Debug-development.json').exists(),failed.stdout+failed.stderr)
+        # Composition suites use the same public CTest fail-fast option.
+        result=subprocess.run(['ctest','--test-dir',str(directory),'--stop-on-failure'],capture_output=True,text=True,env=self.environment)
+        self.assertNotEqual(result.returncode,0,failed.stdout+failed.stderr+result.stdout+result.stderr);self.assertFalse(marker.exists())
 
     def test_cmake_descriptor_inheritance_and_direct_rejection(self):
         source = self.root / 'source'
@@ -658,16 +695,16 @@ include(cmake/CpktPackage.cmake)
             '  try:os.close(int(os.environ[key]))\n'
             '  except OSError as error:\n'
             '    if error.errno != errno.EBADF:raise\n'
-            'raise SystemExit(subprocess.call([sys.executable,*sys.argv[1:]]))\n')
+            'raise SystemExit(subprocess.call(["bash",*sys.argv[1:]]))\n')
         (source / 'CMakeLists.txt').write_text('cmake_minimum_required(VERSION 3.21)\nproject(lock NONE)\n'
-            'execute_process(COMMAND "' + sys.executable + '" "' + str(self.root / 'scripts/cpkt_operation.py') +
+            'execute_process(COMMAND bash "' + str(self.root / 'scripts/operation.sh') +
             '" --root "' + str(self.root) + '" --group core --check RESULT_VARIABLE status)\n'
             'if(NOT status EQUAL 0)\nmessage(FATAL_ERROR "delegation missing")\nendif()\n')
         result = self.command('core', 'cmake','-S',str(source),'-B',str(self.root/'binary'))
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         (source / 'CMakeLists.txt').write_text('cmake_minimum_required(VERSION 3.21)\nproject(lock NONE)\n'
             'execute_process(COMMAND "'+sys.executable+'" "'+str(closed)+'" "'
-            +str(self.root/'scripts/cpkt_operation.py')+'" --root "'+str(self.root)
+            +str(self.root/'scripts/operation.sh')+'" --root "'+str(self.root)
             +'" --group core --check RESULT_VARIABLE status)\n'
             'if(NOT status EQUAL 0)\nmessage(FATAL_ERROR "delegation missing")\nendif()\n')
         result = self.command('core','cmake','-S',str(source),'-B',str(self.root/'binary-closed'))
@@ -677,7 +714,7 @@ include(cmake/CpktPackage.cmake)
 
     def test_cmake_test_arguments_and_missing_target_fail_before_build(self):
         shutil.copy(ROOT/'cmake/CpktGroups.cmake',self.root/'cmake/CpktGroups.cmake')
-        inventory={'repository_group':'core','targets':{
+        inventory={'schema_version':1,'repository_group':'core','groups':{'core':{'requires':[]}},'components':{},'targets':{
             'cpkt_probe':{'group':'core','public':False}},'tests':{
             name:{'group':'core','preflight':guarded}
             for name,guarded in (('plain',False),('guarded',True))}}
@@ -692,16 +729,12 @@ include(cmake/CpktPackage.cmake)
             'assert sys.argv[2:]==json.loads((root/"expected.json").read_text()),repr(sys.argv)\n'
             'assert Path.cwd()==root/"working directory"\n'
             '(root/sys.argv[1]).write_text("passed")\n')
-        (self.root/'scripts/cpkt_helper_dispatch.py').write_text(
-            'import subprocess,sys\n'
-            'assert sys.argv[1:2]==["--root"]\n'
-            'raise SystemExit(subprocess.call(sys.argv[sys.argv.index("--")+1:]))\n')
         def literal(value):
             equals=''
             while ']'+equals+']' in value:equals+='='
             return '['+equals+'[\n'+value+']'+equals+']'
         source='cmake_minimum_required(VERSION 3.21)\nproject(arguments NONE)\nenable_testing()\n'
-        source+='include(cmake/CpktGroups.cmake)\nset(CPKT_OPERATION_PYTHON '+literal(sys.executable)+')\n'
+        source+='include(cmake/CpktGroups.cmake)\n'
         source+='set(CPKT_TARGET_ID synthetic)\n'
         header=source
         for name in ('plain','guarded'):
@@ -713,8 +746,8 @@ include(cmake/CpktPackage.cmake)
         result=subprocess.run(['cmake','-S',str(self.root),'-B',str(binary)],
                               env=self.environment,capture_output=True,text=True)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
-        result=subprocess.run(['ctest','--test-dir',str(binary),'-C','Release','--output-on-failure'],
-                              env=self.environment,capture_output=True,text=True)
+        result=self.command('core','ctest','--test-dir',str(binary),'-C','Release','--output-on-failure',
+                              env=self.environment)
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual('passed',(self.root/'plain').read_text())
         self.assertEqual('passed',(self.root/'guarded').read_text())
@@ -727,13 +760,11 @@ include(cmake/CpktPackage.cmake)
     def test_clean_retains_live_broker_for_later_children(self):
         runner=self.root/'clean-broker.py'
         runner.write_text('import importlib.util,os,sys\nfrom pathlib import Path\n'
-            'from unittest.mock import patch\n'
+            'import subprocess\n'
             'sys.path.insert(0,'+repr(str(ROOT/'scripts'))+')\n'
-            'from cpkt_operation import delegated\n'
-            'spec=importlib.util.spec_from_file_location("clean_backend",'+repr(str(ROOT/'scripts/group-build.py'))+')\n'
-            'module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)\n'
+            'from cpkt_lock import delegated\n'
             'root=Path('+repr(str(self.root))+')\n'
-            'with patch.object(module,"ROOT",root):module.clean("all")\n'
+            'subprocess.run(["bash",str(root/"scripts/clean.sh"),"clean","--group","all"],check=True,pass_fds=tuple(int(os.environ[k]) for k in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD")))\n'
             'assert (root/"build/control/.operation.sock").is_socket()\n'
             'assert (root/"build/control/tmp"/os.environ["CPKT_OPERATION_RUN"]).is_dir()\n'
             'for key in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"):\n'
@@ -744,7 +775,7 @@ include(cmake/CpktPackage.cmake)
 
     def test_broker_recovers_in_long_source_reconstruction_root(self):
         extracted=self.root/('reconstructed-source-'*6)
-        extracted.mkdir()
+        extracted.mkdir(); seed(extracted)
         self.assertGreater(len(str(extracted/'build/control/.operation.sock').encode()),107)
         closed=self.root/'close-long-root.py'
         closed.write_text('import errno,os,subprocess,sys\n'
@@ -752,9 +783,9 @@ include(cmake/CpktPackage.cmake)
             '  try:os.close(int(os.environ[key]))\n'
             '  except OSError as error:\n'
             '    if error.errno != errno.EBADF:raise\n'
-            'raise SystemExit(subprocess.call([sys.executable,*sys.argv[1:]]))\n')
-        operation=str(self.root/'scripts/cpkt_operation.py')
-        result=subprocess.run([sys.executable,operation,'--root',str(extracted),
+            'raise SystemExit(subprocess.call(["bash",*sys.argv[1:]]))\n')
+        operation=str(self.root/'scripts/operation.sh')
+        result=subprocess.run(['bash',operation,'--root',str(extracted),
             '--group','core','--',sys.executable,str(closed),operation,
             '--root',str(extracted),'--group','core','--check'],
             capture_output=True,text=True,env=self.environment)
@@ -765,9 +796,9 @@ include(cmake/CpktPackage.cmake)
         fixture.write_text('original')
         counter = self.root / 'count'
         runner = self.root / 'run.py'
-        proof = self.root / 'scripts/cpkt_helper_proof.py'
+        proof = self.root / 'scripts/helper.sh'
         runner.write_text('import subprocess,sys\nfrom pathlib import Path\n'
-            'cmd=' + repr([sys.executable,str(proof),'--root',str(self.root),'--group','core','--mode','fixture','--input',str(fixture),'--',sys.executable,'-c',
+            'cmd=' + repr(['bash',str(proof),'--root',str(self.root),'--group','core','--mode','fixture','--input',str(fixture),'--',sys.executable,'-c',
                           'from pathlib import Path;p=Path('+repr(str(counter))+');p.write_text(p.read_text()+"x" if p.exists() else "x")']) + '\n'
             'import os\nfds=tuple(int(os.environ[key]) for key in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"))\n'
             'subprocess.run(cmd,check=True,pass_fds=fds)\nsubprocess.run(cmd,check=True,pass_fds=fds)\n'
@@ -788,7 +819,7 @@ include(cmake/CpktPackage.cmake)
         counter=self.root/'counter'
         fixture=self.root/'tests/fixture.py'
         fixture.write_text('from pathlib import Path\np=Path('+repr(str(counter))+')\np.write_text(p.read_text()+"x" if p.exists() else "x")\n')
-        dispatch=[sys.executable,str(self.root/'scripts/cpkt_helper_dispatch.py'),'--root',str(self.root),
+        dispatch=['bash',str(self.root/'scripts/fixture.sh'),'--root',str(self.root),
             '--group','core','--target','synthetic','--test','exact_helper','--binary',str(self.root/'binary'),
             '--',sys.executable,str(fixture)]
         source=self.root/'source';source.mkdir()
@@ -806,16 +837,43 @@ include(cmake/CpktPackage.cmake)
         ctest_wrapper.chmod(0o755)
         runner.write_text('import os,subprocess,sys\nfrom pathlib import Path\n'
             'sys.path.insert(0,'+repr(str(ROOT/'scripts'))+')\n'
-            'from cpkt_preflight_runner import run_registered_fixtures\n'
+
             'fds=tuple(int(os.environ[key]) for key in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"))\n'
             'subprocess.run('+repr(dispatch)+',check=True,pass_fds=fds)\n'
-            'run_registered_fixtures(Path('+repr(str(self.root/'binary'))+'),["exact_helper"],'
-            'ctest='+repr(str(ctest_wrapper))+')\n')
+            'subprocess.run(["ctest","--test-dir",'+repr(str(self.root/'binary'))+',"--no-tests=error","--stop-on-failure"],check=True)\n')
         result=self.command('core',sys.executable,str(runner))
         self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual('x',counter.read_text())
-        subprocess.run(['ctest','--test-dir',str(self.root/'binary'),'--no-tests=error'],check=True,capture_output=True,env=self.environment)
+        result=subprocess.run(['ctest','--test-dir',str(self.root/'binary'),'--no-tests=error','--output-on-failure'],capture_output=True,text=True,env=self.environment)
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
         self.assertEqual('xx',counter.read_text())
+
+    def test_exact_junit_inventory_and_disabled_cases_cannot_supply_readiness(self):
+        from package_producer_reuse_test import setup,invoke,prerequisite,OWNER
+        root,_,_=setup('Ninja',self.root/'junit');prerequisite(root)
+        invoke(root,'test','--preset','debug',env=self.environment)
+        directory=root/'build/x86_64-linux-gnu'/OWNER/'Debug'
+        ready=root/'build/verification/x86_64-linux-gnu'/OWNER/'Debug-development.json'
+        inventory=directory/'cpkt-test-inventory.json'
+        listing=json.loads(inventory.read_text());results=directory/'cpkt-test-results.xml'
+        original=results.read_text();name=listing['tests'][0]['name']
+        command=['bash',str(root/'scripts/operation.sh'),'--group',OWNER,'--',sys.executable,str(root/'scripts/cpkt_build_evidence.py'),'tested','--root',str(root),'--group',OWNER,'--target','x86_64-linux-gnu','--configuration','Debug','--preset','debug']
+        for xml in ('<testsuite/>','<testsuite><testcase name="'+name+'"/><testcase name="'+name+'"/></testsuite>','<testsuite><testcase name="'+name+'"><skipped/></testcase></testsuite>'):
+            results.write_text(xml)
+            result=subprocess.run(command,env=self.environment,capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0,result.stdout+result.stderr);self.assertFalse(ready.exists())
+        results.write_text(original)
+        for field in ('disabled','command','coverage'):
+            changed=json.loads(json.dumps(listing))
+            if field=='disabled':changed['tests'][0].setdefault('properties',[]).append({'name':'DISABLED','value':True})
+            elif field=='command':changed['tests'][0]['command']=[]
+            else:changed['tests']=[]
+            inventory.write_text(json.dumps(changed))
+            result=subprocess.run(command,env=self.environment,capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0,result.stdout+result.stderr);self.assertFalse(ready.exists())
+        inventory.write_text(json.dumps(listing))
+        result=subprocess.run(command,env=self.environment,capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stdout+result.stderr);self.assertTrue(ready.exists())
 
 
 if __name__ == '__main__':

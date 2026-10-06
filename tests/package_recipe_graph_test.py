@@ -84,7 +84,7 @@ add_custom_target(cpkt_deps_COMPONENT DEPENDS ${_owned})
             recipe=(root/'cmake/CpktDependencies.cmake').read_text()
             function=data['components'][component]['recipe_functions'][-1]
             body=re.search(r'function\('+function+r'\).*?endfunction\(\)',recipe,re.S).group(0)
-            projects=re.findall(r'(?:cpkt_cached_external_project_add|ExternalProject_Add)\((cpkt_[a-z0-9_]+)',body)
+            projects=re.findall(r'(?:cpkt_cached_external_project_add|cpkt_external_project_add)\((cpkt_[a-z0-9_]+)',body)
             projects += re.findall(r'set\(project_name (cpkt_[a-z0-9_]+)\)',body)
             for project in set(projects):
                 if project not in plan:raise RuntimeError(component+' lacks variant producer '+project+' in '+generator)

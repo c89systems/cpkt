@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 
-from cpkt_operation import delegated
+from cpkt_lock import delegated
 
 
 def dependency_inputs(entry):
@@ -108,14 +108,14 @@ def main():
     # clangd selects the first command for a source compiled in multiple variants.
     inputs = dependency_inputs(entries[0])
     inputs += [source, database, args.gate, Path(__file__).resolve()]
-    command = [sys.executable, str(args.root / 'scripts/cpkt_helper_proof.py'),
+    command = ['bash', str(args.root / 'scripts/helper.sh'),
                '--root', str(args.root), '--group', args.group, '--mode', 'clangd','--owned-build',str(args.build)]
     for name in ('CPATH', 'C_INCLUDE_PATH', 'CPLUS_INCLUDE_PATH', 'SDKROOT', 'LANG', 'LC_ALL'):
         command += ['--environment', name]
     for path in inputs:
         command += ['--input', str(path)]
     command += ['--', args.checker, '--check=' + str(source), '--compile-commands-dir=' + str(args.build)]
-    os.execv(sys.executable, command)
+    os.execvp('bash', command)
 
 
 if __name__ == '__main__':

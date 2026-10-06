@@ -1,14 +1,14 @@
 # This check runs before project()/toolchain provisioning, and again before
 # every repository-owned executable build rule. Installed discovery is exempt.
-find_program(CPKT_OPERATION_PYTHON NAMES python3 REQUIRED)
-execute_process(COMMAND "${CPKT_OPERATION_PYTHON}"
-  "${CMAKE_CURRENT_LIST_DIR}/../scripts/cpkt_operation.py"
+find_program(CPKT_HOST_PYTHON_EXECUTABLE NAMES python3 REQUIRED)
+execute_process(COMMAND bash
+  "${CMAKE_CURRENT_LIST_DIR}/../scripts/operation.sh"
   --root "${CMAKE_SOURCE_DIR}" --group "${CPKT_GROUP}" --check
   RESULT_VARIABLE _cpkt_operation_status)
 if(NOT _cpkt_operation_status EQUAL 0)
   message(FATAL_ERROR
-    "Repository mutation requires verified operation delegation. Use scripts/group-build.py "
-    "build --group ${CPKT_GROUP} --preset debug, or scripts/cpkt_operation.py "
+    "Repository mutation requires verified operation delegation. Use scripts/build.sh "
+    "build --group ${CPKT_GROUP} --preset debug, or scripts/operation.sh "
     "--group ${CPKT_GROUP} -- cmake <configure/build arguments>.")
 endif()
 if(CPKT_TARGET_ARCH AND CPKT_TARGET_OS)
@@ -26,7 +26,7 @@ if(CPKT_TARGET_ARCH AND CPKT_TARGET_OS)
     set(ENV{CPKT_RESOLVED_TARGET} "${_cpkt_declared_target}")
   endif()
 endif()
-execute_process(COMMAND "${CPKT_OPERATION_PYTHON}"
+execute_process(COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}"
   "${CMAKE_CURRENT_LIST_DIR}/../scripts/cpkt_configure_guard.py"
   --root "${CMAKE_SOURCE_DIR}" --binary "${CMAKE_BINARY_DIR}" --group "${CPKT_GROUP}"
   --target "${CPKT_TARGET_ID}" --arch "${CPKT_TARGET_ARCH}" --os "${CPKT_TARGET_OS}"
@@ -39,8 +39,8 @@ endif()
 # A launcher checks delegation even when cmake --build names an individual
 # target (or invokes Ninja/Make directly). Custom commands have explicit guards.
 set(_cpkt_build_launcher "")
-foreach(_cpkt_argument IN ITEMS "${CPKT_OPERATION_PYTHON}"
-    "${CMAKE_SOURCE_DIR}/scripts/cpkt_build_guard.py" "${CMAKE_SOURCE_DIR}" "${CPKT_GROUP}")
+foreach(_cpkt_argument IN ITEMS bash
+    "${CMAKE_SOURCE_DIR}/scripts/build-guard.sh" "${CMAKE_SOURCE_DIR}" "${CPKT_GROUP}")
   # RULE_LAUNCH_* is a shell command, not an argv list. Single quotes protect
   # spaces and substitutions; escape embedded apostrophes for POSIX shells.
   string(REPLACE "'" "'\"'\"'" _cpkt_quoted_argument "${_cpkt_argument}")
@@ -55,7 +55,7 @@ set_property(GLOBAL PROPERTY RULE_LAUNCH_CUSTOM "${_cpkt_build_launcher}")
 # through a delegated make program so clean and --clean-first cannot mutate
 # this repository without the same operation lock as ordinary build rules.
 if(CMAKE_GENERATOR STREQUAL "Ninja" OR CMAKE_GENERATOR STREQUAL "Unix Makefiles")
-  set(_cpkt_make_wrapper "${CMAKE_SOURCE_DIR}/scripts/cpkt_make_program.py")
+  set(_cpkt_make_wrapper "${CMAKE_SOURCE_DIR}/scripts/native-build.sh")
   if(NOT CPKT_NATIVE_MAKE_PROGRAM)
     if(CMAKE_MAKE_PROGRAM AND NOT CMAKE_MAKE_PROGRAM STREQUAL _cpkt_make_wrapper)
       set(_cpkt_native_make_program "${CMAKE_MAKE_PROGRAM}")
