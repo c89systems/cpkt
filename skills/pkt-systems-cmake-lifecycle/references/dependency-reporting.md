@@ -2,8 +2,9 @@
 
 ## When to report
 
-On first activation for the current task/session, inspect the repository and
-give a compact dependency summary alongside the ordinary startup findings.
+Give a compact dependency summary when dependency state is relevant to the task,
+whenever the engineer requests it, and after a successful release. Activating the
+skill alone does not require an inventory for unrelated work.
 Include the SDK provider, other pkt.systems components, external libraries,
 and vendored code that evidence identifies. Distinguish production dependencies
 from optional/test inputs and host tools. Reuse that summary during the same
