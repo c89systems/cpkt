@@ -174,8 +174,24 @@ def read(path):
     return result
 
 
-def publish(path, record, preserve_run=False):
+def mutation_path(path):
+    """Validate raw local-output ancestry, including absent/dangling leaves.
+
+    Read-only imported SDK aliases and shared caches have separate contracts.
+    Do not resolve a mutation path: that would hide a redirected ancestor.
+    """
     path = Path(path)
+    if '..' in path.parts:
+        raise ValueError('owned mutation path contains parent traversal')
+    path = path.absolute()
+    for parent in (path, *path.parents):
+        if parent.is_symlink():
+            raise ValueError('owned path has a symlink ancestor: ' + str(parent))
+    return path
+
+
+def publish(path, record, preserve_run=False):
+    path = mutation_path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     record = dict(record, schema_version=1, status='passed',
                   run=record['run'] if preserve_run else os.environ['CPKT_OPERATION_RUN'])
@@ -210,7 +226,8 @@ def validate_component(root, target, name):
 
 def publish_component(root, target, name):
     item = load(root)['components'][name]
-    return publish(component_receipt(root, target, name),
+    path = mutation_path(component_receipt(root, target, name))
+    return publish(path,
         {'kind': 'component', 'group': item['group'], 'component': name, 'target': target,
          'configuration': 'ordinary', 'input_id': component_input_id(root, target, name),
          'outputs': tree_identity(root / '.cache/deps' / target / item['directory'] / 'install'),

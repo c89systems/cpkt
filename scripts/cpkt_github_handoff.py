@@ -210,7 +210,10 @@ def dispatch_identity(handoff,commit,environment):
 
 def download_handoff(api,handoff,shared_cache,destination):
     validate_handoff(handoff)
-    destination=safe_owned(destination);destination.mkdir(parents=True,exist_ok=True)
+    destination=safe_owned(destination)
+    for name in list(handoff['assets'])+['handoff.json','handoff.json.tmp']:
+        safe_owned(destination/name)
+    destination.mkdir(parents=True,exist_ok=True)
     cached,missing=acquisition_plan(handoff,shared_cache)
     authenticated=False
     def pre_acquire():
@@ -234,6 +237,8 @@ def download_handoff(api,handoff,shared_cache,destination):
 
 
 def stage(api,commit,tag,ver):
+    path=safe_owned(ROOT/'build/verification/release'/ver/'darwin-handoff.json')
+    safe_owned(path.with_name(path.name+'.tmp'))
     if tag!='v'+ver or ver=='0.0.0':raise ValueError('draft staging requires an actual final tag')
     proof=read(ROOT/'build/verification/release'/ver/'proof.json')
     manifest=ROOT/'dist'/f'cpkt-{ver}-CHECKSUMS'

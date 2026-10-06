@@ -13,6 +13,7 @@ from cpkt_packages import ROOT, command, version,  verify_selected, selected_arc
 from cpkt_lock import delegated, ensure_operation as locked_run
 from cpkt_inventory import REPOSITORY_GROUP
 from cpkt_receipts import read
+from cpkt_packages import safe_owned
 
 
 def extract_smoke(archive_path,destination):
@@ -62,11 +63,13 @@ def write_smoke_archive(package,destination):
 
 def smoke_zip(ver,base=None):
     target='arm64-apple-darwin';base=base or ROOT/'dist'
-    workspace=ROOT/'build/package-stage'/target/'all/smoke';workspace.mkdir(parents=True,exist_ok=True)
-    package=workspace/'darwin-smoke-test'
+    workspace=safe_owned(ROOT/'build/package-stage'/target/'all/smoke')
+    package=safe_owned(workspace/'darwin-smoke-test')
+    extraction=safe_owned(workspace/'sdk')
+    destination=safe_owned(base/f'cpkt-{ver}-{target}-smoke-test.zip')
+    workspace.mkdir(parents=True,exist_ok=True)
     if package.exists():shutil.rmtree(package)
     (package/'bin').mkdir(parents=True);(package/'lib').mkdir()
-    extraction=workspace/'sdk'
     if extraction.exists():shutil.rmtree(extraction)
     for group in (REPOSITORY_GROUP,):
         prefix=safe_extract(base/archive_name(ver,target,group),extraction,prefix_name(ver,target))
@@ -85,7 +88,6 @@ def smoke_zip(ver,base=None):
         if not binary.is_file():raise ValueError('missing real Darwin smoke executable: '+str(binary))
         shutil.copy2(binary,package/'bin'/name)
     write_json(package/'packages.json',ids)
-    destination=base/f'cpkt-{ver}-{target}-smoke-test.zip'
     invalidate_release(ver)
     write_smoke_archive(package,destination)
     privacy([destination])
@@ -122,9 +124,9 @@ def sdk_input():
 
 
 def sdk_smoke():
+    destination=safe_owned(ROOT/'build/darwin-artifact-smoke')
     value=validator.decode((ROOT/'build/darwin-artifact-input-evidence.json').read_bytes())
     if value['run']!=os.environ['CPKT_OPERATION_RUN']:raise ValueError('stale Darwin artifact input proof')
-    destination=ROOT/'build/darwin-artifact-smoke'
     if destination.exists():shutil.rmtree(destination)
     extract_smoke(Path(value['base'])/f'cpkt-{value["handoff"]["version"]}-arm64-apple-darwin-smoke-test.zip',destination)
 
@@ -145,6 +147,17 @@ def main():
     args=parser.parse_args()
     if 'CPKT_OPERATION_FD' not in os.environ:locked_run(ROOT,'all')
     delegated(ROOT,'all')
+    outputs={'source-evidence':'darwin-source-evidence.json',
+             'sdk-input':'darwin-artifact-input-evidence.json',
+             'sdk-evidence':'darwin-artifact-evidence.json'}
+    if args.action in outputs:
+        path=safe_owned(ROOT/'build'/outputs[args.action])
+        safe_owned(path.with_name(path.name+'.tmp'))
+    if args.action=='smoke-zip':
+        workspace=ROOT/'build/package-stage/arm64-apple-darwin/all/smoke'
+        for path in (workspace,workspace/'darwin-smoke-test',workspace/'sdk'):
+            safe_owned(path)
+    if args.action=='sdk-smoke':safe_owned(ROOT/'build/darwin-artifact-smoke')
     if sys.platform=='darwin':
         from cpkt_darwin_tools import discover
         os.environ['SDKROOT']=discover(command)['CMAKE_OSX_SYSROOT']

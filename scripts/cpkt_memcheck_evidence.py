@@ -9,7 +9,7 @@ import sys
 import xml.etree.ElementTree as ET
 from cpkt_inventory import components_for, load
 from cpkt_lock import delegated
-from cpkt_receipts import cache, file_identity, group_outputs, publish, validate_component, verification_inputs
+from cpkt_receipts import cache, file_identity, group_outputs, publish, validate_component, verification_inputs, mutation_path
 
 
 def main():
@@ -24,10 +24,10 @@ def main():
     args = parser.parse_args()
     delegated(args.root, args.group)
     directory = args.root/'build'/args.target/args.group/args.configuration
+    proof = mutation_path(args.root/'build/verification'/args.target/args.group/(args.configuration+('-memcheck-focused.json' if args.regex else '-memcheck.json')))
     tests = json.loads((directory/'cpkt-memcheck-inventory.json').read_text())['tests']
     if not tests:
         raise RuntimeError('Memcheck has no selected cases')
-    proof = args.root/'build/verification'/args.target/args.group/(args.configuration+('-memcheck-focused.json' if args.regex else '-memcheck.json'))
     proof.unlink(missing_ok=True)
     if args.action == 'inventory':
         return

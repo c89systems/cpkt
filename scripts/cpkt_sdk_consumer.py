@@ -315,11 +315,11 @@ def darwin_link_libraries(words):
 
 
 def run_consumers(prefix,target,preset,groups,owners,composition=False):
+    workspace=safe_owned(ROOT/'build/verification'/target/('all/composition-'+ '-'.join(groups) if composition else '-'.join(owners))/'installed-consumers')
     data=load(ROOT);configured=configuration(target,preset)
     records={k:v for k,v in data['installed_consumers'].items() if v['group'] in owners or v['group']=='all' and set(groups)==set(data['groups']) and set(owners)==set(data['groups'])}
     if composition:records=composition_records(data,groups)
     if not records:raise ValueError('empty installed consumer inventory')
-    workspace=safe_owned(ROOT/'build/verification'/target/('all/composition-'+ '-'.join(groups) if composition else '-'.join(owners))/'installed-consumers')
     if workspace.exists():shutil.rmtree(workspace)
     workspace.mkdir(parents=True)
     original_prefix=prefix

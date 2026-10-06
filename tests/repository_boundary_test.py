@@ -361,4 +361,407 @@ class GeneratedWorkspace(unittest.TestCase):
             self.assertIn('/RELEASE_MANIFEST', listing)
             self.assertFalse(list((root / 'build').glob('cpkt-source-stage.*')))
 
+class VerificationMutation(unittest.TestCase):
+    """Exercise public metadata surfaces in isolated, acquisition-free repositories."""
+    target = 'x86_64-linux-gnu'
+    provider = {'core': 'cpkt', 'db': 'cpktdb', 'misc': 'cpktmisc'}[REPOSITORY_GROUP]
+
+    def fixture(self, work):
+        from native_lifecycle_fixture import seed, environment
+        root = work/'repo'
+        seed(root)
+        external = work/'unrelated'
+        external.mkdir()
+        sentinel = external/'sentinel'
+        sentinel.write_bytes(b'unrelated bytes\n')
+        sentinel.chmod(0o640)
+        return root, external, sentinel, environment()
+
+    def redirect(self, path, kind, external, sentinel):
+        link = path.parent if kind == 'parent' else path
+        link.parent.mkdir(parents=True, exist_ok=True)
+        destination = external if kind == 'parent' else sentinel
+        if kind == 'dangling':
+            destination = external/'absent'
+        link.symlink_to(destination, target_is_directory=kind == 'parent')
+        return link
+
+    def assert_refused(self, result, external, sentinel, link, root):
+        self.assertNotEqual(0, result.returncode, result.stdout+result.stderr)
+        self.assertIn('symlink ancestor', result.stderr)
+        self.assertEqual(b'unrelated bytes\n', sentinel.read_bytes())
+        self.assertEqual(0o640, sentinel.stat().st_mode & 0o777)
+        self.assertEqual([sentinel], list(external.iterdir()))
+        self.assertTrue(link.is_symlink())
+        self.assertFalse((root/'child-marker').exists())
+        self.assertFalse((root/'.cache').exists())
+
+    def operation(self, root, env, arguments, group=None):
+        return subprocess.run(['bash', str(root/'scripts/operation.sh'), '--group', group or REPOSITORY_GROUP,
+                               '--', *map(str, arguments)], cwd=root, env=env, capture_output=True, text=True)
+
+    def evidence(self, root, script, action, configuration='Debug'):
+        return [sys.executable, root/'scripts'/script, action, '--root', root, '--group', REPOSITORY_GROUP,
+                '--target', self.target, '--configuration', configuration, '--preset', 'debug']
+
+    def test_public_checksum_outputs_reject_ancestry_and_temporary_redirects(self):
+        for scope in ('selected', 'binary', 'release'):
+            for kind in ('leaf', 'parent', 'dangling', 'temporary'):
+                with self.subTest(scope=scope, kind=kind), tempfile.TemporaryDirectory(
+                        prefix='metadata-checksums-', dir=ROOT/'build') as temporary:
+                    root, external, sentinel, env = self.fixture(Path(temporary))
+                    name = self.provider+'-1.2.3-'+self.target+'.tar.gz'
+                    archive = root/'build/package-stage'/self.target/REPOSITORY_GROUP/'archives'/name
+                    archive.parent.mkdir(parents=True)
+                    archive.write_bytes(b'fixture archive')
+                    output = (root/'build/verification'/self.target/REPOSITORY_GROUP/'CHECKSUMS' if scope == 'selected'
+                              else root/'dist'/(self.provider+'-1.2.3-CHECKSUMS') if scope == 'release'
+                              else root/'build/verification/binary/1.2.3/CHECKSUMS')
+                    path = output.with_suffix('.tmp') if kind == 'temporary' else output
+                    link = self.redirect(path, kind, external, sentinel)
+                    old = root/'build/verification'/scope/'1.2.3/proof.json'
+                    if not (scope == 'binary' and kind == 'parent'):
+                        old.parent.mkdir(parents=True, exist_ok=True)
+                        old.write_bytes(b'previous aggregate evidence')
+                    arguments = ['bash', str(root/'scripts/package.sh'), 'package-checksums',
+                                 '--group', REPOSITORY_GROUP if scope == 'selected' else 'all',
+                                 '--scope', scope]
+                    if scope == 'selected':
+                        arguments += ['--preset', 'release']
+                    result = subprocess.run(arguments, cwd=root, env=env, capture_output=True, text=True)
+                    self.assert_refused(result, external, sentinel, link, root)
+                    if not (scope == 'binary' and kind == 'parent'):
+                        self.assertEqual(b'previous aggregate evidence', old.read_bytes())
+
+    def test_public_selected_checksums_are_exact_and_missing_inputs_do_not_publish(self):
+        with tempfile.TemporaryDirectory(prefix='metadata-checksum-success-', dir=ROOT/'build') as temporary:
+            root, _, _, env = self.fixture(Path(temporary))
+            name = self.provider+'-1.2.3-'+self.target+'.tar.gz'
+            archive = root/'build/package-stage'/self.target/REPOSITORY_GROUP/'archives'/name
+            archive.parent.mkdir(parents=True)
+            archive.write_bytes(b'fixture archive')
+            output = root/'build/verification'/self.target/REPOSITORY_GROUP/'CHECKSUMS'
+            arguments = ['bash', str(root/'scripts/package.sh'), 'package-checksums', '--group', REPOSITORY_GROUP,
+                         '--preset', 'release', '--scope', 'selected']
+            result = subprocess.run(arguments, cwd=root, env=env, capture_output=True, text=True)
+            self.assertEqual(0, result.returncode, result.stdout+result.stderr)
+            expected = sha(b'fixture archive')+'  '+name+'\n'
+            self.assertEqual(expected.encode(), output.read_bytes())
+            mask = os.umask(0)
+            os.umask(mask)
+            self.assertEqual(0o666 & ~mask, output.stat().st_mode & 0o777)
+            self.assertFalse(output.with_suffix('.tmp').exists())
+            output.unlink()
+            archive.unlink()
+            for dangling in (False, True):
+                if dangling:
+                    archive.symlink_to(root/'absent-input')
+                result = subprocess.run(arguments, cwd=root, env=env, capture_output=True, text=True)
+                self.assertNotEqual(0, result.returncode)
+                self.assertFalse(output.exists())
+                self.assertFalse(output.with_suffix('.tmp').exists())
+                self.assertFalse((root/'.cache').exists())
+
+    def test_build_and_memcheck_evidence_refuse_redirects_before_invalidation(self):
+        for script, actions, suffix in (
+                ('cpkt_build_evidence.py', ('before', 'built', 'restore', 'inventory', 'tested'), '-development.json'),
+                ('cpkt_memcheck_evidence.py', ('inventory', 'tested'), '-memcheck.json')):
+            for action in actions:
+                for kind in ('leaf', 'parent', 'dangling'):
+                    with self.subTest(script=script, action=action, kind=kind), tempfile.TemporaryDirectory(
+                            prefix='metadata-evidence-', dir=ROOT/'build') as temporary:
+                        root, external, sentinel, env = self.fixture(Path(temporary))
+                        output = root/'build/verification'/self.target/REPOSITORY_GROUP/('Debug'+suffix)
+                        link = self.redirect(output, kind, external, sentinel)
+                        result = self.operation(root, env, self.evidence(root, script, action))
+                        self.assert_refused(result, external, sentinel, link, root)
+                        self.assertFalse(list((root/'build/control').glob('readiness/*')))
+
+    def test_current_run_and_built_paths_are_checked_before_revoking_ready(self):
+        for location in ('run', 'built'):
+            for kind in ('leaf', 'parent', 'dangling'):
+                with self.subTest(location=location, kind=kind), tempfile.TemporaryDirectory(
+                        prefix='metadata-current-run-', dir=ROOT/'build') as temporary:
+                    root, external, sentinel, env = self.fixture(Path(temporary))
+                    ready = root/'build/verification'/self.target/REPOSITORY_GROUP/'Debug-development.json'
+                    ready.parent.mkdir(parents=True)
+                    ready.write_bytes(b'previous readiness')
+                    ready.chmod(0o640)
+                    command = self.evidence(root, 'cpkt_build_evidence.py', 'before')
+                    driver = root/'driver.py'
+                    relative = ('build/control/readiness' if location == 'run' else
+                                'build/verification/'+self.target+'/'+REPOSITORY_GROUP)
+                    driver.write_text('import os\nfrom pathlib import Path\n'
+                        'path=Path('+repr(str(root/relative))+')\n'+
+                        ('path=path/os.environ["CPKT_OPERATION_RUN"]/'+repr(self.target)+'/'+repr(REPOSITORY_GROUP)+'/"Debug.json"\n'
+                         if location == 'run' else 'path=path/"Debug-built.json"\n')+
+                        ('path=path.parent\n' if kind == 'parent' else '')+
+                        'path.parent.mkdir(parents=True,exist_ok=True)\n'
+                        'path.symlink_to('+repr(str(external if kind == 'parent' else external/'absent' if kind == 'dangling' else sentinel))+')\n'
+                        'Path('+repr(str(root/'redirect-path'))+').write_text(str(path))\n'
+                        'os.execv('+repr(sys.executable)+','+repr(list(map(str, command)))+')\n')
+                    # A parent redirect for built evidence also redirects ready; set
+                    # it up first and preserve the original ready in the private fixture.
+                    if location == 'built' and kind == 'parent':
+                        ready.unlink()
+                        ready.parent.rmdir()
+                    result = self.operation(root, env, [sys.executable, driver])
+                    self.assert_refused(result, external, sentinel, Path((root/'redirect-path').read_text()), root)
+                    if not (location == 'built' and kind == 'parent'):
+                        self.assertEqual(b'previous readiness', ready.read_bytes())
+                        self.assertEqual(0o640, ready.stat().st_mode & 0o777)
+
+    def test_selected_and_source_invalidation_and_configure_preserve_unrelated_evidence(self):
+        for surface in ('selected', 'source', 'configure', 'release'):
+            for kind in ('leaf', 'parent', 'dangling'):
+                with self.subTest(surface=surface, kind=kind), tempfile.TemporaryDirectory(
+                        prefix='metadata-invalidation-', dir=ROOT/'build') as temporary:
+                    root, external, sentinel, env = self.fixture(Path(temporary))
+                    output = (root/'build/verification'/self.target/REPOSITORY_GROUP/'package-ready.json'
+                              if surface == 'selected' else root/'build/verification/source/1.2.3/proof.json'
+                              if surface == 'source' else root/'build/verification'/self.target/REPOSITORY_GROUP/'Debug-development.json'
+                              if surface == 'configure' else root/'build/verification/release/1.2.3/proof.json')
+                    link = self.redirect(output, kind, external, sentinel)
+                    manifest = root/'dist'/(self.provider+'-1.2.3-CHECKSUMS')
+                    manifest.parent.mkdir()
+                    manifest.write_bytes(b'previous release checksums')
+                    if surface == 'selected':
+                        args = [sys.executable, root/'scripts/cpkt_packages.py', 'invalidate-selected', '--group', REPOSITORY_GROUP, '--preset', 'release']
+                    elif surface == 'source':
+                        args = [sys.executable, root/'scripts/cpkt_source_proof.py', '--invalidate', '1.2.3']
+                    elif surface == 'configure':
+                        args = [sys.executable, root/'scripts/cpkt_configure_guard.py', '--root', root, '--group', REPOSITORY_GROUP,
+                                '--binary', root/'build'/self.target/REPOSITORY_GROUP/'Debug', '--target', self.target]
+                    else:
+                        args = [sys.executable, root/'scripts/cpkt_packages.py', 'invalidate', '--group', 'all', '--version', '1.2.3']
+                    result = self.operation(root, env, args, group='all' if surface in ('source', 'release') else None)
+                    self.assert_refused(result, external, sentinel, link, root)
+                    self.assertEqual(b'previous release checksums', manifest.read_bytes())
+
+    def test_helpers_refuse_proof_and_output_redirects_before_child_execution(self):
+        for location in ('helper', 'clangd', 'output'):
+            for dangling in (False, True):
+                with self.subTest(location=location, dangling=dangling), tempfile.TemporaryDirectory(
+                        prefix='metadata-helper-', dir=ROOT/'build') as temporary:
+                    root, external, sentinel, env = self.fixture(Path(temporary))
+                    graph = root/'build'/self.target/REPOSITORY_GROUP/'Debug'
+                    output = root/'build/fixture-output'
+                    path = root/'build/control/helper-proofs' if location == 'helper' else graph/'clangd-proofs' if location == 'clangd' else output
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.symlink_to(external/'absent' if dangling else external, target_is_directory=True)
+                    args = ['bash', root/'scripts/helper.sh', '--root', root, '--group', REPOSITORY_GROUP,
+                            '--mode', 'clangd' if location == 'clangd' else 'fixture']
+                    if location == 'clangd':
+                        args += ['--owned-build', graph]
+                    if location == 'output':
+                        args += ['--output', output]
+                    args += ['--', sys.executable, '-c', 'from pathlib import Path;Path('+repr(str(root/'child-marker'))+').touch()']
+                    result = self.operation(root, env, args)
+                    self.assert_refused(result, external, sentinel, path, root)
+
+    def test_missing_and_dangling_helper_inputs_do_not_execute(self):
+        for dangling in (False, True):
+            with self.subTest(dangling=dangling), tempfile.TemporaryDirectory(prefix='metadata-helper-input-', dir=ROOT/'build') as temporary:
+                root, _, _, env = self.fixture(Path(temporary))
+                path = root/'input'
+                if dangling:
+                    path.symlink_to(root/'absent')
+                args = ['bash', root/'scripts/helper.sh', '--root', root, '--group', REPOSITORY_GROUP,
+                        '--mode', 'fixture', '--input', path, '--', sys.executable, '-c',
+                        'from pathlib import Path;Path('+repr(str(root/'child-marker'))+').touch()']
+                result = self.operation(root, env, args)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn('input missing/corrupt', result.stderr)
+                self.assertFalse((root/'child-marker').exists())
+                self.assertFalse((root/'build/control/helper-proofs').exists())
+
+    def test_helper_final_proof_redirect_is_refused_before_reuse_or_stale_unlink(self):
+        for mode in ('fixture', 'clangd'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory(prefix='metadata-helper-leaf-', dir=ROOT/'build') as temporary:
+                root, external, sentinel, env = self.fixture(Path(temporary))
+                graph = root/'build'/self.target/REPOSITORY_GROUP/'Debug'
+                graph.mkdir(parents=True)
+                options = ['--root', str(root), '--group', REPOSITORY_GROUP, '--mode', mode]
+                if mode == 'clangd':
+                    options += ['--owned-build', str(graph)]
+                options += ['--', sys.executable, '-c', 'from pathlib import Path;Path('+repr(str(root/'child-marker'))+').touch()']
+                base = graph/'clangd-proofs' if mode == 'clangd' else root/'build/control/helper-proofs'
+                driver = root/'leaf.py'
+                driver.write_text('import os,subprocess\nfrom pathlib import Path\n'
+                    'fds=tuple(int(os.environ[k]) for k in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"))\n'
+                    'subprocess.run('+repr([sys.executable, str(root/'scripts/cpkt_helper_proof.py'), '--publish', *options])+',check=True,pass_fds=fds)\n'
+                    'proof=next(Path('+repr(str(base))+').rglob("*.json"))\n'
+                    'proof.unlink();proof.symlink_to('+repr(str(sentinel))+')\n'
+                    'Path('+repr(str(root/'redirect-path'))+').write_text(str(proof))\n'
+                    'os.execv("/bin/bash",'+repr(['bash', str(root/'scripts/helper.sh'), *options])+')\n')
+                result = self.operation(root, env, [sys.executable, driver])
+                self.assert_refused(result, external, sentinel, Path((root/'redirect-path').read_text()), root)
+
+    def test_related_output_guards_precede_native_probes_or_acquisition(self):
+        cases = [('package', 'package-ready.json.tmp'), ('package', 'consumer-evidence.json'),
+                 ('package', 'consumer-evidence.json.tmp'), ('consumer', 'installed-consumers'),
+                 ('clangd', 'clangd-proofs'), ('manifest', 'THIRD_PARTY_NOTICES.md'),
+                 ('manifest', 'README.md'), ('darwin', 'darwin-source-evidence.json'),
+                 ('darwin', 'darwin-artifact-input-evidence.json.tmp'), ('darwin', 'darwin-artifact-evidence.json'),
+                 ('smoke', ''), ('smoke', 'darwin-smoke-test'), ('smoke', 'sdk'),
+                 ('smoke-archive', self.provider+'-1.2.3-arm64-apple-darwin-smoke-test.zip'),
+                 ('sdk-smoke', 'darwin-artifact-smoke')]
+        for surface, name in cases:
+            for dangling in (False, True):
+                with self.subTest(surface=surface, name=name, dangling=dangling), tempfile.TemporaryDirectory(
+                        prefix='metadata-related-', dir=ROOT/'build') as temporary:
+                    root, external, sentinel, env = self.fixture(Path(temporary))
+                    prefix = root/'build/prefix'
+                    graph = root/'build'/self.target/REPOSITORY_GROUP/'Debug'
+                    path = (root/'build/package-stage/arm64-apple-darwin/all/smoke'/name if surface == 'smoke'
+                            else root/'dist'/name if surface == 'smoke-archive'
+                            else graph/name if surface == 'clangd' else prefix/'share/doc/cpkt'/REPOSITORY_GROUP/name
+                            if surface == 'manifest' else root/'build'/name if surface in ('darwin', 'sdk-smoke')
+                            else root/'build/verification'/self.target/REPOSITORY_GROUP/name)
+                    link = self.redirect(path, 'dangling' if dangling else 'leaf', external, sentinel)
+                    if surface == 'package':
+                        args = [sys.executable, root/'scripts/cpkt_packages.py', 'verify-selected', '--preset', 'release', '--group', REPOSITORY_GROUP]
+                    elif surface == 'consumer':
+                        args = [sys.executable, root/'scripts/cpkt_sdk_consumer.py', '--prefix', prefix, '--target', self.target,
+                                '--preset', 'release', '--groups', 'core' if REPOSITORY_GROUP == 'core' else 'core,'+REPOSITORY_GROUP,
+                                '--owners', REPOSITORY_GROUP]
+                    elif surface == 'clangd':
+                        args = [sys.executable, root/'scripts/cpkt_clangd_check.py', '--root', root, '--build', graph,
+                                '--group', REPOSITORY_GROUP, '--source', root/'input.c', '--checker', '/bin/true', '--gate', root/'gate']
+                    elif surface == 'manifest':
+                        args = [sys.executable, root/'scripts/cpkt_package_manifest.py', '--root', root, '--group', REPOSITORY_GROUP,
+                                '--prefix', prefix, '--target', self.target, '--preset', 'release', '--version', '1.2.3']
+                    elif surface in ('smoke', 'smoke-archive', 'sdk-smoke'):
+                        args = [sys.executable, root/'scripts/cpkt_darwin.py', 'sdk-smoke' if surface == 'sdk-smoke' else 'smoke-zip',
+                                '--version', '1.2.3']
+                    else:
+                        action = {'darwin-source-evidence.json': 'source-evidence',
+                                  'darwin-artifact-input-evidence.json.tmp': 'sdk-input',
+                                  'darwin-artifact-evidence.json': 'sdk-evidence'}[name]
+                        args = [sys.executable, root/'scripts/cpkt_darwin.py', action]
+                    result = self.operation(root, env, args, group='all' if surface in ('darwin', 'smoke', 'smoke-archive', 'sdk-smoke') else None)
+                    self.assert_refused(result, external, sentinel, link, root)
+
+    def test_handoff_output_preflight_prevents_acquisition(self):
+        for kind in ('leaf', 'parent', 'dangling', 'temporary'):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory(prefix='metadata-handoff-', dir=ROOT/'build') as temporary:
+                root, external, sentinel, env = self.fixture(Path(temporary))
+                destination = root/'build/download'
+                path = destination/('handoff.json.tmp' if kind == 'temporary' else 'handoff.json')
+                link = self.redirect(path, kind, external, sentinel)
+                driver = root/'handoff.py'
+                driver.write_text('import sys\nfrom pathlib import Path\nfrom unittest.mock import patch\n'
+                    'sys.path.insert(0,'+repr(str(root/'scripts'))+')\n'
+                    'import cpkt_github_handoff as h\nfrom cpkt_packages import artifacts\n'
+                    'names=artifacts("1.2.3","release")+['+repr(self.provider+'-1.2.3-CHECKSUMS')+']\n'
+                    'value=dict(schema_version=1,repository=h.REPOSITORY,producer_commit="a"*40,tag="v1.2.3",version="1.2.3",manifest_sha256="b"*64,draft_id=99,assets={n:dict(id=i+1,size=3,sha256="b"*64) for i,n in enumerate(names)})\n'
+                    'def acquire(*args):\n  Path('+repr(str(root/'child-marker'))+').touch()\n  raise AssertionError("acquisition attempted")\n'
+                    'with patch.object(h,"acquire",side_effect=acquire):\n'
+                    '  h.download_handoff(None,value,Path('+repr(str(root/'shared-cache'))+'),Path('+repr(str(destination))+'))\n')
+                result = self.operation(root, env, [sys.executable, driver])
+                self.assert_refused(result, external, sentinel, link, root)
+                self.assertFalse((root/'shared-cache').exists())
+
+    def test_json_redirects_bytes_modes_and_atomic_failure_cleanup(self):
+        for writer in ('packages', 'receipts'):
+            kinds = ('leaf', 'parent', 'dangling', 'temporary') if writer == 'packages' else ('leaf', 'parent', 'dangling')
+            for kind in kinds:
+                with self.subTest(writer=writer, kind=kind), tempfile.TemporaryDirectory(prefix='metadata-json-', dir=ROOT/'build') as temporary:
+                    root, external, sentinel, env = self.fixture(Path(temporary))
+                    output = root/'build/verification/json/proof.json'
+                    path = output.with_name(output.name+'.tmp') if kind == 'temporary' else output
+                    link = self.redirect(path, kind, external, sentinel)
+                    if kind == 'temporary':
+                        output.write_bytes(b'previous JSON')
+                        output.chmod(0o640)
+                    driver = root/'writer.py'
+                    driver.write_text('import sys\nsys.path.insert(0,'+repr(str(root/'scripts'))+')\n'+
+                        ('from cpkt_packages import write_json as write\n' if writer == 'packages' else
+                         'from cpkt_receipts import publish as write\n')+
+                        'from pathlib import Path\nwrite(Path('+repr(str(output))+'),{"z":1,"a":"value"})\n')
+                    result = self.operation(root, env, [sys.executable, driver])
+                    self.assert_refused(result, external, sentinel, link, root)
+                    if kind == 'temporary':
+                        self.assertEqual(b'previous JSON', output.read_bytes())
+                        self.assertEqual(0o640, output.stat().st_mode & 0o777)
+            with tempfile.TemporaryDirectory(prefix='metadata-json-atomic-', dir=ROOT/'build') as temporary:
+                root, _, _, env = self.fixture(Path(temporary))
+                driver = root/'atomic.py'
+                driver.write_text('import sys,os,json\nfrom pathlib import Path\nfrom unittest.mock import patch\n'
+                    'sys.path.insert(0,'+repr(str(root/'scripts'))+')\n'
+                    'from cpkt_packages import write_json\nfrom cpkt_receipts import publish\n'
+                    'p=Path('+repr(str(root/'build/verification/atomic/proof.json'))+')\n'
+                    'write='+('write_json' if writer == 'packages' else 'publish')+'\n'
+                    'expected={"z":1,"a":"value"}\n'
+                    + ('' if writer == 'packages' else 'expected.update(schema_version=1,status="passed",run=os.environ["CPKT_OPERATION_RUN"])\n')+
+                    'write(p,{"z":1,"a":"value"})\n'
+                    'assert p.read_bytes()==json.dumps(expected,sort_keys=True,separators=(",",":")).encode()\n'
+                    'assert p.stat().st_mode & 0o777 == '+('0o644' if writer == 'packages' else '0o600')+'\n'
+                    'old=p.read_bytes();p.chmod(0o640)\n'
+                    'with patch('+repr('pathlib.Path.replace' if writer == 'packages' else 'cpkt_receipts.os.replace')+',side_effect=OSError("publication refused")):\n'
+                    '  try:write(p,{"different":True})\n'
+                    '  except OSError:pass\n'
+                    '  else:raise AssertionError("publication unexpectedly succeeded")\n'
+                    'assert p.read_bytes()==old and p.stat().st_mode & 0o777 == 0o640\n'
+                    'assert list(p.parent.iterdir())==[p]\n')
+                result = self.operation(root, env, [sys.executable, driver])
+                self.assertEqual(0, result.returncode, result.stdout+result.stderr)
+
+    def test_successful_build_restore_and_memcheck_keep_exact_coverage_and_modes(self):
+        with tempfile.TemporaryDirectory(prefix='metadata-ready-success-', dir=ROOT/'build') as temporary:
+            root, _, _, env = self.fixture(Path(temporary))
+            data = {'schema_version': 1, 'repository_group': REPOSITORY_GROUP,
+                    'groups': {REPOSITORY_GROUP: {'requires': [] if REPOSITORY_GROUP == 'core' else ['core']}},
+                    'components': {}, 'targets': {}, 'tests': {'fixture': {'group': REPOSITORY_GROUP}}}
+            (root/'cmake/components.json').write_text(json.dumps(data))
+            (root/'CMakeLists.txt').write_text('# synthetic native graph\n')
+            graph = root/'build'/self.target/REPOSITORY_GROUP/'Debug'
+            graph.mkdir(parents=True)
+            (graph/'CMakeCache.txt').write_text('CPKT_TARGET_ID:STRING='+self.target+'\nCMAKE_BUILD_TYPE:STRING=Debug\n')
+            output = graph/'output'
+            output.write_bytes(b'compiled fixture output')
+            (graph/'cpkt-owned-outputs.txt').write_text(str(output)+'\n')
+            (graph/'cpkt-required-coverage.txt').write_text('fixture\n')
+            listing = json.dumps({'tests': [{'name': 'fixture', 'command': ['/bin/true']}]})
+            for kind in ('test', 'memcheck'):
+                (graph/('cpkt-'+kind+'-inventory.json')).write_text(listing)
+                (graph/('cpkt-'+kind+'-results.xml')).write_text('<testsuite><testcase name="fixture"/></testsuite>')
+            (graph/'Testing/tag').mkdir(parents=True)
+            (graph/'Testing/TAG').write_text('tag\n')
+            (graph/'Testing/tag/DynamicAnalysis.xml').write_text('<Site><Defect>0</Defect></Site>')
+            tools = root/'tools'
+            tools.mkdir()
+            shutil.copy2('/bin/true', tools/'valgrind')
+            env['PATH'] = str(tools)+os.pathsep+env['PATH']
+            build = list(map(str, self.evidence(root, 'cpkt_build_evidence.py', 'tested')))
+            memory = list(map(str, self.evidence(root, 'cpkt_memcheck_evidence.py', 'tested')))
+            driver = root/'success.py'
+            driver.write_text('import os,json,subprocess\nfrom pathlib import Path\n'
+                'fds=tuple(int(os.environ[k]) for k in ("CPKT_OPERATION_FD","CPKT_OPERATION_CAP_FD"))\n'
+                'build='+repr(build)+'\nmemory='+repr(memory)+'\n'
+                'base=Path('+repr(str(root/'build/verification'/self.target/REPOSITORY_GROUP))+')\n'
+                'ready=base/"Debug-development.json"\n'
+                'def run(command):subprocess.run(command,check=True,pass_fds=fds)\n'
+                'run(build);original=ready.read_bytes()\n'
+                'for action in ("before","built","restore"):\n'
+                '  command=build[:];command[2]=action;run(command)\n'
+                '  if action=="before":assert not ready.exists()\n'
+                '  else:assert ready.read_bytes()==original\n'
+                'run(memory)\n'
+                'whole=base/"Debug-memcheck.json";ordinary=whole.read_bytes()\n'
+                'run(memory+["--regex","fixture"])\n'
+                'assert whole.read_bytes()==ordinary\n'
+                'assert json.loads((base/"Debug-memcheck-focused.json").read_bytes())["selection"]=="fixture"\n'
+                'for p in base.glob("*.json"):\n'
+                '  record=json.loads(p.read_bytes())\n'
+                '  assert record["coverage"]==["fixture"] or record["kind"]=="built"\n'
+                '  assert record["run"]==os.environ["CPKT_OPERATION_RUN"]\n'
+                '  assert p.stat().st_mode & 0o777 == 0o600\n'
+                '  assert p.read_bytes()==json.dumps(record,sort_keys=True,separators=(",",":")).encode()\n'
+                'assert not list(base.glob(".receipt-*"))\n')
+            result = self.operation(root, env, [sys.executable, driver])
+            self.assertEqual(0, result.returncode, result.stdout+result.stderr)
+            self.assertFalse((root/'.cache').exists())
+
+
 if __name__=='__main__':unittest.main()

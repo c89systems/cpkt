@@ -27,6 +27,11 @@ def main():
     root = args.root.resolve()
     delegated(root, args.group)
     prefix = safe_owned(args.prefix)
+    docs = prefix/'share/doc/cpkt'/args.group
+    for name in ('THIRD_PARTY_NOTICES.md','README.md'):
+        safe_owned(docs/name)
+    manifest = safe_owned(prefix/'share/cpkt/packages'/(args.group+'.json'))
+    safe_owned(manifest.with_name(manifest.name+'.tmp'))
     directory = root/'build'/args.target/args.group/'Release'
     configured = cache(directory/'CMakeCache.txt')
     proof = read(readiness_path(root, args.target, args.group, 'Release'))
@@ -49,7 +54,6 @@ def main():
                 raise RuntimeError('missing component ABI surface: '+component['name'])
             component['abi'] = {'shared_surface': 'header-only'}
     core = None if args.group == 'core' else prepared_core(args.version, args.target, args.preset)[1]
-    docs = prefix/'share/doc/cpkt'/args.group
     (docs/'THIRD_PARTY_NOTICES.md').write_text('Bundled '+args.group+' components and complete license paths:\n\n'+''.join(
         '- '+item['name']+' '+item['version']+': third_party/'+item['name']+'/LICENSE\n' for item in components))
     (docs/'README.md').write_text('cpkt '+args.version+' '+args.group+' SDK\n\nValidate this installation before CMake/pkg-config discovery. '+(

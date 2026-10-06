@@ -100,6 +100,8 @@ def main():
         if args.group not in (REPOSITORY_GROUP,'all'):parser.error('editor publication requires repository scope')
         publish_editor_database(args.root,args.native_target);return
     if not all((args.build,args.source,args.checker,args.gate)):parser.error('selected check requires build/source/checker/gate')
+    from cpkt_receipts import mutation_path
+    mutation_path(args.build/'clangd-proofs'/os.environ['CPKT_OPERATION_RUN'])
     database = args.build / 'compile_commands.json'
     source = args.source.resolve()
     entries = [entry for entry in json.loads(database.read_text()) if Path(entry['file']).resolve() == source]

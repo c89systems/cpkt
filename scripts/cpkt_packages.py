@@ -24,7 +24,7 @@ import zipfile
 from cpkt_inventory import load, components_for, GROUPS, REPOSITORY_GROUP
 from cpkt_lock import delegated, operation_fds, child_delegation
 from cpkt_presets import preset_info
-from cpkt_receipts import cache, read, readiness_path, validate_component, verification_inputs, group_outputs, tree_identity, file_identity, tool_runtime_inputs
+from cpkt_receipts import cache, read, readiness_path, validate_component, verification_inputs, group_outputs, tree_identity, file_identity, tool_runtime_inputs, mutation_path
 
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location('sdk_validator', ROOT/'scripts/validate-sdk.py')
@@ -85,26 +85,22 @@ def command(args, cwd=ROOT, capture=False, group=None, env=None):
 
 
 def safe_owned(path):
-    path = Path(path)
-    if '..' in path.parts:
-        raise ValueError('owned mutation path contains parent traversal')
-    path = path.absolute()
+    path = mutation_path(path)
     if not path.is_relative_to(ROOT):
         raise ValueError('mutation outside repository')
-    for parent in (path, *path.parents):
-        if parent == ROOT:
-            break
-        if parent.is_symlink():
-            raise ValueError('owned path has a symlink ancestor: ' + str(parent))
     return path
 
 
 def write_json(path, value):
-    safe_owned(path).parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + '.tmp')
-    temporary.write_bytes(canonical(value))
-    temporary.chmod(0o644)
-    temporary.replace(path)
+    path = safe_owned(path)
+    temporary = safe_owned(path.with_name(path.name + '.tmp'))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        temporary.write_bytes(canonical(value))
+        temporary.chmod(0o644)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def version():
@@ -133,11 +129,14 @@ def selected_archive(ver, target, group):
 
 def invalidate_release(ver):
     # Before any dist payload replacement, old full proof loses publication power.
-    for path in [ROOT/'dist'/f'cpkt-{ver}-CHECKSUMS', ROOT/'build/verification/release'/ver/'proof.json']:
-        safe_owned(path).unlink(missing_ok=True)
+    paths = [safe_owned(ROOT/'dist'/f'cpkt-{ver}-CHECKSUMS'),
+             safe_owned(ROOT/'build/verification/release'/ver/'proof.json')]
+    for path in paths:
+        path.unlink(missing_ok=True)
 
 
 def copy_file(source, destination):
+    destination = safe_owned(destination)
     if destination.exists() or destination.is_symlink():
         raise ValueError('regular/symlink payload collision: ' + str(destination))
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -321,15 +320,21 @@ def checksum_snapshot(ver,scope,group=None,target=None,current_run=True):
         destination=ROOT/'build/verification'/target/group/'CHECKSUMS'
     else:
         base=ROOT/'dist';names=artifacts(ver,scope)
-        if scope=='release':source_proof(ver,current_run)
         destination=base/f'cpkt-{ver}-CHECKSUMS' if scope=='release' else ROOT/'build/verification/binary'/ver/'CHECKSUMS'
+    destination=safe_owned(destination)
+    temporary=safe_owned(destination.with_suffix('.tmp'))
+    if scope=='release':source_proof(ver,current_run)
     destination.parent.mkdir(parents=True,exist_ok=True)
     content=''.join(sha(base/name)+'  '+name+'\n' for name in names)
     if scope!='selected':
         expected=set(names)|({f'cpkt-{ver}.tar.gz',f'cpkt-{ver}-CHECKSUMS'} if scope=='binary' else {destination.name})
         unexpected=[p.name for p in base.iterdir() if p.is_file() and p.name not in expected]
         if unexpected:raise ValueError('unexpected distribution payloads: '+','.join(unexpected))
-    temporary=destination.with_suffix('.tmp');temporary.write_text(content);temporary.replace(destination)
+    try:
+        temporary.write_text(content)
+        temporary.replace(destination)
+    finally:
+        temporary.unlink(missing_ok=True)
     return destination,base
 
 
@@ -417,6 +422,8 @@ def consumer_evidence_path(target,group):return ROOT/'build/verification'/target
 
 
 def publish_consumer_evidence(preset,target,group,archives,log,cases):
+    path=safe_owned(consumer_evidence_path(target,group))
+    safe_owned(path.with_name(path.name+'.tmp'))
     from cpkt_sdk_consumer import configuration
     context=consumer_context(ROOT,target,preset,group,archives,configuration(target,preset))
     outputs=ROOT/'build/verification'/target/group/'installed-consumers'
@@ -464,6 +471,9 @@ def validate_consumer_evidence(root,evidence,context,run):
 
 
 def owned_archive_suite(preset,ver,target,base,group,allow_reuse=True):
+    workspace=safe_owned(ROOT/'build/verification'/target/group/'archive-suite')
+    safe_owned(consumer_evidence_path(target,group))
+    safe_owned(consumer_evidence_path(target,group).with_name('consumer-evidence.json.tmp'))
     from cpkt_sdk_consumer import configuration
     order=['core',group] if group!='core' else ['core']
     archives={group:sha(base/archive_name(ver,target,group))}
@@ -475,14 +485,13 @@ def owned_archive_suite(preset,ver,target,base,group,allow_reuse=True):
         return evidence,'reused'
     except (OSError,ValueError,KeyError,RuntimeError,TypeError):pass
     safe_owned(consumer_evidence_path(target,group)).unlink(missing_ok=True)
-    workspace=ROOT/'build/verification'/target/group/'archive-suite'
-    safe_owned(workspace)
     if workspace.exists():shutil.rmtree(workspace)
     if group!='core':extract_core(prepared_core(ver,target,preset)[0],workspace,ver,target)
     prefix=safe_extract(base/archive_name(ver,target,group),workspace,prefix_name(ver,target))
     validator.validate(prefix,order,ver,target)
+    log=safe_owned(workspace/'consumer.log')
     output=command([sys.executable,ROOT/'scripts/cpkt_sdk_consumer.py','--prefix',prefix,'--target',target,'--groups',','.join(order),'--owners',group,'--preset',preset],capture=True,group=group)
-    log=workspace/'consumer.log';log.write_text(output);cases=json.loads(output.splitlines()[-1])
+    log.write_text(output);cases=json.loads(output.splitlines()[-1])
     if not cases:raise ValueError('empty owned archive suite')
     evidence=publish_consumer_evidence(preset,target,group,archives,log,cases)
     validate_consumer_evidence(ROOT,evidence,context,os.environ['CPKT_OPERATION_RUN'])
@@ -491,10 +500,13 @@ def owned_archive_suite(preset,ver,target,base,group,allow_reuse=True):
 
 def verify_selected(preset,group,ver,archive=None):
     _,target,_=preset_info(ROOT,preset)
+    safe_owned(consumer_evidence_path(target,group))
+    safe_owned(consumer_evidence_path(target,group).with_name('consumer-evidence.json.tmp'))
     archive=archive or selected_archive(ver,target,group)
-    proof_path(target,group).unlink(missing_ok=True)
-    workspace=stage_dir(target,group)/'verify'
-    safe_owned(workspace)
+    proof=safe_owned(proof_path(target,group))
+    safe_owned(proof.with_name(proof.name+'.tmp'))
+    workspace=safe_owned(stage_dir(target,group)/'verify')
+    proof.unlink(missing_ok=True)
     if workspace.exists():shutil.rmtree(workspace)
     workspace.mkdir(parents=True)
     order=['core',group] if group!='core' else ['core']
@@ -504,8 +516,9 @@ def verify_selected(preset,group,ver,archive=None):
     prefix=safe_extract(archive,workspace,prefix_name(ver,target))
     validator.validate(prefix,order,ver,target)
     # Actual extracted libraries, exports, loader and all owned consumers.
+    log=safe_owned(workspace/'consumer.log')
     output=command([sys.executable,ROOT/'scripts/cpkt_sdk_consumer.py','--prefix',prefix,'--target',target,'--groups',','.join(order),'--owners',group,'--preset',preset],group=group,capture=True)
-    (workspace/'consumer.log').write_text(output)
+    log.write_text(output)
     cases=json.loads(output.splitlines()[-1])
     if not cases or any(c['status'] not in ('passed','deferred-native-runtime') for c in cases):raise ValueError('missing/failed actual installed consumer cases')
     if not target.endswith('darwin') and any(c['status']!='passed' for c in cases):raise ValueError('Linux runtime cases may not be deferred')
@@ -533,10 +546,11 @@ def combinations(preset,ver,base,reuse_owned=True):
             else:
                 prefix=safe_extract(base/archive_name(ver,target,group),parent,prefix_name(ver,target))
         validator.validate(prefix,order,ver,target)
+        log=safe_owned(parent/'consumer.log')
         output=command([sys.executable,ROOT/'scripts/cpkt_sdk_consumer.py','--prefix',prefix,
             '--target',target,'--groups',','.join(order),'--owners',group,'--preset',preset,
             '--composition'],capture=True)
-        log=parent/'consumer.log';log.write_text(output)
+        log.write_text(output)
         cases=json.loads(output.splitlines()[-1])
         if not cases or any(c['status'] not in ('passed','deferred-native-runtime') for c in cases):
             raise ValueError('composition lacks successful executed consumer cases')
@@ -577,7 +591,7 @@ def main():
         invalidate_release(ver);return
     if args.action=='invalidate-selected':
         if not args.preset or args.group=='all':raise ValueError('selected invalidation requires preset and owner')
-        proof_path(target,args.group).unlink(missing_ok=True);return
+        safe_owned(proof_path(target,args.group)).unlink(missing_ok=True);return
     if args.action=='assert-inputs':
         if not args.preset or args.group=='all':raise ValueError('input validation requires preset and owner')
         directory=ROOT/'build'/target/args.group/configuration
@@ -593,8 +607,15 @@ def main():
         if not args.preset or args.group!='all':raise ValueError('composition requires one preset and aggregate owner')
         combinations(args.preset,ver,args.base or ROOT/'dist',reuse_owned=not args.fresh_owned)
         return
+    if args.action=='checksums':
+        destination=(ROOT/'build/verification'/target/args.group/'CHECKSUMS' if args.scope=='selected'
+                     else ROOT/'dist'/f'cpkt-{ver}-CHECKSUMS' if args.scope=='release'
+                     else ROOT/'build/verification/binary'/ver/'CHECKSUMS')
+        safe_owned(destination);safe_owned(destination.with_suffix('.tmp'))
     if args.action in ('checksums','verify-checksums','verify-artifacts') and args.group=='all':
-        safe_owned(ROOT/'build/verification'/args.scope/ver/'proof.json').unlink(missing_ok=True)
+        path=safe_owned(ROOT/'build/verification'/args.scope/ver/'proof.json')
+        if args.action=='verify-artifacts':safe_owned(path.with_name(path.name+'.tmp'))
+        path.unlink(missing_ok=True)
     if args.action=='verify-checksums':
         if args.scope=='selected':
             if args.group=='all' or not args.preset:raise ValueError('selected checksums require preset and owner')

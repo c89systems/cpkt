@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
-from cpkt_packages import ROOT, sha, write_json, invalidate_release, validator
+from cpkt_packages import ROOT, sha, write_json, invalidate_release, validator, safe_owned
 from cpkt_inventory import REPOSITORY_GROUP
 from cpkt_receipts import read, readiness_path, group_outputs, verification_inputs, cache
 from cpkt_lock import delegated
@@ -79,15 +79,18 @@ def reconstruction_evidence(source,ver):
 def main():
     delegated(ROOT,'all')
     if sys.argv[1]=='--invalidate':
-        invalidate_release(sys.argv[2]);(ROOT/'build/verification/source'/sys.argv[2]/'proof.json').unlink(missing_ok=True);return
+        path=safe_owned(ROOT/'build/verification/source'/sys.argv[2]/'proof.json')
+        invalidate_release(sys.argv[2]);path.unlink(missing_ok=True);return
     archive,ver,source=Path(sys.argv[1]),sys.argv[2],Path(sys.argv[3]).resolve()
     if source==ROOT or not source.is_relative_to(ROOT/'build') or not (source/'VERSION').is_file() or (source/'VERSION').read_text().strip()!=ver:
         raise ValueError('source proof requires the independent extracted source/version under build/')
     owner=json.loads((source/'build/control/operation.lock').read_text())
     if owner.get('status')!='passed' or not any(Path(arg).name=='source-reconstruct.sh' for arg in owner.get('command',[])):
         raise ValueError('source proof requires the completed independent reconstruction operation')
+    path=safe_owned(ROOT/'build/verification/source'/ver/'proof.json')
+    safe_owned(path.with_name(path.name+'.tmp'))
     coverage,composition=reconstruction_evidence(source,ver)
-    write_json(ROOT/'build/verification/source'/ver/'proof.json',{'schema_version':1,'status':'passed','kind':'source-reconstruction',
+    write_json(path,{'schema_version':1,'status':'passed','kind':'source-reconstruction',
         'archive_sha256':sha(archive),'release_version':ver,'run':os.environ['CPKT_OPERATION_RUN'],'coverage':coverage,'composition':composition})
 
 if __name__=='__main__':

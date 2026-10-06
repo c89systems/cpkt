@@ -27,5 +27,5 @@ try:
             validate_component(args.root, args.target, args.component)
     else:
         validate_core(args.root, args.target, args.configuration, args.preset)
-except (RuntimeError, OSError, KeyError) as error:
+except (RuntimeError, OSError, ValueError, KeyError) as error:
     sys.exit(str(error) + '\nRepair: make test GROUP=' + args.group + ' PRESET=' + args.preset)

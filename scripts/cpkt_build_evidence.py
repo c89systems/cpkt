@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 from cpkt_inventory import components_for, load, record
 from cpkt_lock import delegated
 from cpkt_receipts import (cache, group_outputs, publish, read, readiness_path,
-                          validate_component, validate_development, verification_inputs)
+                          validate_component, validate_development, verification_inputs, mutation_path)
 
 
 def main():
@@ -36,6 +36,9 @@ def main():
     if args.action == 'validate':
         validate_development(root, args.target, args.group, args.configuration, args.preset)
         return
+    ready = mutation_path(ready)
+    built = mutation_path(ready.parent/(args.configuration+'-built.json'))
+    previous = mutation_path(previous)
     if args.action == 'before':
         previous.unlink(missing_ok=True)
         try:
@@ -45,7 +48,7 @@ def main():
         if prior is not None:
             publish(previous, prior, preserve_run=True)
         ready.unlink(missing_ok=True)
-        (ready.parent/(args.configuration+'-built.json')).unlink(missing_ok=True)
+        built.unlink(missing_ok=True)
         return
     configured = cache(directory/'CMakeCache.txt')
     if args.action in ('built', 'restore'):
@@ -57,7 +60,7 @@ def main():
             if args.action == 'restore': return
             raise
         if args.action == 'built':
-            publish(ready.parent/(args.configuration+'-built.json'),
+            publish(built,
                     {'kind': 'built', 'target': args.target, 'group': args.group,
                      'configuration': args.configuration, 'outputs': outputs, 'coverage': []})
         if previous.is_file():

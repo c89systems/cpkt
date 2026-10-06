@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 import sys
 from cpkt_lock import delegated
-from cpkt_receipts import cache, validate_core
+from cpkt_receipts import cache, validate_core, mutation_path
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--root', type=Path, required=True)
@@ -44,19 +44,16 @@ try:
         parts = args.binary.relative_to(root/'build').parts
         if len(parts) >= 3 and parts[1] in ('core','db','misc','all') and parts[0] != target:
             raise RuntimeError('managed binary directory target does not match '+target)
+    paths = []
+    if target and args.producer != 'ON':
+        receipt_configuration = args.binary.name if args.binary.is_relative_to(root/'build'/target/args.group) else configuration
+        paths = [mutation_path(root/'build/verification'/target/args.group/(receipt_configuration+suffix))
+                 for suffix in ('-development.json','-built.json')]
     if args.group in ('db','misc'):
         if not target:
             raise RuntimeError('cannot resolve core prerequisite before configure; use scripts/build.sh configure --group '+args.group+' --preset debug')
         validate_core(root,target,args.prerequisite or configuration,os.environ.get('CPKT_PRESET','debug'))
-    if target and args.producer != 'ON':
-        directory = root/'build/verification'/target/args.group
-        receipt_configuration = configuration
-        if args.binary.is_relative_to(root/'build'/target/args.group):
-            receipt_configuration = args.binary.name
-        names = ('*-development.json','*-built.json') if args.producer == 'ON' else (
-            receipt_configuration+'-development.json',receipt_configuration+'-built.json')
-        for name in names:
-            for path in directory.glob(name):
-                path.unlink(missing_ok=True)
+    for path in paths:
+        path.unlink(missing_ok=True)
 except (RuntimeError,OSError,ValueError) as error:
     sys.exit('configure prerequisite guard: '+str(error))

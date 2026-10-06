@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 import sys
 from cpkt_lock import delegated
-from cpkt_receipts import canonical, digest, file_identity, publish, read
+from cpkt_receipts import canonical, digest, file_identity, publish, read, mutation_path
 
 def output_identity(path):
     return {p.relative_to(path).as_posix(): file_identity(p) for p in sorted(path.rglob('*'))
@@ -29,6 +29,12 @@ def main():
     if not command or args.check == args.publish:
         parser.error('one of --check/--publish and a command identity are required')
     _, owner = delegated(args.root, args.group)
+    base = mutation_path(args.owned_build if args.owned_build else args.root/'build/control/helper-proofs')
+    for output in args.output:
+        mutation_path(output)
+    for path in args.input:
+        if not path.exists():
+            raise RuntimeError('helper input missing/corrupt: '+str(path))
     relevant = {key: os.environ.get(key, '') for key in args.environment}
     executable = Path(shutil.which(command[0]) or command[0]).resolve()
     identity = digest(canonical({'command': command, 'mode': args.mode,
@@ -37,17 +43,16 @@ def main():
         'runtime': {'python': sys.version, 'platform': sys.platform, 'os': list(os.uname())},
         'outputs': list(map(str, args.output))}))
     if args.owned_build:
-        build = Path(os.path.abspath(args.owned_build))
+        build = base
         parts = build.relative_to(args.root.resolve()/'build').parts
         if args.mode != 'clangd' or args.group == 'all' or len(parts) != 3 or parts[1] != args.group:
             raise RuntimeError('clangd proof must stay in its owned graph')
-        if any(p.is_symlink() for p in (build, *build.parents)):
-            raise RuntimeError('clangd proof graph has a symlink ancestor')
         path = build/'clangd-proofs'/owner['run']/(identity+'.json')
     else:
         if args.mode == 'clangd':
             raise RuntimeError('clangd proof requires its owned graph')
-        path = args.root/'build/control/helper-proofs'/owner['run']/(identity+'.json')
+        path = base/owner['run']/(identity+'.json')
+    path = mutation_path(path)
     if args.check:
         try:
             previous = read(path)
