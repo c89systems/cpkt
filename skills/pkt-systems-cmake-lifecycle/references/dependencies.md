@@ -31,8 +31,11 @@ when the project ships one package. Proposed layouts do not select current asset
 
 ## Upgrade compatibility
 
-Apply the repository's supported consumer and ABI boundary to dependency and
-compiler-collection upgrades. Compare against the latest published artifacts,
+Dependency upgrades must preserve the declared public consumer contract.
+Private implementation dependencies may change without a public ABI-version
+bump, provided the supported public API, ABI, behavior and runtime requirements
+remain intact. Apply this boundary to compiler-collection upgrades too.
+Compare against the latest published artifacts,
 not the previous development commit. Minor/patch version numbers and unchanged
 SONAMEs alone do not establish compatibility. Check public ABI, bundled consumer
 support, static link closure, package metadata, and deployment runtime requirements.
