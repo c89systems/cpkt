@@ -196,10 +196,10 @@ LLVM_ARCHIVE="LLVM-${LLVM_RELEASE}-Linux-X64.tar.xz"
 LLVM_ROOT="$HOME/.local/opt/LLVM-${LLVM_RELEASE}-Linux-X64"
 mkdir -p "$HOME/Downloads" "$HOME/.local/opt"
 curl -fL "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_RELEASE}/${LLVM_ARCHIVE}" \
-  -o "$HOME/Downloads/$LLVM_ARCHIVE"
+  -o "$HOME/Downloads/$LLVM_ARCHIVE" || exit 1
 printf '%s  %s\n' \
   b5ed9675149cc837c282e9b6962c276c9fa62863d5b2f91537b60848552995b7 \
-  "$HOME/Downloads/$LLVM_ARCHIVE" | sha256sum -c -
+  "$HOME/Downloads/$LLVM_ARCHIVE" | sha256sum -c - || exit 1
 if [ ! -e "$LLVM_ROOT" ]; then
   tar -xf "$HOME/Downloads/$LLVM_ARCHIVE" -C "$HOME/.local/opt"
 fi
