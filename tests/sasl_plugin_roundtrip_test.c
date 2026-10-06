@@ -1,7 +1,9 @@
 #include <cpkt/sasl_plugin.h>
 
 #include <limits.h>
+#include <sasl/sasl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define CHECK(condition)                                                       \
@@ -407,6 +409,216 @@ static int security_callbacks(void) {
   return 0;
 }
 
+static cpkt_sasl_interaction *interaction_list;
+static int interaction_count, interaction_phase;
+
+static int interaction_new(void *context, cpkt_sasl_client_params *params,
+                           void **connection) {
+  (void)context;
+  (void)params;
+  interaction_phase = 0;
+  *connection = &interaction_phase;
+  return CPKT_SASL_OK;
+}
+
+static int interaction_step(void *context, cpkt_sasl_client_params *params,
+                            const char *input, unsigned long input_length,
+                            cpkt_sasl_interaction **interactions,
+                            const char **output, unsigned long *length,
+                            cpkt_sasl_plugin_output *out) {
+  int i;
+  (void)params;
+  (void)input;
+  (void)input_length;
+  CHECK(context == &interaction_phase && interactions != NULL);
+  if (interaction_phase++ == 0) {
+    *interactions = interaction_list;
+    *output = NULL;
+    *length = 0;
+    return CPKT_SASL_INTERACT;
+  }
+  CHECK(*interactions == interaction_list);
+  for (i = 0; i < interaction_count; ++i) {
+    CHECK(interaction_list[i].result_byte_count == 6);
+    CHECK(memcmp(interaction_list[i].result, "answer", 6) == 0);
+  }
+  *interactions = NULL;
+  *output = "token";
+  *length = 5;
+  out->done = 1;
+  out->user = out->authentication_identity = "user";
+  out->user_length = out->authentication_length = 4;
+  return CPKT_SASL_OK;
+}
+
+static int interaction_init(void *context, const cpkt_sasl_plugin_utils *utils,
+                            int maximum, int *version,
+                            const cpkt_sasl_client_plugin **plugins,
+                            int *count) {
+  static cpkt_sasl_client_plugin plugin;
+  static const unsigned long prompts[] = {CPKT_SASL_CALLBACK_LIST_END};
+  (void)context;
+  (void)utils;
+  CHECK(maximum >= CPKT_SASL_CLIENT_PLUGIN_VERSION);
+  memset(&plugin, 0, sizeof(plugin));
+  plugin.mechanism_name = "CPKT-INTERACTION";
+  plugin.security_flags = CPKT_SASL_SECURITY_NO_ANONYMOUS;
+  plugin.required_prompts = prompts;
+  plugin.new_connection = interaction_new;
+  plugin.step = interaction_step;
+  *plugins = &plugin;
+  *count = 1;
+  *version = CPKT_SASL_CLIENT_PLUGIN_VERSION;
+  return CPKT_SASL_OK;
+}
+
+static int interaction_terminator(void) {
+  cpkt_sasl *client;
+  sasl_conn_t *native;
+  sasl_interact_t *native_prompts;
+  cpkt_sasl_interaction *public_prompts, saved;
+  const char *output, *mechanism;
+  unsigned native_length;
+  unsigned long length;
+  int counts[4], size_cases, size_case, mode, native_api, i, status;
+
+  counts[0] = 0;
+  counts[1] = 1;
+  counts[2] = 3;
+  counts[3] = 1;
+  size_cases = 3;
+#if ULONG_MAX > UINT_MAX
+  size_cases = 4;
+#endif
+  CHECK(cpkt_sasl_client_initialize(NULL) == CPKT_SASL_OK);
+  CHECK(cpkt_sasl_client_add_plugin("cpkt-interaction", interaction_init,
+                                    NULL) == CPKT_SASL_OK);
+  for (size_case = 0; size_case < size_cases; ++size_case)
+    for (mode = 0; mode < 3; ++mode)
+      for (native_api = 0; native_api < 2; ++native_api) {
+        interaction_count = counts[size_case];
+        interaction_list = (cpkt_sasl_interaction *)malloc(
+            (size_t)(interaction_count + 1) * sizeof(*interaction_list));
+        CHECK(interaction_list != NULL);
+        for (i = 0; i < interaction_count; ++i) {
+          memset(&interaction_list[i], 0, sizeof(interaction_list[i]));
+          interaction_list[i].id = CPKT_SASL_CALLBACK_AUTHENTICATION_NAME;
+          interaction_list[i].challenge = "challenge";
+          interaction_list[i].prompt = "prompt";
+          interaction_list[i].default_result = "default";
+          interaction_list[i].result = "initial";
+          interaction_list[i].result_byte_count =
+              size_case == 3 ? ULONG_MAX : 7;
+        }
+        if (mode != 2) {
+          memset(&interaction_list[interaction_count], 0,
+                 sizeof(*interaction_list));
+          if (mode == 1) {
+            interaction_list[interaction_count].challenge = "unused";
+            interaction_list[interaction_count].prompt = "unused";
+            interaction_list[interaction_count].default_result = "unused";
+            interaction_list[interaction_count].result = "unused";
+            interaction_list[interaction_count].result_byte_count = ULONG_MAX;
+          }
+        }
+        /* ID-only termination is valid; mode 2 deliberately leaves the
+         * remaining fields uninitialized for memory-check coverage. */
+        interaction_list[interaction_count].id = CPKT_SASL_CALLBACK_LIST_END;
+        if (mode != 2)
+          memcpy(&saved, &interaction_list[interaction_count], sizeof(saved));
+        native_prompts = NULL;
+        public_prompts = NULL;
+        native = NULL;
+        client = NULL;
+        if (native_api) {
+          CHECK(sasl_client_new("test", "localhost", NULL, NULL, NULL, 0,
+                                &native) == SASL_OK);
+          status =
+              sasl_client_start(native, "CPKT-INTERACTION", &native_prompts,
+                                &output, &native_length, &mechanism);
+        } else {
+          client = cpkt_sasl_client_new("test", "localhost", NULL, NULL, NULL,
+                                        0, &status);
+          CHECK(client != NULL && status == CPKT_SASL_OK);
+          status = client->start(client, "CPKT-INTERACTION", &public_prompts,
+                                 &output, &length, &mechanism);
+        }
+        if (size_case == 3) {
+          CHECK(status == CPKT_SASL_BADPARAM);
+          if (native_api)
+            sasl_dispose(&native);
+          else
+            client->close(client);
+          free(interaction_list);
+          continue;
+        }
+        CHECK(status == CPKT_SASL_INTERACT);
+        for (i = 0; i <= interaction_count; ++i) {
+          if (native_api) {
+            CHECK(native_prompts != NULL);
+            if (i == interaction_count) {
+              CHECK(native_prompts[i].id == SASL_CB_LIST_END);
+              CHECK(native_prompts[i].challenge == NULL);
+              CHECK(native_prompts[i].prompt == NULL);
+              CHECK(native_prompts[i].defresult == NULL);
+              CHECK(native_prompts[i].result == NULL);
+              CHECK(native_prompts[i].len == 0);
+            } else {
+              CHECK(native_prompts[i].id == SASL_CB_AUTHNAME);
+              CHECK(strcmp(native_prompts[i].challenge, "challenge") == 0);
+              CHECK(strcmp(native_prompts[i].prompt, "prompt") == 0);
+              CHECK(strcmp(native_prompts[i].defresult, "default") == 0);
+              CHECK(native_prompts[i].len == 7);
+              CHECK(memcmp(native_prompts[i].result, "initial", 7) == 0);
+              native_prompts[i].result = "answer";
+              native_prompts[i].len = 6;
+            }
+          } else {
+            CHECK(public_prompts != NULL);
+            if (i == interaction_count) {
+              CHECK(public_prompts[i].id == CPKT_SASL_CALLBACK_LIST_END);
+              CHECK(public_prompts[i].challenge == NULL);
+              CHECK(public_prompts[i].prompt == NULL);
+              CHECK(public_prompts[i].default_result == NULL);
+              CHECK(public_prompts[i].result == NULL);
+              CHECK(public_prompts[i].result_byte_count == 0);
+            } else {
+              CHECK(public_prompts[i].id ==
+                    CPKT_SASL_CALLBACK_AUTHENTICATION_NAME);
+              CHECK(strcmp(public_prompts[i].challenge, "challenge") == 0);
+              CHECK(strcmp(public_prompts[i].prompt, "prompt") == 0);
+              CHECK(strcmp(public_prompts[i].default_result, "default") == 0);
+              CHECK(public_prompts[i].result_byte_count == 7);
+              CHECK(memcmp(public_prompts[i].result, "initial", 7) == 0);
+              public_prompts[i].result = "answer";
+              public_prompts[i].result_byte_count = 6;
+            }
+          }
+        }
+        if (native_api) {
+          CHECK(sasl_client_start(native, "CPKT-INTERACTION", &native_prompts,
+                                  &output, &native_length,
+                                  &mechanism) == SASL_OK);
+          CHECK(native_prompts == NULL && native_length == 5);
+          CHECK(output != NULL && memcmp(output, "token", 5) == 0);
+          sasl_dispose(&native);
+        } else {
+          CHECK(client->start(client, "CPKT-INTERACTION", &public_prompts,
+                              &output, &length, &mechanism) == CPKT_SASL_OK);
+          CHECK(public_prompts == NULL && length == 5);
+          CHECK(output != NULL && memcmp(output, "token", 5) == 0);
+          client->close(client);
+        }
+        CHECK(interaction_phase == 2);
+        if (mode != 2)
+          CHECK(memcmp(&saved, &interaction_list[interaction_count],
+                       sizeof(saved)) == 0);
+        free(interaction_list);
+      }
+  CHECK(cpkt_sasl_client_finish() == CPKT_SASL_OK);
+  return 0;
+}
+
 int main(int argc, char **argv) {
   CHECK(argc == 2);
   CHECK(cpkt_sasl_set_path(CPKT_SASL_PATH_PLUGIN,
@@ -415,5 +627,7 @@ int main(int argc, char **argv) {
     return global_options();
   if (strcmp(argv[1], "security_callbacks") == 0)
     return security_callbacks();
+  if (strcmp(argv[1], "interaction_terminator") == 0)
+    return interaction_terminator();
   return 1;
 }

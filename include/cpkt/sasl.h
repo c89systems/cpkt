@@ -74,7 +74,8 @@ typedef struct cpkt_sasl_iov {
 } cpkt_sasl_iov;
 
 /** Borrowed interaction fields to fill before retrying the same start/step
- * call. */
+ * call. Lists end with CPKT_SASL_CALLBACK_LIST_END; only the terminator's id
+ * is meaningful. */
 typedef struct cpkt_sasl_interaction {
   unsigned long id;
   const char *challenge;

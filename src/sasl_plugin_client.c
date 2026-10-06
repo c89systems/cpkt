@@ -142,7 +142,7 @@ cpkt_sasl_client_interactions_to_native(cpkt_sasl_client_connection *connection,
   native_list = (sasl_interact_t *)calloc(count + 1U, sizeof(*native_list));
   if (native_list == NULL)
     return SASL_NOMEM;
-  for (i = 0; i <= count; ++i) {
+  for (i = 0; i < count; ++i) {
     if (public_list[i].result_byte_count > UINT_MAX) {
       free(native_list);
       return SASL_BADPARAM;

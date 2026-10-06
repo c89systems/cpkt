@@ -5651,6 +5651,22 @@
       ],
       "target_sensitive": false
     },
+    "sasl_plugin_roundtrip_static_interaction_terminator": {
+      "group": "core",
+      "command_inputs": [],
+      "execution": "runtime",
+      "requires": [],
+      "registrations": [
+        {
+          "name": "sasl_plugin_roundtrip_static_interaction_terminator",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
     "sasl_plugin_roundtrip_static_security_callbacks": {
       "group": "core",
       "command_inputs": [],
@@ -5675,6 +5691,22 @@
       "registrations": [
         {
           "name": "sasl_plugin_roundtrip_shared_global_options",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "sasl_plugin_roundtrip_shared_interaction_terminator": {
+      "group": "core",
+      "command_inputs": [],
+      "execution": "runtime",
+      "requires": [],
+      "registrations": [
+        {
+          "name": "sasl_plugin_roundtrip_shared_interaction_terminator",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES"
