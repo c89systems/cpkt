@@ -42,6 +42,9 @@ Record the compatibility baseline and conclusion in the existing release record.
 Minor/patch version numbers and unchanged
 SONAMEs alone do not establish compatibility. Check public ABI, bundled consumer
 support, static link closure, package metadata, and deployment runtime requirements.
+For dependencies exposed through supported public interfaces, check upstream ABI
+declarations, SONAME/install-name metadata, exported symbols, public type layouts
+and calling conventions. Never disguise an upstream ABI bump.
 A newer collection can raise required glibc symbol versions without changing
 `libc.so.6`; passing tests with that collection does not prove older-host support.
 
