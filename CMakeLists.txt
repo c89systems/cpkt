@@ -1152,14 +1152,17 @@ if(CPKT_BUILD_TESTS)
     cpkt_add_repo_warning_errors(cpkt_libssh2_facade_test)
     cpkt_group_target_command(target_link_libraries cpkt_libssh2_facade_test PRIVATE cpkt_libssh2_static)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-      cpkt_group_add_executable(cpkt_libssh2_sftp_eof_test
-              tests/libssh2_sftp_eof_test.c)
-      cpkt_group_use_local_runtime(cpkt_libssh2_sftp_eof_test)
-      cpkt_group_target_command(target_compile_options cpkt_libssh2_sftp_eof_test PRIVATE -std=c99)
-      cpkt_group_target_command(target_link_options cpkt_libssh2_sftp_eof_test PRIVATE
-              "-Wl,--wrap=libssh2_sftp_readdir_ex")
-      cpkt_add_repo_warning_errors(cpkt_libssh2_sftp_eof_test)
-      cpkt_group_target_command(target_link_libraries cpkt_libssh2_sftp_eof_test PRIVATE
+      cpkt_group_add_executable(cpkt_libssh2_sftp_attributes_test
+              tests/libssh2_sftp_attributes_test.c)
+      cpkt_group_use_local_runtime(cpkt_libssh2_sftp_attributes_test)
+      cpkt_group_target_command(target_compile_options cpkt_libssh2_sftp_attributes_test PRIVATE -std=c99)
+      cpkt_group_target_command(target_link_options cpkt_libssh2_sftp_attributes_test PRIVATE
+              "-Wl,--wrap=libssh2_sftp_readdir_ex"
+              "-Wl,--wrap=libssh2_sftp_fstat_ex"
+              "-Wl,--wrap=libssh2_sftp_stat_ex"
+              "-Wl,--wrap=libssh2_sftp_open_ex_r")
+      cpkt_add_repo_warning_errors(cpkt_libssh2_sftp_attributes_test)
+      cpkt_group_target_command(target_link_libraries cpkt_libssh2_sftp_attributes_test PRIVATE
               cpkt_libssh2_static cpkt::libssh2_static)
       cpkt_group_add_executable(cpkt_libssh2_poll_elapsed_test
               tests/libssh2_poll_elapsed_test.c)
@@ -1349,7 +1352,7 @@ if(CPKT_BUILD_TESTS)
       cpkt_group_add_test(NAME libssh2_header_facade COMMAND cpkt_libssh2_header_facade_test)
       cpkt_group_add_test(NAME libssh2_facade COMMAND cpkt_libssh2_facade_test)
       if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        cpkt_group_add_test(NAME libssh2_sftp_eof COMMAND cpkt_libssh2_sftp_eof_test)
+        cpkt_group_add_test(NAME libssh2_sftp_attributes COMMAND cpkt_libssh2_sftp_attributes_test)
         cpkt_group_add_test(NAME libssh2_poll_elapsed COMMAND cpkt_libssh2_poll_elapsed_test)
       endif()
       cpkt_group_add_test(NAME mqttc_header_facade COMMAND cpkt_mqttc_header_facade_test)
@@ -1481,7 +1484,7 @@ if(CPKT_BUILD_TESTS)
       set(_cpkt_memcheck_facade_tests lua_facade_unit lua_runtime_unit openssl_facade nghttp2_facade libssh2_header_facade libssh2_facade mqttc_header_facade mqttc_facade gssapi_facade gssapi_extended krb5_error_format sasl_facade sasl_callback_retry sasl_plugin_facade)
       if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         list(APPEND _cpkt_memcheck_facade_tests
-                  libssh2_sftp_eof libssh2_poll_elapsed)
+                  libssh2_sftp_attributes libssh2_poll_elapsed)
       endif()
       foreach(_cpkt_memcheck_test IN LISTS _cpkt_memcheck_facade_tests)
         cpkt_group_set_property(TEST ${_cpkt_memcheck_test} APPEND PROPERTY LABELS

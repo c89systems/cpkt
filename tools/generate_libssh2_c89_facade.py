@@ -166,6 +166,12 @@ typedef struct cpkt_libssh2_sftp cpkt_libssh2_sftp;
 typedef struct cpkt_libssh2_sftp_handle cpkt_libssh2_sftp_handle;
 typedef struct cpkt_libssh2_publickey cpkt_libssh2_publickey;
 
+/** SFTP attributes: flags select valid fields on input and output.
+ * SIZE selects filesize; UIDGID selects uid and gid; PERMISSIONS selects
+ * permissions; ACMODTIME selects atime and mtime. Setters and open_ex_r read
+ * only selected fields. Successful getters preserve flags and zero absent
+ * fields. Errors, EAGAIN and readdir EOF leave caller attributes unchanged.
+ */
 typedef struct cpkt_libssh2_sftp_attributes {
   unsigned long flags;
   cpkt_libssh2_u64 filesize;
@@ -338,7 +344,7 @@ cpkt_libssh2_sftp_open_ex_r(cpkt_libssh2_sftp *sftp, const char *filename,
                             size_t filename_len, unsigned long flags,
                             long mode, int open_type,
                             cpkt_libssh2_sftp_attributes *attrs) {
-  LIBSSH2_SFTP_ATTRIBUTES native_attrs;
+  LIBSSH2_SFTP_ATTRIBUTES native_attrs = {0};
   LIBSSH2_SFTP_ATTRIBUTES *native_attrs_pointer;
   native_attrs_pointer = NULL;
   if (attrs != NULL) {
@@ -355,7 +361,7 @@ cpkt_libssh2_sftp_readdir_ex(cpkt_libssh2_sftp_handle *handle, char *buffer,
                              size_t buffer_maxlen, char *longentry,
                              size_t longentry_maxlen,
                              cpkt_libssh2_sftp_attributes *attrs) {
-  LIBSSH2_SFTP_ATTRIBUTES native_attrs;
+  LIBSSH2_SFTP_ATTRIBUTES native_attrs = {0};
   int result;
   result = libssh2_sftp_readdir_ex((LIBSSH2_SFTP_HANDLE *)handle, buffer,
       buffer_maxlen, longentry, longentry_maxlen,
@@ -383,7 +389,7 @@ CPKT_LIBSSH2_API int
 cpkt_libssh2_sftp_fstat_ex(cpkt_libssh2_sftp_handle *handle,
                            cpkt_libssh2_sftp_attributes *attrs,
                            int setstat) {
-  LIBSSH2_SFTP_ATTRIBUTES native_attrs;
+  LIBSSH2_SFTP_ATTRIBUTES native_attrs = {0};
   int result;
   if (attrs == NULL) {
     return libssh2_sftp_fstat_ex((LIBSSH2_SFTP_HANDLE *)handle, NULL, setstat);
@@ -436,7 +442,7 @@ CPKT_LIBSSH2_API int
 cpkt_libssh2_sftp_stat_ex(cpkt_libssh2_sftp *sftp, const char *path,
                           unsigned int path_len, int stat_type,
                           cpkt_libssh2_sftp_attributes *attrs) {
-  LIBSSH2_SFTP_ATTRIBUTES native_attrs;
+  LIBSSH2_SFTP_ATTRIBUTES native_attrs = {0};
   int result;
   if (attrs == NULL) {
     return libssh2_sftp_stat_ex((LIBSSH2_SFTP *)sftp, path, path_len,
@@ -506,26 +512,44 @@ cpkt_libssh2_i64_from_native(libssh2_int64_t value) {
 static void
 cpkt_libssh2_sftp_attributes_to_native(LIBSSH2_SFTP_ATTRIBUTES *native_value,
     const cpkt_libssh2_sftp_attributes *public_value) {
+  memset(native_value, 0, sizeof(*native_value));
   native_value->flags = public_value->flags;
-  native_value->filesize = cpkt_libssh2_u64_to_native(public_value->filesize);
-  native_value->uid = public_value->uid;
-  native_value->gid = public_value->gid;
-  native_value->permissions = public_value->permissions;
-  native_value->atime = public_value->atime;
-  native_value->mtime = public_value->mtime;
+  if (public_value->flags & LIBSSH2_SFTP_ATTR_SIZE) {
+    native_value->filesize = cpkt_libssh2_u64_to_native(public_value->filesize);
+  }
+  if (public_value->flags & LIBSSH2_SFTP_ATTR_UIDGID) {
+    native_value->uid = public_value->uid;
+    native_value->gid = public_value->gid;
+  }
+  if (public_value->flags & LIBSSH2_SFTP_ATTR_PERMISSIONS) {
+    native_value->permissions = public_value->permissions;
+  }
+  if (public_value->flags & LIBSSH2_SFTP_ATTR_ACMODTIME) {
+    native_value->atime = public_value->atime;
+    native_value->mtime = public_value->mtime;
+  }
 }
 
 static void
 cpkt_libssh2_sftp_attributes_from_native(
     cpkt_libssh2_sftp_attributes *public_value,
     const LIBSSH2_SFTP_ATTRIBUTES *native_value) {
+  memset(public_value, 0, sizeof(*public_value));
   public_value->flags = native_value->flags;
-  public_value->filesize = cpkt_libssh2_u64_from_native(native_value->filesize);
-  public_value->uid = native_value->uid;
-  public_value->gid = native_value->gid;
-  public_value->permissions = native_value->permissions;
-  public_value->atime = native_value->atime;
-  public_value->mtime = native_value->mtime;
+  if (native_value->flags & LIBSSH2_SFTP_ATTR_SIZE) {
+    public_value->filesize = cpkt_libssh2_u64_from_native(native_value->filesize);
+  }
+  if (native_value->flags & LIBSSH2_SFTP_ATTR_UIDGID) {
+    public_value->uid = native_value->uid;
+    public_value->gid = native_value->gid;
+  }
+  if (native_value->flags & LIBSSH2_SFTP_ATTR_PERMISSIONS) {
+    public_value->permissions = native_value->permissions;
+  }
+  if (native_value->flags & LIBSSH2_SFTP_ATTR_ACMODTIME) {
+    public_value->atime = native_value->atime;
+    public_value->mtime = native_value->mtime;
+  }
 }
 
 static void

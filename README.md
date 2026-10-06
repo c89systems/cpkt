@@ -26,6 +26,12 @@ versions are independent of those ABI majors.
 See [Lua runtime execution policy](docs/lua-runtime-policy.md) for embedding
 limits, coroutine behavior and native module ownership.
 
+The libssh2 C89 facade uses SFTP attribute `flags` to select valid fields:
+`SIZE` selects `filesize`, `UIDGID` selects `uid`/`gid`, `PERMISSIONS` selects
+`permissions`, and `ACMODTIME` selects `atime`/`mtime`. Setters and `open_ex_r`
+read only selected fields. Successful getters preserve flags and zero absent
+fields; errors, EAGAIN and directory EOF leave caller attributes unchanged.
+
 ## Independent repositories
 
 | Repository | Scope | Prerequisite |

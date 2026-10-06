@@ -1861,13 +1861,13 @@
         "tests/libssh2_facade_test.c"
       ]
     },
-    "cpkt_libssh2_sftp_eof_test": {
+    "cpkt_libssh2_sftp_attributes_test": {
       "group": "core",
       "kind": "add_executable",
       "public": false,
       "requires": [],
       "source_inputs": [
-        "tests/libssh2_sftp_eof_test.c"
+        "tests/libssh2_sftp_attributes_test.c"
       ]
     },
     "cpkt_libssh2_poll_elapsed_test": {
@@ -3028,14 +3028,14 @@
       ],
       "target_sensitive": false
     },
-    "libssh2_sftp_eof": {
+    "libssh2_sftp_attributes": {
       "group": "core",
       "command_inputs": [],
       "execution": "runtime",
       "requires": [],
       "registrations": [
         {
-          "name": "libssh2_sftp_eof",
+          "name": "libssh2_sftp_attributes",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
@@ -5748,6 +5748,7 @@
       "examples/lua-runtime-c89/main.c",
       "examples/lua-runtime-c89/host_module.c",
       "tests/openssl_facade_test.c",
+      "tests/libssh2_header_facade_test.c",
       "tests/cmocka_downstream_behavior.c"
     ]
   },
