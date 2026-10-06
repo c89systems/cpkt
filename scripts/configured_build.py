@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from cpkt_inventory import GROUPS, REPOSITORY_GROUP
 from cpkt_presets import preset_info
+from generated_output_paths import validate_output_paths
 
 
 def binary_dir(root, target):
@@ -17,7 +18,9 @@ def binary_dir(root, target):
         raise RuntimeError('unknown GROUP: '+group)
     if group == 'all':group=REPOSITORY_GROUP
     if selected:
-        directory = Path(selected).resolve()
+        directory = Path(selected)
+        validate_output_paths(directory)
+        directory = directory.resolve()
     else:
         preset = os.environ.get('PRESET', os.environ.get('CPKT_PRESET',
                  'debug' if target == 'x86_64-linux-gnu' else target+'-release'))
@@ -25,6 +28,7 @@ def binary_dir(root, target):
         if resolved != target:
             raise RuntimeError('PRESET='+preset+' resolves to '+resolved+', expected '+target)
         directory = root / 'build' / target / group / configuration
+    validate_output_paths(directory)
     if not (directory / "CMakeCache.txt").is_file():
         raise RuntimeError("configured CMake cache missing: " + str(directory))
     values={line.split(':',1)[0]:line.split('=',1)[1]
@@ -46,4 +50,6 @@ def cache_value(root, target, name):
 
 
 def scratch_dir(root, target, name):
-    return binary_dir(root, target) / name
+    directory = binary_dir(root, target) / name
+    validate_output_paths(directory)
+    return directory

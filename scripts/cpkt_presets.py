@@ -1,12 +1,14 @@
 """Read native CMake configuration; do not interpret preset inheritance."""
 from pathlib import Path
 import subprocess
+from generated_output_paths import validate_output_paths
 
 
 def preset_info(root, preset):
     from cpkt_receipts import cache
     root=Path(root)
     binary=Path(subprocess.check_output(['bash',str(root/'scripts/build.sh'),'path','--group','all','--preset',preset],text=True).strip())
+    validate_output_paths(binary)
     target, group, configuration=binary.relative_to(root/'build').parts
     configured=cache(binary/'CMakeCache.txt') if (binary/'CMakeCache.txt').is_file() else {}
     # The documented layout provides only the operation profile. All compiler,

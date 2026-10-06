@@ -684,6 +684,181 @@ class GeneratedOutputMutation(unittest.TestCase):
                 self.assertFalse((base / 'inventory').exists())
                 self.assertFalse((repo / 'child-marker').exists())
 
+    def configured_fixture(self, work):
+        repo, foreign, sentinel = self.seed(work)
+        tools = repo / 'build/test-tools'
+        tools.mkdir(parents=True)
+        marker = repo / 'build/child-marker'
+        tool = tools / 'compiler'
+        tool.write_text('#!' + sys.executable + '\nimport json,sys\nfrom pathlib import Path\n'
+            'Path(' + repr(str(marker)) + ').write_text("child")\n'
+            'if "-c" in sys.argv: Path(sys.argv[sys.argv.index("-o")+1]).write_bytes(b"object")\n'
+            'elif "-ast-dump=json" in sys.argv: print(json.dumps({"inner":[]}))\n'
+            'elif "-fdump-record-layouts-complete" not in sys.argv: print("#define SQLITE_OK 0")\n')
+        tool.chmod(0o755)
+        (tools / 'clang').symlink_to(tool)
+        (tools / 'compiler-alias').symlink_to(tool)
+        inputs = repo / 'build/native-input'
+        inputs.mkdir()
+        (repo / 'build/input-alias').symlink_to(inputs, target_is_directory=True)
+        from native_lifecycle_fixture import environment
+        env = dict(environment(), CPKT_CONFIGURED_GROUP=REPOSITORY_GROUP,
+                   PATH=str(tools) + os.pathsep + os.environ['PATH'])
+        return repo, foreign, sentinel, env
+
+    def configured_cache(self, repo, directory, target='x86_64-linux-gnu', group=None):
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / 'CMakeCache.txt').write_text('CPKT_TARGET_ID:STRING=' + target + '\n'
+            'CPKT_GROUP:STRING=' + (group or REPOSITORY_GROUP) + '\n'
+            'CMAKE_C_COMPILER:FILEPATH=' + str(repo / 'build/test-tools/compiler-alias') + '\n')
+
+    def configured_command(self, repo, env, action):
+        target = 'x86_64-linux-gnu'
+        if action == 'inventory':
+            command = [sys.executable, repo / 'scripts/db_api_inventory.py',
+                       '--target', target, '--provider', 'sqlite']
+        else:
+            driver = repo / 'build/configured-probe.py'
+            expression = ('m.compile_probe(' + repr(target) + ', "sqlite", ["int probe(void) { return 1; }"], native=True, native_include=Path(' + repr(str(repo / 'build/input-alias')) + '))'
+                          if action == 'compile' else 'm.check(' + repr(target) + ')' if action == 'batch' else
+                          'm.inspect(' + repr(target) + ', "sasl", include_override=Path(' + repr(str(repo / 'build/input-alias')) + '))')
+            module = 'auth_api_contract' if action == 'auth' else 'db_api_contract'
+            driver.write_text('import sys\nfrom pathlib import Path\nsys.path.insert(0,' + repr(str(repo / 'scripts')) + ')\n'
+                              'import ' + module + ' as m\n' + expression + '\n')
+            command = [sys.executable, driver]
+        return subprocess.run(list(map(str, command)), cwd=repo, env=env, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+    def foreign_tree(self, foreign):
+        return {str(path.relative_to(foreign)): (path.lstat().st_mode, path.lstat().st_ino,
+                path.lstat().st_mtime_ns, path.read_bytes() if path.is_file() else None)
+                for path in foreign.rglob('*')}
+
+    def test_configured_output_directory_lexical_ancestry_before_public_probes(self):
+        actions = ['inventory'] + (['compile', 'batch'] if REPOSITORY_GROUP == 'db' else
+                                  ['auth'] if REPOSITORY_GROUP == 'core' else [])
+        for selection in ('selected', 'relative', 'default'):
+            for kind in ('directory', 'ancestor', 'dangling'):
+                for action in actions:
+                    with self.subTest(selection=selection, kind=kind, action=action), tempfile.TemporaryDirectory(dir=ROOT / 'build', prefix='configured-redirect-') as tmp:
+                        repo, foreign, sentinel, env = self.configured_fixture(Path(tmp))
+                        directory = repo / 'build/x86_64-linux-gnu' / REPOSITORY_GROUP / 'Debug'
+                        link = directory.parent if kind == 'ancestor' else directory
+                        destination = foreign / 'absent' if kind == 'dangling' else foreign
+                        resolved = destination / directory.name if kind == 'ancestor' else destination
+                        if kind != 'dangling':
+                            self.configured_cache(repo, resolved)
+                            old_output = resolved / 'db-completion/inventory/x86_64-linux-gnu/native-sqlite.i'
+                            old_output.parent.mkdir(parents=True)
+                            old_output.write_bytes(b'unrelated native-sqlite.i\n')
+                            old_output.chmod(0o640)
+                        link.parent.mkdir(parents=True, exist_ok=True)
+                        link.symlink_to(destination, target_is_directory=True)
+                        if selection != 'default':
+                            env['CPKT_CONFIGURED_BINARY_DIR'] = str(directory if selection == 'selected' else directory.relative_to(repo))
+                        before = self.foreign_tree(foreign)
+                        result = self.configured_command(repo, env, action)
+                        self.assertNotEqual(0, result.returncode, result.stdout)
+                        self.assertIn('symlink ancestor', result.stdout.lower())
+                        self.assertIn(str(link), result.stdout)
+                        self.assertTrue(link.is_symlink())
+                        self.assertEqual(before, self.foreign_tree(foreign))
+                        self.assertFalse((repo / 'build/child-marker').exists())
+                        type(self).redirects += 1
+
+    def test_configured_downstream_outputs_preflight_with_real_adapter(self):
+        roles = [('inventory', 'inventory/x86_64-linux-gnu/native-sqlite.i'),
+                 ('inventory', 'inventory/x86_64-linux-gnu/native-sqlite.json')]
+        if REPOSITORY_GROUP == 'db':
+            roles += [('compile', 'contract/x86_64-linux-gnu/sqlite-native.c'),
+                      ('compile', 'contract/x86_64-linux-gnu/sqlite-native.o'),
+                      ('batch', 'contract/x86_64-linux-gnu/sqlite-native.o')]
+        if REPOSITORY_GROUP == 'core':
+            roles += [('auth', 'auth-completion/contract/x86_64-linux-gnu/sasl.i')]
+        for action, leaf in roles:
+            for kind in ('leaf', 'dangling', 'directory', 'ancestor'):
+                with self.subTest(action=action, leaf=leaf, kind=kind), tempfile.TemporaryDirectory(dir=ROOT / 'build', prefix='configured-downstream-') as tmp:
+                    repo, foreign, sentinel, env = self.configured_fixture(Path(tmp))
+                    directory = repo / 'build/configured'
+                    self.configured_cache(repo, directory)
+                    env['CPKT_CONFIGURED_BINARY_DIR'] = str(directory)
+                    output = directory / leaf if action == 'auth' else directory / 'db-completion' / leaf
+                    link = self.redirect(output, kind, foreign, sentinel)
+                    before = self.identity(sentinel)
+                    result = self.configured_command(repo, env, action)
+                    self.assert_refused(result, link, foreign, sentinel, before)
+                    self.assertFalse((repo / 'build/child-marker').exists())
+                    if kind in ('leaf', 'dangling'):
+                        self.assertEqual([link], list(output.parent.iterdir()))
+                    if action == 'batch':
+                        self.assertFalse((directory / 'db-completion/inventory').exists())
+
+    def test_configured_selection_cache_errors_and_immutable_aliases(self):
+        from configured_build import binary_dir, cache_value, scratch_dir
+        with tempfile.TemporaryDirectory(dir=ROOT / 'build', prefix='configured-selection-') as tmp:
+            repo, foreign, sentinel, env = self.configured_fixture(Path(tmp))
+            target = 'x86_64-linux-gnu'
+            debug = repo / 'build' / target / REPOSITORY_GROUP / 'Debug'
+            release = debug.parent / 'Release'
+            external = Path(tmp) / 'caller-owned/configured'
+            for directory in (debug, release, external):
+                self.configured_cache(repo, directory)
+            env.pop('CPKT_CONFIGURED_GROUP')
+            selections = [({}, debug), ({'PRESET':'release'}, release),
+                          ({'CPKT_PRESET':'release'}, release),
+                          ({'PRESET':'debug', 'CPKT_PRESET':'release'}, debug),
+                          ({'GROUP':REPOSITORY_GROUP}, debug),
+                          ({'GROUP':'wrong', 'CPKT_CONFIGURED_GROUP':REPOSITORY_GROUP}, debug),
+                          ({'CPKT_CONFIGURED_BINARY_DIR':str(external), 'PRESET':'invalid'}, external)]
+            for selectors, expected in selections:
+                with self.subTest(selectors=selectors), patch.dict(os.environ, dict(env, **selectors), clear=True):
+                    self.assertEqual(expected, binary_dir(repo, target))
+                    self.assertEqual(expected / 'probe', scratch_dir(repo, target, 'probe'))
+                    self.assertEqual(str(repo / 'build/test-tools/compiler-alias'), cache_value(repo, target, 'CMAKE_C_COMPILER'))
+            with patch.dict(os.environ, dict(env, CPKT_CONFIGURED_BINARY_DIR=str(external)), clear=True):
+                cache = external / 'CMakeCache.txt'
+                cache.write_text(cache.read_text().replace('compiler-alias', 'compiler'))
+                self.assertEqual(str(repo / 'build/test-tools/compiler'), cache_value(repo, target, 'CMAKE_C_COMPILER'))
+                self.configured_cache(repo, external, target='aarch64-linux-gnu')
+                with self.assertRaisesRegex(RuntimeError, 'configured target does not match'):
+                    binary_dir(repo, target)
+                self.configured_cache(repo, external, group=next(group for group in ('core','db','misc') if group != REPOSITORY_GROUP))
+                with self.assertRaisesRegex(RuntimeError, 'configured group does not match'):
+                    binary_dir(repo, target)
+                cache.unlink()
+                with self.assertRaisesRegex(RuntimeError, 'configured CMake cache missing'):
+                    binary_dir(repo, target)
+            for selectors, message in (({'GROUP':'unknown'}, 'unknown GROUP'),
+                    ({'PRESET':'aarch64-linux-gnu-release'}, 'resolves to'),
+                                        ({'CPKT_CONFIGURED_BINARY_DIR':str(external), 'PRESET':'release'}, 'configured CMake cache missing')):
+                with self.subTest(selectors=selectors), patch.dict(os.environ, dict(env, **selectors), clear=True):
+                    with self.assertRaisesRegex(RuntimeError, message):
+                        binary_dir(repo, target)
+            with patch.dict(os.environ, dict(env, PRESET='invalid'), clear=True):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    binary_dir(repo, target)
+            (debug / 'CMakeCache.txt').unlink()
+            with patch.dict(os.environ, env, clear=True):
+                with self.assertRaisesRegex(RuntimeError, 'configured CMake cache missing'):
+                    binary_dir(repo, target)
+            self.configured_cache(repo, debug)
+            for selected in (debug, external):
+                self.configured_cache(repo, selected)
+                good_env = dict(env, CPKT_CONFIGURED_BINARY_DIR=str(selected))
+                result = self.configured_command(repo, good_env, 'inventory')
+                self.assertEqual(0, result.returncode, result.stdout)
+                report = selected / 'db-completion/inventory' / target / 'native-sqlite.json'
+                import json
+                self.assertEqual({'SQLITE_OK':'0'}, json.loads(report.read_text())['macros'])
+                self.assertTrue((repo / 'build/child-marker').is_file())
+                (repo / 'build/child-marker').unlink()
+                if REPOSITORY_GROUP == 'db':
+                    result = self.configured_command(repo, good_env, 'compile')
+                    self.assertEqual(0, result.returncode, result.stdout)
+                    self.assertEqual(b'object', (selected / 'db-completion/contract' / target / 'sqlite-native.o').read_bytes())
+                    (repo / 'build/child-marker').unlink()
+            self.assertEqual([sentinel], list(foreign.iterdir()))
+
     @classmethod
     def tearDownClass(cls):
         print('Generated output redirects refused with bytes/modes preserved:', cls.redirects, file=sys.stderr)
