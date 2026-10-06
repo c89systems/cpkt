@@ -240,9 +240,9 @@ runtime evidence.
 
 In cpkt, `test-darwin-native` builds and tests all owned runtime suites and
 installation combinations in the same native source run;
-`test-github-actions-contracts` checks workflow contracts locally. Existing
-`test-darwin-sdk` and hosted artifact transport helpers are additional facilities,
-not prerequisites for native opt-in or release. Do not invoke them automatically.
-The source workflow's diagnostic archives remain distinct from the locally
-produced release assets. An offline fixture or an earlier source run does not
-supply exact-current-commit native source evidence.
+`test-github-actions-contracts` checks workflow contracts locally. Its GitHub
+workflow has only the native source job, with no draft/handoff artifact lane.
+Explicit local `test-darwin-sdk` checks are separate from this workflow and are
+not prerequisites for native opt-in or release. The source workflow's diagnostic
+archives remain distinct from locally produced release assets. An offline fixture
+or an earlier source run does not supply exact-current-commit native evidence.

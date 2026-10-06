@@ -128,7 +128,7 @@ class HostBash(unittest.TestCase):
         env = dict(self.env, PATH=str(tools) + os.pathsep + self.env['PATH'], GITHUB_PATH=str(github_path))
         text = (ROOT / '.github/workflows/darwin-bundle.yml').read_text()
         matches = re.findall(r'      - name: Select host Bash\n        shell: [^\n]+\n        run: \|\n((?:          [^\n]*\n)+)', text)
-        self.assertEqual(2, len(matches), 'each job needs its own stock-compatible PATH bootstrap')
+        self.assertEqual(1, len(matches), 'the source job needs its own stock-compatible PATH bootstrap')
         for lines in matches:
             bootstrap = self.work / 'bootstrap.sh'
             bootstrap.write_text(''.join(line[10:] + '\n' for line in lines.splitlines()))
@@ -137,7 +137,7 @@ class HostBash(unittest.TestCase):
             self.assertIn(str(prefix / 'bin/bash'), result.stdout)
             print('Bootstrap selected: ' + result.stdout.strip(), flush=True)
         selected = github_path.read_text().splitlines()
-        self.assertEqual([str(prefix / 'bin')] * 2, selected)
+        self.assertEqual([str(prefix / 'bin')], selected)
         # Apply the actual GITHUB_PATH result as the next worker step does.
         env['PATH'] = selected[0] + os.pathsep + env['PATH']
         (repo / 'Makefile').write_text('SHELL := bash\n.SHELLFLAGS := -euo pipefail -c\nprobe:\n\t@printf "make-shell=%s (%s)\\n" "$${BASH_VERSION}" "$${BASH}"\n\t@bash scripts/operation.sh --group all -- scripts/native-build.sh --version\n')

@@ -5,18 +5,6 @@ on:
     branches: ["feature/**", "fix/**", trunk]
   pull_request:
   workflow_dispatch:
-    inputs:
-      lane:
-        description: Native source only, or final tagged producer artifacts plus source
-        type: choice
-        options: [source, artifact]
-        default: source
-      producer_commit:
-        description: Exact final producer commit (artifact lane)
-        type: string
-      handoff:
-        description: Complete pinned draft handoff JSON (artifact lane)
-        type: string
 
 permissions:
   contents: read
@@ -32,7 +20,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-          ref: ${{ inputs.producer_commit || github.sha }}
+          ref: ${{ github.sha }}
       - name: Install build tools
         run: brew install bash cmake ninja coreutils gnu-sed gnu-tar gpatch util-linux pkg-config
       - name: Select host Bash
@@ -60,56 +48,5 @@ jobs:
             build/darwin-source-evidence.json
             build/arm64-apple-darwin/*/Release/cpkt-test-results.xml
             build/arm64-apple-darwin/*/Release/Testing/Temporary/LastTest.log
-            build/control/events.jsonl
-          if-no-files-found: error
-  arm64-artifact:
-    if: github.event_name == 'workflow_dispatch' && inputs.lane == 'artifact'
-    runs-on: macos-26
-    timeout-minutes: 120
-    env:
-      MACOSX_DEPLOYMENT_TARGET: "15.0"
-      CPKT_DEPENDENCY_BUILD_JOBS: "2"
-      CPKT_EXPECTED_PRODUCER_COMMIT: ${{ inputs.producer_commit }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ inputs.producer_commit }}
-      - name: Install consumer tools
-        run: brew install bash cmake ninja coreutils gnu-tar pkg-config util-linux
-      - name: Select host Bash
-        shell: /bin/bash --noprofile --norc -e -o pipefail {0}
-        run: |
-          host_bash_bin="$(brew --prefix bash)/bin"
-          export PATH="$host_bash_bin:$PATH"
-          hash -r
-          bash scripts/require-host-bash.sh
-          printf '%s\n' "$host_bash_bin" >> "$GITHUB_PATH"
-      - name: Host Bash regression
-        run: python3 tests/host_bash_prerequisite_test.py
-      - name: Validate final tag, credentials and pinned handoff before cache acquisition
-        env:
-          CPKT_DRAFT_TOKEN: ${{ secrets.CPKT_DRAFT_TOKEN }}
-          CPKT_HANDOFF: ${{ inputs.handoff }}
-        run: |
-          test "${GITHUB_REF_TYPE}" = tag
-          test -n "${CPKT_DRAFT_TOKEN}"
-          mkdir -p build/darwin-artifact-input
-          python3 -c 'import os,pathlib; pathlib.Path("build/darwin-artifact-input/handoff.json").write_text(os.environ["CPKT_HANDOFF"])'
-          python3 scripts/cpkt_github_handoff.py preflight --handoff build/darwin-artifact-input/handoff.json --producer-commit "$CPKT_EXPECTED_PRODUCER_COMMIT"
-      - name: Acquire only digest-pinned producer Darwin artifacts
-        env:
-          CPKT_DRAFT_TOKEN: ${{ secrets.CPKT_DRAFT_TOKEN }}
-        run: python3 scripts/cpkt_github_handoff.py download --handoff build/darwin-artifact-input/handoff.json --producer-commit "$CPKT_EXPECTED_PRODUCER_COMMIT"
-      - name: Execute exact producer SDK combinations
-        run: make test-darwin-sdk
-      - name: Preserve producer artifact diagnostics
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: cpkt-producer-arm64-apple-darwin
-          path: |
-            build/darwin-artifact-evidence.json
-            build/darwin-artifact-input/handoff.json
             build/control/events.jsonl
           if-no-files-found: error
