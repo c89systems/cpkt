@@ -209,10 +209,9 @@ and all local checksum, package, privacy, and artifact gates pass, the release
 branch and actual release tag remain local. This includes dispatch ref selection:
 never publish them merely to obtain hosted feedback or bypass a trigger filter.
 
-That boundary keeps a failed local release commit/tag repairable in a separately
-authorized fix iteration without rewriting remote release history. Preserve
-intended work and inspect local/remote refs before any rewind; opt-in itself is
-not permission to discard changes or automatically repair a failed release.
+For a failed local release, follow the single approval and complete rewind
+procedure in [release.md](release.md#failed-local-release-recovery).
+Hosted-verification opt-in does not authorize that rewind.
 
 Only an actual authorized release with successful tagged local artifact proof
 may push the release branch/tag, using the release procedure's explicit refs.

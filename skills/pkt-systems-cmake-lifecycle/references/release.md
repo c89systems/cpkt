@@ -198,15 +198,28 @@ evidence is an unverified delivery, not success. These are control-plane
 metadata requests, not permission to reacquire cached dependency archives.
 GitHub documents these fields in its [release asset API](https://docs.github.com/en/rest/releases/assets).
 
-If tagged release artifact generation or verification fails after the local lightweight tag is created, stop the release process. Do not push the release branch, push the tag, create the GitHub release, delete or move the tag, fix code, amend the release commit, or rebuild artifacts in the same release flow. Report the failing gate and current local state so the engineer can decide whether to start a separate fix iteration and how to handle the local tag.
+## Failed local release recovery
 
-In a separately authorized fix iteration, inspect local and remote ref state
-before rewinding an unpushed release commit/tag, preserve intended changes,
-and restart the release gates from scratch after the fix. Development Actions
-opt-in does not authorize that rewind or any remote-history rewrite. If refs
-were already pushed after successful local proof and a final hosted gate now
-fails, report the visible refs and leave the release unpublished; remote repair
-requires its own explicit decision.
+If tagged release artifact generation or verification fails, stop the release
+process and report the failing gate and current local state. Keep the release
+branch and tag local; do not fix, rebuild or publish in that failed release flow.
+
+Inspect the actual local and remote refs and present the proposed rewind before
+asking for one approval. For a topic-branch release, return to the original
+candidate branch, remove the owned local lightweight release tag, and restore the
+unpushed release branch to the recorded pre-squash base. Preserve the intended
+work on the candidate branch. If the original branch or base is unavailable,
+establish how to preserve the work before requesting approval.
+
+Once the engineer approves that rewind, execute and verify the entire approved
+operation without further per-step permission requests. If the inspected state
+changes or the operation fails, stop and report it; do not widen the approved
+scope. Start the separately authorized fix iteration from the restored branch,
+then restart the release gates from scratch.
+
+Development Actions opt-in does not authorize a rewind. If release refs were
+already pushed, leave them visible and the release unpublished; remote-history
+repair requires its own explicit decision.
 
 Release retry protocol:
 
