@@ -2,6 +2,7 @@
 
 #include <sasl/sasl.h>
 
+#include <limits.h>
 #include <string.h>
 
 static int mock_connection;
@@ -23,6 +24,9 @@ static const char *mock_source = "GSSAPI";
 static const char *mock_mechanism = "GSSAPI";
 static int mock_provider_credential_releases;
 static int mock_application_credential_releases;
+static unsigned long mock_option_length = 6;
+static int mock_option_status = SASL_OK;
+static int mock_option_calls;
 
 /* The injected provider test links only the receiver implementation. Native
  * global shutdown owns these plugin registries in the production build. */
@@ -46,6 +50,7 @@ typedef union mock_callback_bridge {
   sasl_getsimple_t *simple;
   sasl_getsecret_t *secret;
   sasl_chalprompt_t *challenge;
+  sasl_getopt_t *option;
 } mock_callback_bridge;
 
 static int mock_extended_simple(void *context, int identifier,
@@ -111,10 +116,55 @@ static int mock_option(void *context, const char *plugin, const char *name,
   (void)plugin;
   if (context == 0 || name == 0 || result == 0)
     return SASL_BADPARAM;
+  ++mock_option_calls;
   *result = "option";
   if (length != 0)
-    *length = 6;
-  return SASL_OK;
+    *length = mock_option_length;
+  return mock_option_status;
+}
+
+static int mock_option_boundaries(const sasl_callback_t *callback) {
+  mock_callback_bridge bridge;
+  unsigned long lengths[7];
+  unsigned native_length;
+  const char *result;
+  int count, index, error, null_length, expected, status, previous;
+
+  if (callback == 0 || callback->proc == 0)
+    return 1;
+  bridge.generic = callback->proc;
+  lengths[0] = 0;
+  lengths[1] = 6;
+  lengths[2] = (unsigned long)UINT_MAX - 1UL;
+  lengths[3] = UINT_MAX;
+  count = 4;
+#if ULONG_MAX > UINT_MAX
+  lengths[count++] = (unsigned long)UINT_MAX + 1UL;
+  lengths[count++] = (unsigned long)UINT_MAX + 37UL;
+  lengths[count++] = ULONG_MAX;
+#endif
+  for (index = 0; index < count; ++index)
+    for (error = 0; error < 2; ++error)
+      for (null_length = 0; null_length < 2; ++null_length) {
+        mock_option_length = lengths[index];
+        mock_option_status = error ? SASL_FAIL : SASL_OK;
+        expected =
+            lengths[index] > UINT_MAX ? SASL_BADPARAM : mock_option_status;
+        result = 0;
+        native_length = 37;
+        previous = mock_option_calls;
+        status = bridge.option(callback->context, "cpkt-test", "option",
+                               &result, null_length ? 0 : &native_length);
+        if (status != expected || mock_option_calls != previous + 1 ||
+            result == 0 || strcmp(result, "option") != 0 ||
+            native_length != (null_length || lengths[index] > UINT_MAX
+                                  ? 37U
+                                  : (unsigned)lengths[index]))
+          return 1;
+      }
+  mock_option_length = 6;
+  mock_option_status = SASL_OK;
+  return 0;
 }
 
 static int mock_secret(cpkt_sasl *connection, void *context, int identifier,
@@ -445,6 +495,8 @@ int main(void) {
       client->get_option_context(client, &option_context) != CPKT_SASL_OK ||
       option_context != &callback_calls)
     return 35;
+  if (mock_option_boundaries(mock_callback(SASL_CB_GETOPT)) != 0)
+    return 36;
   callback = mock_callback(SASL_CB_AUTHNAME);
   if (callback == 0 || callback->proc == 0)
     return 2;
@@ -588,6 +640,9 @@ int main(void) {
   if (cpkt_sasl_client_initialize(&callbacks) != CPKT_SASL_OK ||
       cpkt_sasl_client_initialize(0) != CPKT_SASL_OK)
     return 14;
+  if (mock_option_boundaries(mock_find_callback(mock_client_global_callbacks,
+                                                SASL_CB_GETOPT)) != 0)
+    return 37;
   callback = mock_find_callback(mock_client_global_callbacks, SASL_CB_AUTHNAME);
   if (callback == 0 || callback->proc == 0)
     return 15;
@@ -610,6 +665,9 @@ int main(void) {
   if (cpkt_sasl_server_initialize(&callbacks, "test") != CPKT_SASL_OK ||
       cpkt_sasl_server_initialize(0, "test") != CPKT_SASL_OK)
     return 18;
+  if (mock_option_boundaries(mock_find_callback(mock_server_global_callbacks,
+                                                SASL_CB_GETOPT)) != 0)
+    return 38;
   callback = mock_find_callback(mock_server_global_callbacks, SASL_CB_AUTHNAME);
   if (callback == 0 || callback->proc == 0)
     return 19;

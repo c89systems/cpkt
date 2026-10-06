@@ -1,5 +1,6 @@
 #include <cpkt/sasl_plugin.h>
 
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -16,6 +17,8 @@ static int client_cookie, server_cookie, ignored_cookie;
 static void *expected_context;
 static const cpkt_sasl_plugin_utils *shared_utils, *role_utils[2];
 static int observations, expired[2], expired_calls;
+static int option_length_override;
+static unsigned long option_reported_length;
 
 static int option(void *context, const char *plugin, const char *name,
                   const char **result, unsigned long *length) {
@@ -30,7 +33,8 @@ static int option(void *context, const char *plugin, const char *name,
     return CPKT_SASL_FAIL;
   *result = context == &client_cookie ? "client" : "server";
   if (length != NULL)
-    *length = (unsigned long)strlen(*result);
+    *length = option_length_override ? option_reported_length
+                                     : (unsigned long)strlen(*result);
   return CPKT_SASL_OK;
 }
 
@@ -49,6 +53,47 @@ static int inspect(const cpkt_sasl_plugin_utils *utils) {
          strcmp(value, expected_context == &client_cookie ? "client"
                                                           : "server") == 0 &&
          length == (unsigned long)strlen(value);
+}
+
+static int option_lengths(const cpkt_sasl_plugin_utils *utils) {
+  unsigned long lengths[7], length;
+  const char *value;
+  int count, index, null_length, status;
+
+  lengths[0] = 0;
+  lengths[1] = 6;
+  lengths[2] = (unsigned long)UINT_MAX - 1UL;
+  lengths[3] = UINT_MAX;
+  count = 4;
+#if ULONG_MAX > UINT_MAX
+  lengths[count++] = (unsigned long)UINT_MAX + 1UL;
+  lengths[count++] = (unsigned long)UINT_MAX + 37UL;
+  lengths[count++] = ULONG_MAX;
+#endif
+  option_length_override = 1;
+  for (index = 0; index < count; ++index)
+    for (null_length = 0; null_length < 2; ++null_length) {
+      option_reported_length = lengths[index];
+      value = NULL;
+      length = 37;
+      status = utils->option(utils, NULL, "cpkt-regression-option", &value,
+                             null_length ? NULL : &length);
+      if (lengths[index] > UINT_MAX) {
+        /* Cyrus may replace a rejected callback status through its normal
+         * configuration fallback. It must not report a truncated success. */
+        CHECK(status != CPKT_SASL_OK);
+        CHECK(length == (null_length ? 37UL : 0UL));
+      } else {
+        CHECK(status == CPKT_SASL_OK);
+        CHECK(value != NULL);
+        CHECK(strcmp(value, expected_context == &client_cookie
+                                ? "client"
+                                : "server") == 0);
+        CHECK(length == (null_length ? 37UL : lengths[index]));
+      }
+    }
+  option_length_override = 0;
+  return 0;
 }
 
 /* Deliberately reject registration after examining the real factory utilities.
@@ -184,8 +229,12 @@ static int global_options(void) {
                                               NULL) == CPKT_SASL_FAIL);
           CHECK(observations == previous + 1);
           CHECK(inspect(role_utils[role]));
+          if (expected_context != NULL)
+            CHECK(option_lengths(role_utils[role]) == 0);
         }
         expected_context = absent ? NULL : callbacks[1 - first].context;
+        if (expected_context != NULL)
+          CHECK(option_lengths(shared_utils) == 0);
         CHECK(initialize(first, &ignored) == CPKT_SASL_OK);
         CHECK(inspect(shared_utils));
         CHECK(finish(first) == CPKT_SASL_CONTINUE);

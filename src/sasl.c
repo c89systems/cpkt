@@ -267,6 +267,8 @@ static int cpkt_sasl_option_native(void *context, const char *plugin,
     int status;
     status = owner->callbacks.option(owner->callbacks.context, plugin, option,
                                      result, &public_length);
+    if (public_length > UINT_MAX)
+      return SASL_BADPARAM;
     if (length != NULL)
       *length = (unsigned)public_length;
     return status;
