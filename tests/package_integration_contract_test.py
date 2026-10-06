@@ -852,6 +852,27 @@ leading]==] [==[literal "quotes"]==])
             self.assertEqual(build['args'][1],'test' if action=='debug' else 'build')
             self.assertEqual(build['args'][-1],'arm64-apple-darwin-debug')
 
+    def test_public_release_verification_aliases_require_complete_scope(self):
+        root=self.work/'release-aliases';variables,record=trace(root)
+        shutil.copy2(ROOT/'Makefile',root/'Makefile')
+        for action in ('verify-release-archives','verify-release-privacy'):
+            for selection in ([], ['SCOPE=release']):
+                with self.subTest(action=action, selection=selection):
+                    record.unlink(missing_ok=True)
+                    result=subprocess.run(['make','--no-print-directory','-C',str(root),action,*selection],
+                        env=variables,capture_output=True,text=True)
+                    self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+                    calls=[json.loads(line)['args'] for line in record.read_text().splitlines()]
+                    self.assertEqual(len(calls),1,calls)
+                    self.assertEqual(calls[0][:2],['package.sh',action])
+                    self.assertEqual(calls[0][calls[0].index('--scope')+1],'release')
+            record.unlink()
+            result=subprocess.run(['make','--no-print-directory','-C',str(root),action,'SCOPE=binary'],
+                env=variables,capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('requires SCOPE=release',result.stderr)
+            self.assertFalse(record.exists(),'narrowed release alias reached artifact work')
+
     def test_shell_defaults_preserve_matrix_and_selected_scope(self):
         root=self.work/'dispatch';variables,record=trace(root)
         owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']

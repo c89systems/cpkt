@@ -442,6 +442,13 @@ include(cmake/CpktPackage.cmake)
                  'coverage':['fixture'],'verification_id':verification_inputs(self.root,owner,configured),
                  'components':changed,'outputs':group_outputs(directory)})
         validate_development(self.root, 'synthetic', owner, 'Debug', 'debug')
+        for source in (top, self.root/'CMakePresets.json'):
+            original=source.read_bytes()
+            source.write_bytes(original+b'\n')
+            with self.assertRaisesRegex(RuntimeError, 'verification changed'):
+                validate_development(self.root, 'synthetic', owner, 'Debug', 'debug')
+            source.write_bytes(original)
+            validate_development(self.root, 'synthetic', owner, 'Debug', 'debug')
         path.write_text(recipe.replace('set(value one)','set(value two)',1))
         # No producer reconfiguration: borrowed readiness must reject the old
         # contract while unrelated component inputs remain reusable.

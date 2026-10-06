@@ -274,14 +274,11 @@ def verification_inputs(root, group, configured):
     abi_keys={'core':('CMOCKA','NGHTTP2','LIBSSH2','MQTTC','OPENSSL','LUA','LUA_RUNTIME','GSSAPI','SASL'), 'db':('POSTGRES','SQLITE'), 'misc':('OPCUA','PDF','AUDIO','SUS')}
     flags = {k: v for k, v in configured.items() if k in { 'CPKT_'+name+'_ABI_VERSION' for name in abi_keys[group]} or k.startswith(('CMAKE_C_FLAGS','CMAKE_CXX_FLAGS')) or k in
              ('CMAKE_CROSSCOMPILING_EMULATOR', 'CMAKE_BUILD_TYPE', 'CPKT_TARGET_ID', 'CPKT_BUILD_TESTS')}
-    helpers = {}
-    top = (root / 'CMakeLists.txt').read_text()
-    for name in ('cpkt_add_repo_warning_errors', 'cpkt_configure_c89_target',
-                 'cpkt_apply_auth_export_catalog', 'cpkt_configure_c89_lua_native_header_target',
-                 'cpkt_add_lua_runtime_mock_test', 'cpkt_register_local_runtime_checks'):
-        found = re.search(r'function\(' + name + r'\b.*?endfunction\(\)', top, re.S)
-        if found:
-            helpers[name] = found.group(0)
+    # Bind the native graph source, including settings outside helper bodies.
+    # CMake evaluates it; this validator only compares its actual source bytes.
+    helpers = {'CMakeLists.txt': file_identity(root / 'CMakeLists.txt')}
+    if (root / 'CMakePresets.json').is_file():
+        helpers['CMakePresets.json'] = file_identity(root / 'CMakePresets.json')
     for name in ('cmake/CpktLocalRuntime.cmake','cmake/CpktGroups.cmake','cmake/CpktTestInventory.cmake'):
         common = root/name
         if common.is_file():

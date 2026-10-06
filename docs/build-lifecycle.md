@@ -38,6 +38,9 @@ not manage groups or schedule builds. Fixture reuse requires the same live run,
 exact input bytes/environment, command argv and output identities. Completed
 readiness requires every native required CTest case exactly once in successful
 JUnit; filtered or failed runs cannot publish full readiness.
+Readiness binds the current CMake graph and preset source bytes as well as the
+configured outputs. Release verification aliases always select complete release
+scope, including source artifacts and reconstruction evidence.
 
 Source reconstruction uses `scripts/source-reconstruct.sh` in an independently
 locked extracted source root with the parent's actual shared cache, generator and

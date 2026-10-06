@@ -42,6 +42,7 @@ esac
 if [ "$scope_explicit" = yes ] && [ -n "$expected_scope" ] && [ "$scope" != "$expected_scope" ]; then
   cpkt_fail "$action requires SCOPE=$expected_scope"
 fi
+if [ -n "$expected_scope" ]; then scope="$expected_scope"; fi
 case "$action" in
   debug|test-debug|test-host|build-debug|build-host|clangd-surface|finalize-slice|valgrind|fuzz|fuzz-smoke|fuzz-long|examples|e2e-postgres|test-e2e)
     case "$preset" in debug|arm64-apple-darwin-debug) ;; *) cpkt_fail "$action requires native Debug PRESET" ;; esac ;;
