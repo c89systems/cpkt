@@ -154,6 +154,9 @@ deps -> configure -> build -> test -> hardening -> e2e -> package -> verify -> r
 ```
 
 The lifecycle has mandatory surfaces and optional extension surfaces.
+Each project chooses its shipped targets and artifact types. Required release
+coverage follows that declared shipment set; available toolchains do not select
+it. cpkt's bundle target requirements do not apply automatically to consumers.
 
 Mandatory surfaces:
 
@@ -164,13 +167,13 @@ Mandatory surfaces:
 - Dependency acquisition from `cpkt` SDK bundles for consumers, or checksum-pinned upstream inputs for bundle producers; producers do not acquire themselves.
 - Fast host tests.
 - Native Valgrind memory-check tests.
-- Release target matrix.
-- Binary SDK packaging.
-- Checksums.
+- Release verification for the declared target and artifact set.
+- Binary SDK packaging, when a binary SDK is shipped.
+- Checksums for released artifacts.
 - Release artifact verification.
 - Privacy and host-path scans.
 - Relocatable runtime paths for shipped binaries and shared libraries.
-- Install-tree downstream consumer tests.
+- Install-tree downstream consumer tests, when a public SDK is shipped.
 
 Optional extension surfaces, enabled when the project needs them:
 
@@ -262,13 +265,11 @@ Required configure presets:
 - `valgrind`: native Debug C facade CTests checked by host-provided Valgrind.
 - `fuzz`, when fuzzing exists.
 - `integration`, when opt-in integration tests exist.
-- `x86_64-linux-gnu-release`
-- `x86_64-linux-musl-release`
-- `aarch64-linux-gnu-release`
-- `aarch64-linux-musl-release`
-- `armhf-linux-gnu-release`
-- `armhf-linux-musl-release`
-- `arm64-apple-darwin-release`, when Darwin artifacts are supported.
+- `<target-id>-release` for each declared release target.
+
+cpkt requires release presets for all six Linux targets listed in
+[packaging.md](packaging.md#packaging). Other projects choose their release targets;
+Darwin release presets are required when Darwin artifacts are declared.
 
 Optional configure presets:
 
@@ -286,7 +287,7 @@ Preset rules:
 - The hidden `base` preset pins the default dependency mode. Do not let stale CMake cache state silently change Valgrind, fuzz, integration, or release dependency resolution.
 - Keep `valgrind` as an explicit native-host public target; do not silently turn a normal debug build into a memory-check run.
 - Release presets set `<P>_DIST_DIR` and `<P>_TARGET_ID` explicitly.
-- Optional cross presets may reference standard toolchain files or documented environment-owned compiler paths. If a cross toolchain is unavailable, release matrix scripts may skip that target only with an explicit message.
+- Cross presets use the selected lifecycle toolchains. An unavailable toolchain for a required release target fails the gate; optional targets may be skipped only under the declared release contract and with an explicit message.
 - Add a local test that verifies required presets, required cache variables, and dependency-mode defaults.
 
 Use project-prefixed CMake options:

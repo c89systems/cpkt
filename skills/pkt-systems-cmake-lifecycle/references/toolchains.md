@@ -14,6 +14,10 @@ This lifecycle owns C and C++ compiler resolution for pkt.systems C/CMake projec
 
 ## Linux Targets
 
+These are the resolver-supported collections, not a required shipment set for
+every consumer. cpkt requires all six; other projects select their release targets
+under [operability.md](operability.md#lifecycle-spine).
+
 | Target | Pinned Bootlin collection | Compiler prefix | Sysroot |
 | --- | --- | --- | --- |
 | `x86_64-linux-gnu` | `x86-64--glibc--stable-2026.08-1` | `x86_64-linux` | `x86_64-buildroot-linux-gnu/sysroot` |

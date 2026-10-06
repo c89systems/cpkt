@@ -4,7 +4,7 @@
 
 Release artifacts are built under `dist/`.
 
-Default target IDs:
+cpkt's required Linux target IDs:
 
 - `x86_64-linux-gnu`
 - `x86_64-linux-musl`
@@ -12,7 +12,10 @@ Default target IDs:
 - `aarch64-linux-musl`
 - `armhf-linux-gnu`
 - `armhf-linux-musl`
-- `arm64-apple-darwin`, optional when the Darwin cross toolchain exists
+
+Other projects choose their shipped targets and artifact types. Add
+`arm64-apple-darwin` when Darwin shipment is declared. A required target remains
+required when its toolchain is unavailable; follow the owning release inventory.
 
 Default single-package binary SDK naming:
 
