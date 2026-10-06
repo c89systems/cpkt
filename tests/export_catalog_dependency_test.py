@@ -89,6 +89,8 @@ def main() -> None:
         build = scratch / "build"
         catalog = fixture / "cmake" / "exports" / "export_probe.txt"
         catalog.parent.mkdir(parents=True)
+        shutil.copy2(root / "cmake/CpktMutationPaths.cmake",
+                     fixture / "cmake/CpktMutationPaths.cmake")
         catalog.write_text(SYMBOLS[0] + "\n")
         (fixture / "probe.c").write_text(
             "int cpkt_export_probe_alpha(void) { return 1; }\n"

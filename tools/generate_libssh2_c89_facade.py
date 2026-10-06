@@ -53,6 +53,10 @@ SPECIAL_FUNCTIONS = {
 }
 
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
+
+
 def transform(text: str) -> str:
     text = text.replace("LIBSSH2CHANNEL_", "CPKT_LIBSSH2_CHANNEL_")
     text = text.replace("LIBSSH2SFTP_", "CPKT_LIBSSH2_SFTP_")
@@ -590,6 +594,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    validate_output_paths(args.header, args.source)
     include_dirs = [pathlib.Path(value) for value in
                     str(args.include_dir).split(";") if value]
     header_dir = next(
@@ -605,9 +610,9 @@ def main() -> int:
             raise ValueError("required input is missing: " + str(path))
         headers[name] = path.read_text(encoding="utf-8").replace("\\\n", " ")
     args.header.parent.mkdir(parents=True, exist_ok=True)
-    args.header.write_text(public_header(headers), encoding="utf-8")
+    write_generated_text(args.header, public_header(headers), encoding="utf-8")
     args.source.parent.mkdir(parents=True, exist_ok=True)
-    args.source.write_text(facade_source(headers), encoding="utf-8")
+    write_generated_text(args.source, facade_source(headers), encoding="utf-8")
     return 0
 
 

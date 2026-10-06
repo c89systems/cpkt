@@ -5048,7 +5048,9 @@
     "repository_boundary": {
       "group": "tooling",
       "command_inputs": [
-        "tests/repository_boundary_test.py"
+        "tests/repository_boundary_test.py",
+        "tests/generated_output_ancestry_test.py",
+        "scripts/generated_output_paths.py"
       ],
       "requires": [],
       "registrations": [

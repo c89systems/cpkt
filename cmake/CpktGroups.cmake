@@ -232,6 +232,15 @@ function(cpkt_group_get_target_property output name property)
 endfunction()
 
 function(cpkt_validate_owned_graph)
+  include("${CMAKE_CURRENT_FUNCTION_LIST_DIR}/CpktMutationPaths.cmake")
+  # Validate the complete owned configure-output set before its first writer.
+  cpkt_validate_mutation_paths("${CMAKE_BINARY_DIR}/cpkt-facades.cmake"
+    "${CMAKE_BINARY_DIR}/cpkt-owned-outputs.txt"
+    "${CMAKE_BINARY_DIR}/cpkt-package-components.json"
+    "${CMAKE_BINARY_DIR}/cpkt-sdk-install.cmake"
+    "${CMAKE_BINARY_DIR}/cpkt-required-coverage.txt"
+    "${CMAKE_BINARY_DIR}/cpkt-generated-outputs.txt")
+  cpkt_write_generated_output_inventory()
   get_property(_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
   if(NOT CPKT_FACADE_ONLY)
     string(JSON _count LENGTH "${CPKT_INVENTORY}" targets)

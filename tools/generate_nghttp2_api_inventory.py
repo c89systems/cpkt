@@ -22,6 +22,10 @@ FACADE_FUNCTION_PATTERN = re.compile(
     r"\b(cpkt_nghttp2_[A-Za-z0-9_]+)\s*\(")
 
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
+
+
 def walk_ast(node: Any) -> Iterable[Dict[str, Any]]:
     if not isinstance(node, dict):
         return
@@ -56,7 +60,7 @@ def build_umbrella(include_dir: pathlib.Path,
                    output_dir: pathlib.Path) -> pathlib.Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     source = output_dir / "nghttp2-api-inventory.c"
-    source.write_text("#include <nghttp2/nghttp2.h>\n"
+    write_generated_text(source, "#include <nghttp2/nghttp2.h>\n"
                       "int main(void) { return 0; }\n",
                       encoding="utf-8")
     return source
@@ -142,6 +146,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    validate_output_paths(args.output, args.work_dir / "nghttp2-api-inventory.c")
     header = args.include_dir / "nghttp2" / "nghttp2.h"
     for path in (header, args.library):
         if not path.is_file():
@@ -197,7 +202,7 @@ def main() -> int:
         "missing_c89_facade_functions": missing_facade_functions,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(inventory, indent=2, sort_keys=True) + "\n",
+    write_generated_text(args.output, json.dumps(inventory, indent=2, sort_keys=True) + "\n",
                            encoding="utf-8")
     if missing_facade_functions:
         raise ValueError("nghttp2 C89 facade omits required functions: " +

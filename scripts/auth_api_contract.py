@@ -14,6 +14,7 @@ import subprocess
 import sys
 
 from configured_build import cache_value, scratch_dir
+from generated_output_paths import validate_output_paths, write_generated_text
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SNAPSHOT = ROOT / "tests" / "contracts" / "auth_native_api.json"
@@ -144,6 +145,9 @@ def macros(compiler_path, include, source, provider):
 
 
 def inspect(target, provider, include_override=None):
+    directory = output_dir(target) / target
+    prepared = directory / (provider + ".i")
+    validate_output_paths(prepared)
     name = "krb5" if provider == "gssapi" else "cyrus-sasl"
     include = include_override or ROOT / ".cache" / "deps" / target / name / "install" / "include"
     if not include.is_dir():
@@ -152,10 +156,8 @@ def inspect(target, provider, include_override=None):
     source = SOURCES[provider]
     preprocessed = run([cc, "-std=gnu99", "-E", "-x", "c", "-I",
                         str(include), "-"], source)
-    directory = output_dir(target) / target
     directory.mkdir(parents=True, exist_ok=True)
-    prepared = directory / (provider + ".i")
-    prepared.write_text(preprocessed)
+    write_generated_text(prepared, preprocessed)
     triple = run([cc, "-dumpmachine"]).strip()
     ast = json.loads(run(["clang", "-target", triple, "-x", "c", "-std=gnu99", "-fblocks", "-Xclang",
                           "-ast-dump=json", "-fsyntax-only", str(prepared)]))
@@ -166,6 +168,8 @@ def inspect(target, provider, include_override=None):
 
 
 def check(targets, overrides=None):
+    validate_output_paths(*(output_dir(target) / target / (provider + ".i")
+        for target in targets for provider in SOURCES))
     expected = json.loads(SNAPSHOT.read_text())
     failures = []
     for target in targets:

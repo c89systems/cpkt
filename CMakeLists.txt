@@ -141,6 +141,8 @@ function(cpkt_apply_auth_export_catalog target_name catalog_name)
           "-Wl,--version-script,${_linker_file}" "-Wl,--exclude-libs,ALL")
   endif()
   if(DEFINED _linker_file)
+    include("${CMAKE_SOURCE_DIR}/cmake/CpktMutationPaths.cmake")
+    cpkt_register_generated_outputs("${_linker_file}")
     if(EXISTS "${_linker_file}")
       file(READ "${_linker_file}" _previous_linker_contents)
     endif()
@@ -491,6 +493,7 @@ if(NOT CPKT_NGHTTP2_FACADE_NATIVE_INCLUDE_DIR)
   message(FATAL_ERROR "nghttp2 target does not expose public include directories")
 endif()
 set(CPKT_NGHTTP2_FACADE_NATIVE_HEADERS "${CPKT_NGHTTP2_FACADE_NATIVE_INCLUDE_DIR}/nghttp2/nghttp2.h" "${CPKT_NGHTTP2_FACADE_NATIVE_INCLUDE_DIR}/nghttp2/nghttp2ver.h")
+cpkt_register_generated_outputs("${CPKT_NGHTTP2_FACADE_HEADER}" "${CPKT_NGHTTP2_FACADE_SOURCE}")
 add_custom_command(
   OUTPUT "${CPKT_NGHTTP2_FACADE_HEADER}" "${CPKT_NGHTTP2_FACADE_SOURCE}"
   COMMAND "${CPKT_PYTHON3_EXECUTABLE}"
@@ -500,6 +503,7 @@ add_custom_command(
     --source "${CPKT_NGHTTP2_FACADE_SOURCE}"
   DEPENDS
     "${CMAKE_SOURCE_DIR}/tools/generate_nghttp2_c89_facade.py"
+    "${CMAKE_SOURCE_DIR}/scripts/generated_output_paths.py"
     ${CPKT_NGHTTP2_FACADE_NATIVE_HEADERS}
   VERBATIM)
 set_source_files_properties("${CPKT_NGHTTP2_FACADE_SOURCE}" PROPERTIES GENERATED TRUE)
@@ -541,6 +545,7 @@ if(NOT CPKT_LIBSSH2_FACADE_NATIVE_INCLUDE_DIR)
   message(FATAL_ERROR "libssh2 target does not expose public include directories")
 endif()
 set(CPKT_LIBSSH2_FACADE_NATIVE_HEADERS "${CPKT_LIBSSH2_FACADE_NATIVE_INCLUDE_DIR}/libssh2.h" "${CPKT_LIBSSH2_FACADE_NATIVE_INCLUDE_DIR}/libssh2_sftp.h" "${CPKT_LIBSSH2_FACADE_NATIVE_INCLUDE_DIR}/libssh2_publickey.h")
+cpkt_register_generated_outputs("${CPKT_LIBSSH2_FACADE_HEADER}" "${CPKT_LIBSSH2_FACADE_SOURCE}")
 add_custom_command(
   OUTPUT "${CPKT_LIBSSH2_FACADE_HEADER}" "${CPKT_LIBSSH2_FACADE_SOURCE}"
   COMMAND "${CPKT_PYTHON3_EXECUTABLE}"
@@ -550,6 +555,7 @@ add_custom_command(
     --source "${CPKT_LIBSSH2_FACADE_SOURCE}"
   DEPENDS
     "${CMAKE_SOURCE_DIR}/tools/generate_libssh2_c89_facade.py"
+    "${CMAKE_SOURCE_DIR}/scripts/generated_output_paths.py"
     ${CPKT_LIBSSH2_FACADE_NATIVE_HEADERS}
   VERBATIM)
 set_source_files_properties("${CPKT_LIBSSH2_FACADE_SOURCE}" PROPERTIES GENERATED TRUE)
@@ -601,6 +607,7 @@ if(NOT CPKT_MQTTC_FACADE_NATIVE_INCLUDE_DIR)
   message(FATAL_ERROR "MQTT-C target does not expose public include directories")
 endif()
 set(CPKT_MQTTC_FACADE_NATIVE_HEADERS "${CPKT_MQTTC_FACADE_NATIVE_INCLUDE_DIR}/mqtt.h")
+cpkt_register_generated_outputs("${CPKT_MQTTC_FACADE_HEADER}" "${CPKT_MQTTC_FACADE_SOURCE}")
 add_custom_command(
   OUTPUT "${CPKT_MQTTC_FACADE_HEADER}" "${CPKT_MQTTC_FACADE_SOURCE}"
   COMMAND "${CPKT_PYTHON3_EXECUTABLE}"
@@ -610,6 +617,7 @@ add_custom_command(
     --source "${CPKT_MQTTC_FACADE_SOURCE}"
   DEPENDS
     "${CMAKE_SOURCE_DIR}/tools/generate_mqttc_c89_facade.py"
+    "${CMAKE_SOURCE_DIR}/scripts/generated_output_paths.py"
     ${CPKT_MQTTC_FACADE_NATIVE_HEADERS}
   VERBATIM)
 set_source_files_properties("${CPKT_MQTTC_FACADE_SOURCE}" PROPERTIES GENERATED TRUE)
@@ -688,6 +696,7 @@ if(NOT CPKT_LUA_FACADE_NATIVE_INCLUDE_DIR)
   message(FATAL_ERROR "Lua target does not expose public include directories")
 endif()
 set(CPKT_LUA_FACADE_NATIVE_HEADERS "${CPKT_LUA_FACADE_NATIVE_INCLUDE_DIR}/lua.h" "${CPKT_LUA_FACADE_NATIVE_INCLUDE_DIR}/luaconf.h" "${CPKT_LUA_FACADE_NATIVE_INCLUDE_DIR}/lauxlib.h" "${CPKT_LUA_FACADE_NATIVE_INCLUDE_DIR}/lualib.h")
+cpkt_register_generated_outputs("${CPKT_LUA_FACADE_HEADER}" "${CPKT_LUA_FACADE_SOURCE}")
 add_custom_command(
   OUTPUT "${CPKT_LUA_FACADE_HEADER}" "${CPKT_LUA_FACADE_SOURCE}"
   COMMAND "${CPKT_PYTHON3_EXECUTABLE}"
@@ -697,6 +706,7 @@ add_custom_command(
     --source "${CPKT_LUA_FACADE_SOURCE}"
   DEPENDS
     "${CMAKE_SOURCE_DIR}/tools/generate_lua_c89_facade.py"
+    "${CMAKE_SOURCE_DIR}/scripts/generated_output_paths.py"
     ${CPKT_LUA_FACADE_NATIVE_HEADERS}
   VERBATIM)
 set_source_files_properties("${CPKT_LUA_FACADE_SOURCE}" PROPERTIES GENERATED TRUE)
@@ -907,6 +917,7 @@ if(CPKT_BUILD_TESTS)
   string(REPLACE "\r" "\\r" _cpkt_lua_runtime_example_literal "${_cpkt_lua_runtime_example_literal}")
   string(REPLACE "\t" "\\t" _cpkt_lua_runtime_example_literal "${_cpkt_lua_runtime_example_literal}")
 
+  cpkt_validate_mutation_paths("${_cpkt_lua_runtime_example_file}")
   file(WRITE "${_cpkt_lua_runtime_example_file}"
       "local host = require('example_host')\n"
       "local chunk = require('example_chunk')\n"

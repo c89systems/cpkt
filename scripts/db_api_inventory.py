@@ -15,6 +15,7 @@ import subprocess
 import sys
 
 from configured_build import cache_value, scratch_dir
+from generated_output_paths import validate_output_paths, write_generated_text
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TARGETS = (
@@ -215,6 +216,10 @@ def inspect(target, provider, facade=False, include_override=None):
     else:
         source_names = names
     source = "".join("#include <{}>\n".format(name) for name in source_names)
+    directory = output_dir(target) / target
+    stem = ("facade-" if facade else "native-") + provider
+    path = directory / (stem + ".i")
+    validate_output_paths(path, directory / (stem + ".json"))
     cc = compiler(target)
     flags = [] if facade else list(DEFINES[provider])
     if not facade and provider == "postgres":
@@ -222,11 +227,8 @@ def inspect(target, provider, facade=False, include_override=None):
         flags += ["-I", str(source_root)]
     prepared = run([cc, "-std=gnu99", "-E", "-x", "c", "-I", str(include),
                     *flags, "-"], source)
-    directory = output_dir(target) / target
     directory.mkdir(parents=True, exist_ok=True)
-    path = directory / ("facade-" if facade else "native-")
-    path = pathlib.Path(str(path) + provider + ".i")
-    path.write_text(prepared)
+    write_generated_text(path, prepared)
     clang_flags = ["-target", CLANG_TARGETS[target]]
     if target.startswith("armhf"):
         clang_flags += ["-mfloat-abi=hard"]
@@ -266,7 +268,7 @@ def main():
     result = inspect(args.target, args.provider, args.facade)
     path = output_dir(args.target) / args.target / (
         ("facade-" if args.facade else "native-") + args.provider + ".json")
-    path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    write_generated_text(path, json.dumps(result, indent=2, sort_keys=True) + "\n")
     print("{} {} {}: {} functions, {} records, {} enums, {} macros".format(
         args.target, args.provider, "facade" if args.facade else "native",
         len(result["functions"]), len(result["records"]),

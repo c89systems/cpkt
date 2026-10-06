@@ -15,6 +15,7 @@ import sys
 sys.dont_write_bytecode = True
 
 import auth_api_contract as native_contract
+from generated_output_paths import validate_output_paths, write_generated_text
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SNAPSHOT = ROOT / "tests/contracts/auth_facade_signatures.json"
@@ -24,16 +25,17 @@ SOURCE = ("#include <cpkt/gssapi.h>\n"
 
 
 def inspect(target, include_root=None):
+    directory = native_contract.output_dir(target) / target
+    source = directory / "facade.i"
+    validate_output_paths(source)
     cc = native_contract.compiler(target)
     triple = native_contract.run([cc, "-dumpmachine"]).strip()
     include_root = include_root or ROOT / "include"
     prepared = native_contract.run(
         [cc, "-std=gnu99", "-E", "-x", "c", "-I", str(include_root), "-"],
         SOURCE)
-    directory = native_contract.output_dir(target) / target
     directory.mkdir(parents=True, exist_ok=True)
-    source = directory / "facade.i"
-    source.write_text(prepared)
+    write_generated_text(source, prepared)
     ast = json.loads(native_contract.run(
         ["clang", "-target", triple, "-x", "c", "-std=gnu99", "-Xclang",
          "-ast-dump=json", "-fsyntax-only", str(source)]))
@@ -97,6 +99,8 @@ def inspect(target, include_root=None):
 
 
 def check(targets, include_root=None):
+    validate_output_paths(*(native_contract.output_dir(target) / target / "facade.i"
+        for target in targets))
     expected = json.loads(SNAPSHOT.read_text())
     for target in targets:
         observed = inspect(target, include_root)

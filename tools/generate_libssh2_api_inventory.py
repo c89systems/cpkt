@@ -10,6 +10,10 @@ import sys
 from typing import Any, Dict, Iterable, List, Set
 
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
+
+
 def walk(node: Any) -> Iterable[Dict[str, Any]]:
     if not isinstance(node, dict):
         return
@@ -66,6 +70,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    validate_output_paths(args.output, args.work_dir / "libssh2-api-inventory.c")
     include_dirs = [pathlib.Path(value) for value in
                     str(args.include_dir).split(";") if value]
     header_dir = next(
@@ -84,7 +89,7 @@ def main() -> int:
             raise ValueError("required input is missing: " + str(path))
     args.work_dir.mkdir(parents=True, exist_ok=True)
     umbrella = args.work_dir / "libssh2-api-inventory.c"
-    umbrella.write_text(
+    write_generated_text(umbrella,
         "#include <libssh2.h>\n"
         "#include <libssh2_sftp.h>\n"
         "#include <libssh2_publickey.h>\n"
@@ -131,7 +136,7 @@ def main() -> int:
         "facade_header": str(args.facade_header),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(
+    write_generated_text(args.output,
         json.dumps(inventory, indent=2, sort_keys=True) + "\n",
         encoding="utf-8")
     return 0

@@ -40,6 +40,10 @@ TYPE_REPLACEMENTS: Tuple[Tuple[str, str], ...] = (
 )
 
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
+
+
 def strip_comments(text: str) -> str:
     return re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
 
@@ -967,6 +971,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    validate_output_paths(args.header, args.source)
     inputs = [args.include_dir / name for name in
               ("lua.h", "lauxlib.h", "lualib.h")]
     for path in inputs:
@@ -975,8 +980,8 @@ def main() -> int:
     items = declarations(inputs)
     args.header.parent.mkdir(parents=True, exist_ok=True)
     args.source.parent.mkdir(parents=True, exist_ok=True)
-    args.header.write_text(header(items), encoding="utf-8")
-    args.source.write_text(source(items), encoding="utf-8")
+    write_generated_text(args.header, header(items), encoding="utf-8")
+    write_generated_text(args.source, source(items), encoding="utf-8")
     return 0
 
 

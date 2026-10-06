@@ -13,6 +13,10 @@ sys.dont_write_bytecode = True
 from generate_mqttc_c89_facade import functions, transform
 
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
+
+
 def dynamic_symbols(tool: str, library: pathlib.Path) -> Set[str]:
     result = subprocess.run(
         [tool, "-D", "--defined-only", str(library)], check=True, text=True,
@@ -37,6 +41,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    validate_output_paths(args.output)
     native_header = args.include_dir / "mqtt.h"
     for path in (native_header, args.library, args.facade_header):
         if not path.is_file():
@@ -66,7 +71,7 @@ def main() -> int:
         raise ValueError("MQTT-C declarations missing C89 facade entries: " +
                          ", ".join(missing_facade))
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps({
+    write_generated_text(args.output, json.dumps({
         "schema": 1,
         "declared_function_count": len(declared),
         "declared_functions": sorted(declared),

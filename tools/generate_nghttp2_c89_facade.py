@@ -35,6 +35,10 @@ TYPE_REPLACEMENTS: Tuple[Tuple[str, str], ...] = (
 )
 
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
+
+
 def transform(text: str) -> str:
     """Translate an upstream declaration or record into its CPKT spelling."""
     text = text.replace("NGHTTP2_", "CPKT_NGHTTP2_")
@@ -228,6 +232,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    validate_output_paths(args.header, args.source)
     native_header = args.include_dir / "nghttp2" / "nghttp2.h"
     version_header = args.include_dir / "nghttp2" / "nghttp2ver.h"
     for path in (native_header, version_header):
@@ -237,9 +242,9 @@ def main() -> int:
     version_text = version_header.read_text(encoding="utf-8")
     args.header.parent.mkdir(parents=True, exist_ok=True)
     args.source.parent.mkdir(parents=True, exist_ok=True)
-    args.header.write_text(facade_header(header_text, version_text),
+    write_generated_text(args.header, facade_header(header_text, version_text),
                            encoding="utf-8")
-    args.source.write_text(facade_source(header_text), encoding="utf-8")
+    write_generated_text(args.source, facade_source(header_text), encoding="utf-8")
     return 0
 
 

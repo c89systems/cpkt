@@ -23,6 +23,18 @@ native=$(value CPKT_NATIVE_MAKE_PROGRAM) || native=${CPKT_NATIVE_MAKE_PROGRAM:-}
   printf 'Configured native build tool is missing or recursive\n' >&2; exit 2;
 }
 source "$scripts/mutation-paths.sh"
+# Ninja creates output parents before executing custom commands. Validate the
+# explicit CMake-owned products before any native child or evidence removal.
+if [ -n "$cache" ]; then
+  outputs="${cache%/*}/cpkt-generated-outputs.txt"
+  cpkt_validate_mutation_path "$outputs"
+  if [ -f "$outputs" ]; then
+    while IFS= read -r output || [ -n "$output" ]; do
+      [ -n "$output" ] || continue
+      cpkt_validate_mutation_path "$output"
+    done < "$outputs"
+  fi
+fi
 removals=()
 for argument in "$@"; do
   case "$argument" in clean|--clean)

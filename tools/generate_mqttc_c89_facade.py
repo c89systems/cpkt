@@ -34,6 +34,10 @@ TYPE_REPLACEMENTS: Tuple[Tuple[str, str], ...] = (
 )
 
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
+
+
 def transform(text: str) -> str:
     """Translate upstream declarations into the public CPKT spelling."""
     text = text.replace("__ALL_MQTT_ERRORS", "CPKT_MQTT_ALL_ERRORS")
@@ -368,6 +372,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    validate_output_paths(args.header, args.source)
     native_header = args.include_dir / "mqtt.h"
     if not native_header.is_file():
         raise ValueError("required input is missing: " + str(native_header))
@@ -375,8 +380,8 @@ def main() -> int:
     functions(header_text)
     args.header.parent.mkdir(parents=True, exist_ok=True)
     args.source.parent.mkdir(parents=True, exist_ok=True)
-    args.header.write_text(facade_header(header_text), encoding="utf-8")
-    args.source.write_text(facade_source(header_text), encoding="utf-8")
+    write_generated_text(args.header, facade_header(header_text), encoding="utf-8")
+    write_generated_text(args.source, facade_source(header_text), encoding="utf-8")
     return 0
 
 

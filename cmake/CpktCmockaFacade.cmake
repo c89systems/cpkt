@@ -1,4 +1,8 @@
 set(CPKT_CMOCKA_FACADE_INCLUDE_DIR "${CMAKE_BINARY_DIR}/generated/cmocka/include")
+cpkt_register_generated_outputs("${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka.h"
+  "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka_types.h"
+  "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka_bridge.inc"
+  "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka_bridge_exports.txt")
 add_custom_command(OUTPUT "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka.h"
     "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka_types.h"
     "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka_bridge.inc"
@@ -7,6 +11,7 @@ add_custom_command(OUTPUT "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka.h"
     --header "${CPKT_EXTERNAL_ROOT}/cmocka/install/include/cmocka.h"
     --output "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka.h"
   DEPENDS "${CMAKE_SOURCE_DIR}/tools/generate_cmocka_c89.py"
+    "${CMAKE_SOURCE_DIR}/scripts/generated_output_paths.py"
     "${CPKT_EXTERNAL_ROOT}/cmocka/install/include/cmocka.h"
   VERBATIM)
 cpkt_group_add_custom_target(cpkt_cmocka_header

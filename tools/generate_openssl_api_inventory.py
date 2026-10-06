@@ -81,6 +81,10 @@ FACADE_FUNCTION_PATTERN = re.compile(
     r"\b(cpkt_openssl_[A-Za-z0-9_]+)\s*\(")
 
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
+
+
 def read_num_files(paths: Iterable[pathlib.Path]) -> Set[str]:
     names: Set[str] = set()
     for path in paths:
@@ -121,7 +125,7 @@ def build_umbrella(include_dir: pathlib.Path, output_dir: pathlib.Path) -> pathl
         raise ValueError("no OpenSSL headers found below " + str(include_dir))
     output_dir.mkdir(parents=True, exist_ok=True)
     source = output_dir / "openssl-api-inventory.c"
-    source.write_text(
+    write_generated_text(source,
         "".join("#include <openssl/{}>\n".format(path.name) for path in headers)
         + "int main(void) { return 0; }\n",
         encoding="utf-8")
@@ -242,6 +246,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    validate_output_paths(args.output, args.work_dir / "openssl-api-inventory.c")
     for path in [args.include_dir, *args.num, *args.library]:
         if not path.exists():
             raise ValueError("required input is missing: " + str(path))
@@ -310,7 +315,7 @@ def main() -> int:
         "abi_only_exports": sorted(unresolved),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(inventory, indent=2, sort_keys=True) + "\n",
+    write_generated_text(args.output, json.dumps(inventory, indent=2, sort_keys=True) + "\n",
                            encoding="utf-8")
     if unclassified_unresolved:
         raise ValueError("unclassified ABI exports without a public header declaration: " +

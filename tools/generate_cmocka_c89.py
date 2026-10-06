@@ -5,9 +5,14 @@ Scalar convenience operations use C89 long; every native integral operation also
 has a words entrypoint, including callbacks and sets. Queue retrieval names the
 function explicitly: ISO C89 has no current-function expression.
 """
+import sys
 import argparse
 from pathlib import Path
 import re
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
 
 
 def active_source(source):
@@ -52,6 +57,8 @@ def main():
     parser.add_argument('--header', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    validate_output_paths(args.output, *(args.output.parent / name for name in
+        ("cmocka_types.h", "cmocka_bridge.inc", "cmocka_bridge_exports.txt")))
     original = args.header.read_text()
     notice = re.match(r'\s*(/\*.*?\*/)', original, re.S).group(1)
     text = active_source(original)
@@ -206,10 +213,10 @@ typedef struct CpktCMockaValueData {
     text=re.sub(r'(?m)^([^#\n]*\b(cpkt_cmocka_\w+)\s*\([^;]*;)',declaration_doc,text)
     text = '#ifndef CPKT_CMOCKA_C89_H\n#define CPKT_CMOCKA_C89_H\n#ifdef __cplusplus\nextern "C" {\n#endif\n' + text + '\n' + '\n'.join(declarations) + '\n#ifdef __cplusplus\n}\n#endif\n#endif\n'
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(notice+'\n'+text)
-    (args.output.parent / 'cmocka_types.h').write_text('#ifndef CPKT_CMOCKA_TYPES_H\n#define CPKT_CMOCKA_TYPES_H\n#include <stddef.h>\n#include <stdarg.h>\n' + types + '\n#endif\n')
-    (args.output.parent / 'cmocka_bridge.inc').write_text('\n'.join(bridge) + '\n')
-    (args.output.parent / 'cmocka_bridge_exports.txt').write_text('\n'.join(sorted(exports)) + '\n')
+    write_generated_text(args.output, notice+'\n'+text)
+    write_generated_text((args.output.parent / 'cmocka_types.h'), '#ifndef CPKT_CMOCKA_TYPES_H\n#define CPKT_CMOCKA_TYPES_H\n#include <stddef.h>\n#include <stdarg.h>\n' + types + '\n#endif\n')
+    write_generated_text((args.output.parent / 'cmocka_bridge.inc'), '\n'.join(bridge) + '\n')
+    write_generated_text((args.output.parent / 'cmocka_bridge_exports.txt'), '\n'.join(sorted(exports)) + '\n')
 
 
 if __name__ == '__main__':

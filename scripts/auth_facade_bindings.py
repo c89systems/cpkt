@@ -9,6 +9,7 @@ import subprocess
 import sys
 
 from configured_build import cache_value, scratch_dir
+from generated_output_paths import validate_output_paths, write_generated_text
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 TARGETS = (
@@ -48,6 +49,17 @@ def defined_symbols(target, static):
 
 
 def check(selected_targets):
+    # Typed and constant probes belong to one batch; no earlier probe may
+    # change bytes or execute a child before every later output is validated.
+    outputs = []
+    for target in selected_targets:
+        directory = scratch_dir(ROOT, target, "auth-completion/contract")
+        outputs += [directory / "typed-bindings.c",
+                    directory / ("typed-bindings-" + target + ".o")]
+        for provider in ("gssapi", "sasl"):
+            outputs += [directory / ("constant-bindings-" + provider + ".c"),
+                        directory / ("constants-" + provider + "-" + target + ".o")]
+    validate_output_paths(*outputs)
     snapshot = json.loads((ROOT / "tests/contracts/auth_native_api.json").read_text())
     bindings = json.loads((ROOT / "tests/contracts/auth_bindings.json").read_text())
     record_bindings = json.loads((ROOT / "tests/contracts/auth_record_bindings.json").read_text())
@@ -129,7 +141,7 @@ def check(selected_targets):
         directory = scratch_dir(ROOT, target, "auth-completion/contract")
         directory.mkdir(parents=True, exist_ok=True)
         source = directory / "typed-bindings.c"
-        source.write_text("\n".join(lines) + "\n")
+        write_generated_text(source, "\n".join(lines) + "\n")
         command = [compiler(target), "-std=c89", "-pedantic-errors", "-Werror",
                    "-I", str(ROOT / "include"), "-c", str(source), "-o",
                    str(directory / ("typed-bindings-" + target + ".o"))]
@@ -184,7 +196,7 @@ def check(selected_targets):
                     checks.append("typedef char cpkt_auth_constant_{}[((int)({})) == ((int)({})) ? 1 : -1];".format(
                         len(checks), name, facade))
             probe = directory / ("constant-bindings-" + provider + ".c")
-            probe.write_text("\n".join(includes + checks) + "\n")
+            write_generated_text(probe, "\n".join(includes + checks) + "\n")
             command = [compiler(target), "-std=gnu99", "-Werror", "-I",
                        str(ROOT / "include"), "-I", str(native_include),
                        "-c", str(probe), "-o",

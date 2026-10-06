@@ -17,6 +17,7 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 from cpkt_inventory import load,components_for,REPOSITORY_GROUP
 from cpkt_packages import validator,artifacts
+from generated_output_ancestry_test import GeneratedOutputMutation
 
 
 def canonical(item):return json.dumps(item,sort_keys=True,separators=(',',':')).encode()

@@ -81,6 +81,10 @@ CONVENIENCE_EQUIVALENTS = {
 }
 
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
+from generated_output_paths import validate_output_paths, write_generated_text
+
+
 def read_headers(include_dir: pathlib.Path) -> str:
     names = ("lua.h", "lauxlib.h", "lualib.h")
     contents: List[str] = []
@@ -153,6 +157,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    validate_output_paths(args.output)
     header_text = read_headers(args.include_dir)
     native_functions = set(DECLARATION.findall(header_text))
     if len(native_functions) != 156:
@@ -198,7 +203,7 @@ def main() -> int:
                          ", ".join(private_imports))
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps({
+    write_generated_text(args.output, json.dumps({
         "facade_function_count": len(expected_facade),
         "facade_helper_function_count": len(facade_functions - expected_facade),
         "convenience_equivalent_count": len(CONVENIENCE_EQUIVALENTS),

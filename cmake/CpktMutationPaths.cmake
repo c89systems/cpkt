@@ -19,3 +19,23 @@ function(cpkt_validate_mutation_paths)
     endwhile()
   endforeach()
 endfunction()
+
+# Register explicit owned custom-command/linker products. Native engines may
+# create output directories before the generator itself gets control.
+function(cpkt_register_generated_outputs)
+  cpkt_validate_mutation_paths(${ARGN})
+  set_property(GLOBAL APPEND PROPERTY CPKT_GENERATED_OUTPUTS ${ARGN})
+endfunction()
+
+function(cpkt_write_generated_output_inventory)
+  set(_inventory "${CMAKE_BINARY_DIR}/cpkt-generated-outputs.txt")
+  cpkt_validate_mutation_paths("${_inventory}")
+  get_property(_outputs GLOBAL PROPERTY CPKT_GENERATED_OUTPUTS)
+  list(REMOVE_DUPLICATES _outputs)
+  cpkt_validate_mutation_paths(${_outputs})
+  set(_contents "")
+  foreach(_output IN LISTS _outputs)
+    string(APPEND _contents "${_output}\n")
+  endforeach()
+  file(GENERATE OUTPUT "${_inventory}" CONTENT "${_contents}")
+endfunction()
