@@ -32,8 +32,8 @@ require_text "$release_ref" \
   'Tag-mutating version and manifest contract checks must live behind the focused `make lifecycle-version-contract` target.' \
   'tag-mutating checks have a focused make target'
 require_text "$release_ref" \
-  'Release orchestration belongs to Make, not CMake.' \
-  'release orchestration is Make-owned'
+  'Make exposes the release targets with simple prerequisites and short recipes. Readable Bash scripts own procedural sequencing, validation and cleanup; CMake supplies build, test, install and package operations.' \
+  'Make exposes targets, Bash sequences release work, and CMake owns build operations'
 require_text "$release_ref" \
   '`make release` is the only standard release-flow target that runs this check, and it must run it before `clean`, `release-pipeline`, `release-matrix`, `package-verify`, checksum generation, or artifact production.' \
   'make release runs the tag contract before late release work'
