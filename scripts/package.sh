@@ -13,6 +13,11 @@ while [ "$#" -gt 0 ]; do
 done
 cpkt_check_group "$group"
 case "$action" in package|package-stage|package-verify|package-checksums|test-install-tree|verify-release-archives|verify-release-privacy) ;; *) cpkt_fail "unknown package action: $action" ;; esac
+case "$action" in
+  verify-release-archives|verify-release-privacy)
+    [ -z "$scope" ] || [ "$scope" = release ] || cpkt_fail "$action requires SCOPE=release"
+    scope=release ;;
+esac
 if [ -z "$scope" ]; then
   if [ "$group" = all ]; then scope=binary; else scope=selected; fi
 fi

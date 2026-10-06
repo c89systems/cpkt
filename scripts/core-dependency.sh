@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/lifecycle-common.sh"
-[ "$cpkt_owner" != core ] || cpkt_fail 'core has no SDK prerequisite'
+[ "$cpkt_owner" != core ] || cpkt_fail 'cpkt produces core; prepare upstreams with make deps-all'
 target=${1:?target required}
 pin=$(python3 "$cpkt_scripts/cpkt_core.py" pin --target "$target")
 export GROUP="$cpkt_owner"

@@ -23,6 +23,21 @@ def canonical(item):return json.dumps(item,sort_keys=True,separators=(',',':')).
 def sha(item):return hashlib.sha256(item).hexdigest()
 
 class Repository(unittest.TestCase):
+    def test_core_cannot_acquire_itself(self):
+        from native_lifecycle_fixture import seed,environment
+        from cpkt_receipts import tree_identity
+        with tempfile.TemporaryDirectory(prefix='self-acquisition-',dir=ROOT/'build') as temporary:
+            root=Path(temporary);seed(root)
+            before=tree_identity(root)
+            result=subprocess.run(['bash',str(root/'scripts/core-dependency.sh'),'x86_64-linux-gnu'],
+                env=environment(),capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('cpkt produces core',result.stderr)
+            self.assertIn('make deps-all',result.stderr)
+            self.assertEqual(before,tree_identity(root))
+            self.assertFalse((root/'build').exists())
+            self.assertFalse((root/'.cache').exists())
+
     def test_dependency_graph_has_no_owned_sibling(self):
         data=load(ROOT)
         self.assertEqual({REPOSITORY_GROUP},set(data['groups']))

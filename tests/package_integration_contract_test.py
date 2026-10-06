@@ -873,6 +873,42 @@ leading]==] [==[literal "quotes"]==])
             self.assertIn('requires SCOPE=release',result.stderr)
             self.assertFalse(record.exists(),'narrowed release alias reached artifact work')
 
+    def test_retained_shell_entrypoints_use_native_workflows(self):
+        root=self.work/'entrypoints';variables,record=trace(root)
+        (root/'tests').mkdir(exist_ok=True)
+        scripts=('scripts/package-verify.sh','tests/release_version_contract_test.sh')
+        for name in scripts:shutil.copy2(ROOT/name,root/name)
+        for name,arguments,expected in (
+                (scripts[0],['--group','all','--scope','binary'],
+                    ['package.sh','package-verify','--group','all','--scope','binary']),
+                (scripts[1],[],['version-contract.sh','check'])):
+            record.unlink(missing_ok=True)
+            result=subprocess.run(['bash',str(root/name),*arguments],env=variables,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            calls=[json.loads(line)['args'] for line in record.read_text().splitlines()]
+            self.assertEqual(calls,[expected])
+
+    def test_direct_release_verification_aliases_cannot_narrow_scope(self):
+        root=self.work/'direct-release-aliases';variables,_=trace(root)
+        shutil.copy2(ROOT/'scripts/package.sh',root/'scripts/package.sh')
+        record=root/'build/package-calls.jsonl'
+        (root/'scripts/cpkt_packages.py').write_text('import json,sys\nwith open('+repr(str(record))+
+            ',"a") as stream:stream.write(json.dumps(sys.argv[1:])+"\\n")\n')
+        for action in ('verify-release-archives','verify-release-privacy'):
+            record.unlink(missing_ok=True)
+            result=subprocess.run(['bash',str(root/'scripts/package.sh'),action],env=variables,capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stdout+result.stderr)
+            calls=[json.loads(line) for line in record.read_text().splitlines()]
+            for phase in ('verify-checksums','verify-artifacts'):
+                command=next(call for call in calls if call[0]==phase)
+                self.assertEqual(command[command.index('--scope')+1],'release')
+            record.unlink()
+            result=subprocess.run(['bash',str(root/'scripts/package.sh'),action,'--scope','binary'],
+                env=variables,capture_output=True,text=True)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('requires SCOPE=release',result.stderr)
+            self.assertFalse(record.exists(),'narrowed direct alias reached verification work')
+
     def test_shell_defaults_preserve_matrix_and_selected_scope(self):
         root=self.work/'dispatch';variables,record=trace(root)
         owner=json.loads((ROOT/'cmake/components.json').read_text())['repository_group']
