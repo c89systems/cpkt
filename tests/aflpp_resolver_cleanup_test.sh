@@ -16,8 +16,10 @@ cache_root="$work_dir/cache root"
 bootlin_root="$work_dir/bootlin-v1"
 compiler_arguments="$work_dir/compiler-arguments"
 mkdir -p "$fake_repo/scripts" "$fake_bin" "$bootlin_root/include" "$cache_root/archives"
+mkdir -p "$bootlin_root/bin" "$bootlin_root/libexec" "$bootlin_root/lib64" "$bootlin_root/sysroot/lib"
 cp "$source_dir/scripts/cpkt-aflpp.sh" "$fake_repo/scripts/cpkt-aflpp.sh"
 cp "$source_dir/scripts/cpkt-archive-cache.sh" "$fake_repo/scripts/cpkt-archive-cache.sh"
+cp "$source_dir/scripts/cpkt-afl-runtime.sh" "$fake_repo/scripts/cpkt-afl-runtime.sh"
 cp "$source_dir/scripts/require-host-bash.sh" "$fake_repo/scripts/require-host-bash.sh"
 chmod +x "$fake_repo/scripts/cpkt-aflpp.sh"
 grep -Fq 'with_cache_lock "$cache/locks/aflplusplus-${version}-x86_64-linux-gnu.lock" ensure_locked "$cache"' "$fake_repo/scripts/cpkt-aflpp.sh" || {
@@ -35,9 +37,10 @@ case "\$1" in
   ensure) printf 'ensure\\n' >> "$work_dir/bootlin-calls"; exit 0 ;;
   discover)
     printf 'status=%s\\n' "\${CPKT_TEST_BOOTLIN_STATUS:-ready}"
-    printf 'cc=%s\\n' '$fake_bin/cc'
-    printf 'cxx=%s\\n' '$fake_bin/cxx'
+    printf 'cc=%s\\n' '$bootlin_root/bin/cc'
+    printf 'cxx=%s\\n' '$bootlin_root/bin/cxx'
     printf 'root=%s\\n' '$bootlin_root'
+    printf 'sysroot=%s\\n' '$bootlin_root/sysroot'
     ;;
   *) exit 2 ;;
 esac
@@ -65,16 +68,28 @@ mkdir -p "$destination/AFLplusplus-5.02c"
 EOF
 cat > "$fake_bin/make" <<'EOF'
 #!/bin/sh
+printf '%s\n' "$@" >> "$CPKT_TEST_MAKE_ARGUMENTS"
 exit 0
 EOF
-cat > "$fake_bin/cc" <<'EOF'
+cat > "$bootlin_root/bin/cc" <<'EOF'
 #!/bin/sh
+case "$1" in
+  -print-file-name=libstdc++.so.6) printf '%s/lib64/libstdc++.so.6\n' "$CPKT_TEST_BOOTLIN_ROOT"; exit 0 ;;
+  -print-prog-name=cc1) printf '%s/libexec/cc1\n' "$CPKT_TEST_BOOTLIN_ROOT"; exit 0 ;;
+  -print-prog-name=cc1plus) printf '%s/libexec/cc1plus\n' "$CPKT_TEST_BOOTLIN_ROOT"; exit 0 ;;
+esac
 printf '%s\n' "$@" > "$CPKT_TEST_COMPILER_ARGUMENTS"
 printf '%s\n' 'simulated AFL++ compiler failure' >&2
 exit 73
 EOF
-printf '#!/bin/sh\nexit 0\n' > "$fake_bin/cxx"
-chmod +x "$fake_bin/sha256sum" "$fake_bin/tar" "$fake_bin/make" "$fake_bin/cc" "$fake_bin/cxx"
+cp "$bootlin_root/bin/cc" "$bootlin_root/bin/cxx"
+printf '#!/bin/sh\nshift 2\nexec "$@"\n' > "$bootlin_root/sysroot/lib/ld-linux-x86-64.so.2"
+touch "$bootlin_root/lib64/libstdc++.so.6"
+for backend in cc1 cc1plus; do
+  printf '#!/bin/sh\nexit 0\n' > "$bootlin_root/libexec/$backend"
+  chmod +x "$bootlin_root/libexec/$backend"
+done
+chmod +x "$fake_bin/sha256sum" "$fake_bin/tar" "$fake_bin/make" "$bootlin_root/bin/cc" "$bootlin_root/bin/cxx" "$bootlin_root/sysroot/lib/ld-linux-x86-64.so.2"
 
 # Discovery and environment inspection fail without provisioning or downloads.
 cat > "$fake_bin/curl" <<EOF
@@ -104,17 +119,21 @@ for mode in discover env; do
   [[ ! -e "$missing_cache" && ! -e "$work_dir/bootlin-calls" && ! -e "$work_dir/download-called" ]]
 done
 prepared="$missing_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-v1"
-mkdir -p "$prepared/bin" "$prepared/lib/afl"
-for executable in afl-fuzz afl-showmap cpkt-afl-gcc cpkt-afl-g++ afl-cc afl-gcc-fast afl-g++-fast; do
+mkdir -p "$prepared/bin" "$prepared/lib/afl" "$prepared/libexec/bootlin-runtime"
+for executable in afl-fuzz afl-showmap cpkt-afl-gcc cpkt-afl-g++ afl-cc afl-gcc-fast afl-g++-fast bootlin-gcc bootlin-g++; do
   printf '#!/bin/sh\nexit 0\n' > "$prepared/bin/$executable"
   chmod +x "$prepared/bin/$executable"
 done
-touch "$prepared/.cpkt-aflpp-revision-1-bootlin-v1" "$prepared/lib/afl/afl-gcc-pass.so" "$prepared/lib/afl/afl-compiler-rt.o"
+for backend in cc1 cc1plus; do
+  printf '#!/bin/sh\nexit 0\n' > "$prepared/libexec/bootlin-runtime/$backend"
+  chmod +x "$prepared/libexec/bootlin-runtime/$backend"
+done
+touch "$prepared/.cpkt-aflpp-revision-2-bootlin-v1" "$prepared/lib/afl/afl-gcc-pass.so" "$prepared/lib/afl/afl-compiler-rt.o"
 for mode in discover env; do
   output=$(PATH="$fake_bin:$PATH" CPKT_TOOLCHAIN_CACHE="$missing_cache" "$fake_repo/scripts/cpkt-aflpp.sh" "$mode")
   case "$output" in *"$prepared"*) ;; *) printf 'inspection selected wrong collection\n' >&2; exit 1 ;; esac
 done
-for required in bin/afl-fuzz bin/afl-showmap bin/cpkt-afl-gcc bin/cpkt-afl-g++ bin/afl-cc bin/afl-gcc-fast bin/afl-g++-fast lib/afl/afl-gcc-pass.so lib/afl/afl-compiler-rt.o .cpkt-aflpp-revision-1-bootlin-v1; do
+for required in bin/afl-fuzz bin/afl-showmap bin/cpkt-afl-gcc bin/cpkt-afl-g++ bin/afl-cc bin/afl-gcc-fast bin/afl-g++-fast bin/bootlin-gcc bin/bootlin-g++ libexec/bootlin-runtime/cc1 libexec/bootlin-runtime/cc1plus lib/afl/afl-gcc-pass.so lib/afl/afl-compiler-rt.o .cpkt-aflpp-revision-2-bootlin-v1; do
   mv "$prepared/$required" "$work_dir/removed-tool"
   for mode in discover env; do
     if PATH="$fake_bin:$PATH" CPKT_TOOLCHAIN_CACHE="$missing_cache" "$fake_repo/scripts/cpkt-aflpp.sh" "$mode" >/dev/null 2>&1; then
@@ -135,7 +154,7 @@ touch "$old_root/.cpkt-aflpp-revision-1" "$old_root/lib/afl/afl-gcc-pass.so" "$o
 
 : > "$cache_root/archives/AFLplusplus-5.02c.tar.gz"
 set +e
-output=$(PATH="$fake_bin:$PATH" CPKT_TOOLCHAIN_CACHE="$cache_root" CPKT_TEST_COMPILER_ARGUMENTS="$compiler_arguments" "$fake_repo/scripts/cpkt-aflpp.sh" ensure 2>&1)
+output=$(PATH="$fake_bin:$PATH" CPKT_TOOLCHAIN_CACHE="$cache_root" CPKT_TEST_BOOTLIN_ROOT="$bootlin_root" CPKT_TEST_MAKE_ARGUMENTS="$work_dir/make-arguments" CPKT_TEST_COMPILER_ARGUMENTS="$compiler_arguments" "$fake_repo/scripts/cpkt-aflpp.sh" ensure 2>&1)
 status=$?
 set -e
 if [[ $status -ne 73 ]]; then
@@ -162,6 +181,16 @@ if [ ! -f "$cache_root/locks/aflplusplus-5.02c-x86_64-linux-gnu.lock" ]; then
   exit 1
 fi
 expected_helper="$cache_root/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-v1/lib/afl"
+grep -Fx -- '-B' "$compiler_arguments" >/dev/null || {
+  printf 'AFL++ build bypassed the Bootlin runtime compiler backend route\n' >&2; exit 1
+}
+if ! grep -F -- '--dynamic-linker' "$work_dir/make-arguments" >/dev/null ||
+   ! grep -F -- "$bootlin_root/sysroot/lib/ld-linux-x86-64.so.2" "$work_dir/make-arguments" >/dev/null; then
+  printf 'AFL++ binaries were built without the selected Bootlin interpreter\n' >&2; exit 1
+fi
+grep -F -- '--disable-new-dtags' "$work_dir/make-arguments" >/dev/null || {
+  printf 'AFL++ binaries were built without transitive private runtime paths\n' >&2; exit 1
+}
 grep -Fx -- "-DAFL_PATH=\"$expected_helper\"" "$compiler_arguments" >/dev/null || {
   printf 'AFL++ compiler arguments did not preserve the cache path as one quoted definition\n' >&2
   exit 1

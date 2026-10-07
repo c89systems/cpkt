@@ -4332,6 +4332,28 @@
       ],
       "target_sensitive": false
     },
+    "aflpp_bootlin_runtime": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/aflpp_bootlin_runtime_test.sh",
+        "scripts/cpkt-afl-runtime.sh"
+      ],
+      "execution": "helper",
+      "requires": [],
+      "registrations": [
+        {
+          "name": "aflpp_bootlin_runtime",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\"",
+            "CPKT_NATIVE_BOOTLIN_RUNTIME",
+            "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\""
+          ]
+        }
+      ],
+      "target_sensitive": true
+    },
     "fuzz_toolchain_policy": {
       "group": "tooling",
       "command_inputs": [

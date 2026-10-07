@@ -1677,6 +1677,12 @@ if(CPKT_BUILD_TESTS)
                 "${CMAKE_SOURCE_DIR}/tests/fuzz_toolchain_policy_test.sh"
                 "${CMAKE_SOURCE_DIR}")
       cpkt_group_set_tests_properties(fuzz_toolchain_policy PROPERTIES LABELS "fuzz;smoke" TIMEOUT 30)
+      if(CPKT_NATIVE_BOOTLIN_RUNTIME AND CPKT_TARGET_ID STREQUAL "x86_64-linux-gnu")
+        cpkt_group_add_test(NAME aflpp_bootlin_runtime
+            COMMAND bash "${CMAKE_SOURCE_DIR}/tests/aflpp_bootlin_runtime_test.sh"
+              "${CMAKE_SOURCE_DIR}" "${CPKT_TOOLCHAIN_ROOT}")
+        cpkt_group_set_tests_properties(aflpp_bootlin_runtime PROPERTIES LABELS "fuzz;smoke" TIMEOUT 30)
+      endif()
       cpkt_group_add_test(NAME package_integration_contracts
               COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/package_integration_contract_test.py")
       cpkt_group_add_test(NAME github_actions_contracts

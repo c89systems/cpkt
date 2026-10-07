@@ -9,7 +9,7 @@ This lifecycle owns C and C++ compiler resolution for pkt.systems C/CMake projec
 - `arm64-apple-darwin` uses a local, project-pinned osxcross collection. The lifecycle must not download Apple SDKs or Darwin compiler collections. Once that collection is ready, the lifecycle provisions its separately pinned, Linux-host `mig` helper as described below.
 - cpkt owns the pinned PureDarwin-derived Linux host `mig` and `migcom` build helpers. The resolver downloads and builds them into the shared toolchain cache when ensuring Darwin; neither helper is a workstation package-manager prerequisite or an SDK payload.
 - Native memory checking uses host-provided Valgrind against executables compiled by the selected Bootlin collection. It is a required gate on the native x86_64 Linux host, but it is not an MSan substitute. Never run Valgrind through cross-compilation, an emulator, or QEMU.
-- Native fuzzing uses a pinned cached AFL++ release built with the matching x86_64 Bootlin GCC plugin headers. AFL++ compiler wrappers must delegate to the selected Bootlin `gcc`/`g++`; never use host GCC or Clang for project targets. Never run fuzzing through cross-compilation, an emulator, or QEMU.
+- Native fuzzing uses a pinned cached AFL++ release built with Bootlin and its matching x86_64 GCC plugin headers. AFL++ compiler wrappers must delegate to the selected Bootlin `gcc`/`g++`; never use host GCC or Clang. Never run fuzzing through cross-compilation, an emulator, or QEMU.
 - LLVM/Clang is installed by the workstation operator outside all cpkt caches and artifacts. Host `clang`/`clang++` support osxcross; `clang-format` and `clangd` are native development tools. None may enter Linux CMake compiler or linker discovery. `clangd` validation is a native development-host editor gate: register and run it only against the native host compile database. Cross-target CTest, package, and release configurations must not invoke it or rely on host `clangd` to emulate a target compiler or sysroot ABI; prove those targets through their selected compiler, supported target runner, and package verification gates.
 
 ## Linux Targets
@@ -62,7 +62,7 @@ vendored copies under `scripts/`.
 
 Set a shell variable `lifecycle_scripts_dir` to that resolved directory.
 Keep the complete helper set together, including `require-host-bash.sh`, `cpkt-archive-cache.sh`,
-`cpkt-toolchains.sh` and `cpkt-aflpp.sh`; do not copy a resolver without its
+`cpkt-toolchains.sh`, `cpkt-aflpp.sh` and `cpkt-afl-runtime.sh`; do not copy a resolver without its
 sibling helpers. CMake examples below take the same directory through the
 explicit `CPKT_LIFECYCLE_SCRIPTS_DIR` input (for example `-D` on configure).
 This local tool-discovery hint must not enter installed/exported metadata.
@@ -393,6 +393,9 @@ endfunction()
 For a cross target, the enclosing toolchain file must additionally set `CMAKE_SYSTEM_NAME` to `Linux`, set the target processor, and use `CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY` before calling the function.
 
 For AFL++ fuzzing, first configure the ordinary Bootlin x86_64 collection, then resolve the pinned AFL++ wrapper. The wrapper must export `AFL_CC`/`AFL_CXX` as the matching Bootlin drivers and `AFL_PATH` as the cached helper root before it invokes `afl-gcc-fast` or `afl-g++-fast`. Fuzzing is native x86_64 Linux-only: no cross target, emulator, or QEMU runner is permitted.
+
+The cached runtime wrappers keep GCC's plugin-loading backends on that
+collection's libc and C++ runtime without exporting library paths to host children.
 
 An AFL++ CMake toolchain file must call the Bootlin setup before `project()`, then replace only the C/C++ compiler drivers with the resolver-reported wrappers. Keep the linker and all binary utilities from Bootlin:
 

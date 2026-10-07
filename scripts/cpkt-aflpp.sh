@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/cpkt-archive-cache.sh"
+source "$(dirname -- "${BASH_SOURCE[0]}")/cpkt-afl-runtime.sh"
 
 version=5.02c
-build_revision=1
+build_revision=2
 archive_name="AFLplusplus-${version}.tar.gz"
 archive_sha256=118415843e5d289d63bd6d8f2252c18212978f15ac9e86acbbc75766cd45acde
 
@@ -76,6 +77,10 @@ afl_ready() {
     [[ -x "$root/bin/afl-cc" ]] &&
     [[ -x "$root/bin/afl-gcc-fast" ]] &&
     [[ -x "$root/bin/afl-g++-fast" ]] &&
+    [[ -x "$root/bin/bootlin-gcc" ]] &&
+    [[ -x "$root/bin/bootlin-g++" ]] &&
+    [[ -x "$root/libexec/bootlin-runtime/cc1" ]] &&
+    [[ -x "$root/libexec/bootlin-runtime/cc1plus" ]] &&
     [[ -f "$root/.cpkt-aflpp-revision-${build_revision}-${collection_id}" ]] &&
     [[ -f "$root/lib/afl/afl-gcc-pass.so" ]] &&
     [[ -f "$root/lib/afl/afl-compiler-rt.o" ]]
@@ -102,62 +107,73 @@ download_archive() {
 }
 
 build_afl() {
-  local root=$1 source=$2 cc=$3 cxx=$4 bootlin_root=$5 collection_id=$6 temporary=$7
-  local helper="$root/lib/afl" bootlin_include_flag bootlin_library_flag bootlin_rpath_flag
+  local root=$1 source=$2 cc=$3 cxx=$4 bootlin_root=$5 collection_id=$6 temporary=$7 sysroot=$8
+  local helper="$root/lib/afl" bootlin_include_flag bootlin_library_flag
+  local make_cc make_cxx link_flags compiler_bin
+  compiler_bin=$(dirname -- "$cc")
   printf -v bootlin_include_flag '%q' "-I${bootlin_root}/include"
   printf -v bootlin_library_flag '%q' "-L${bootlin_root}/lib"
-  printf -v bootlin_rpath_flag '%q' "-Wl,-rpath,${bootlin_root}/lib"
   rm -rf "$temporary"
   mkdir -p "$temporary/bin" "$temporary/lib/afl"
+  cpkt_afl_prepare_runtime "$temporary" "$cc" "$cxx" "$sysroot" "$bootlin_root"
+  printf -v link_flags ' %q' "${cpkt_afl_runtime_link_options[@]}"
+  printf -v make_cc '%q' "$cpkt_afl_runtime_cc"
+  printf -v make_cxx '%q' "$cpkt_afl_runtime_cxx"
+  cc=$cpkt_afl_runtime_cc
+  cxx=$cpkt_afl_runtime_cxx
 
   (
     cd "$source"
     make -j1 NO_PYTHON=1 \
-      CC="$cc" CXX="$cxx" \
-      PREFIX="$temporary" HELPER_PATH="$helper" BIN_PATH="$temporary/bin" \
+      CC="$make_cc" CXX="$make_cxx" \
+      LDFLAGS="$link_flags" \
+      PREFIX="$temporary" HELPER_PATH="$helper" BIN_PATH="$root/bin" \
+      GCCBINDIR="$compiler_bin" \
       afl-fuzz afl-showmap afl-tmin afl-gotcpu afl-analyze afl-cmin
 
     "$cc" -O3 -funroll-loops -fPIC -Wall -g \
       -I./include -I./instrumentation \
-      "-DAFL_PATH=\"$helper\"" "-DBIN_PATH=\"$temporary/bin\"" \
+      "-DAFL_PATH=\"$helper\"" "-DBIN_PATH=\"$root/bin\"" \
       '-DLLVM_BINDIR=""' "-DVERSION=\"++${version}\"" '-DLLVM_LIBDIR=""' \
       '-DLLVM_VERSION=""' '-DAFL_CLANG_FLTO=""' '-DAFL_REAL_LD=""' \
       '-DAFL_CLANG_LDPATH=""' '-DAFL_CLANG_FUSELD=""' \
-      "-DCLANG_BIN=\"$cc\"" "-DCLANGPP_BIN=\"$cxx\"" -DUSE_BINDIR=1 \
+      "-DCLANG_BIN=\"$root/bin/bootlin-gcc\"" "-DCLANGPP_BIN=\"$root/bin/bootlin-g++\"" -DUSE_BINDIR=1 \
       -Wno-unused-function -Wno-deprecated \
       -c src/afl-common.c -o instrumentation/afl-common.o
     "$cc" -O3 -funroll-loops -fPIC -Wall -g \
       -I./include -I./instrumentation \
-      "-DAFL_PATH=\"$helper\"" "-DBIN_PATH=\"$temporary/bin\"" \
+      "-DAFL_PATH=\"$helper\"" "-DBIN_PATH=\"$root/bin\"" \
       '-DLLVM_BINDIR=""' "-DVERSION=\"++${version}\"" '-DLLVM_LIBDIR=""' \
       '-DLLVM_VERSION=""' '-DAFL_CLANG_FLTO=""' '-DAFL_REAL_LD=""' \
       '-DAFL_CLANG_LDPATH=""' '-DAFL_CLANG_FUSELD=""' \
-      "-DCLANG_BIN=\"$cc\"" "-DCLANGPP_BIN=\"$cxx\"" -DUSE_BINDIR=1 \
+      "-DCLANG_BIN=\"$root/bin/bootlin-gcc\"" "-DCLANGPP_BIN=\"$root/bin/bootlin-g++\"" -DUSE_BINDIR=1 \
       -Wno-unused-function -Wno-deprecated \
-      "-DAFL_INCLUDE_PATH=\"$temporary/include/afl\"" \
+      "-DAFL_INCLUDE_PATH=\"$root/include/afl\"" \
       src/afl-cc.c instrumentation/afl-common.o -o afl-cc \
+      "${cpkt_afl_runtime_link_options[@]}" \
       -DLLVM_MINOR=0 -DLLVM_MAJOR=0 -DCFLAGS_OPT=\"\" -lm
     ln -sf afl-cc afl-gcc-fast
     ln -sf afl-cc afl-g++-fast
     make -j1 -f GNUmakefile.gcc_plugin \
-      CC="$cc" CXX="$cxx" \
-      PREFIX="$temporary" HELPER_PATH="$helper" BIN_PATH="$temporary/bin" \
-      CXXFLAGS="-O3 -g -funroll-loops ${bootlin_include_flag}" \
-      LDFLAGS="${bootlin_library_flag} ${bootlin_rpath_flag}"
+      CC="$make_cc" CXX="$make_cxx" \
+      PREFIX="$temporary" HELPER_PATH="$helper" BIN_PATH="$root/bin" \
+      GCCBINDIR="$compiler_bin" \
+      CXXFLAGS="-O3 -g -funroll-loops ${bootlin_include_flag}${link_flags}" \
+      LDFLAGS="${bootlin_library_flag}${link_flags}"
 
     install -m 755 afl-fuzz afl-showmap afl-tmin afl-gotcpu afl-analyze afl-cmin "$temporary/bin/"
     install -m 755 afl-cc "$temporary/bin/"
     ln -sf afl-cc "$temporary/bin/afl-gcc-fast"
     ln -sf afl-cc "$temporary/bin/afl-g++-fast"
     printf '#!/usr/bin/env bash\nexport AFL_PATH=%q\nexport AFL_CC=%q\nexec %q "$@"\n' \
-      "$root/lib/afl" "$cc" "$root/bin/afl-gcc-fast" > "$temporary/bin/cpkt-afl-gcc"
+      "$root/lib/afl" "$root/bin/bootlin-gcc" "$root/bin/afl-gcc-fast" > "$temporary/bin/cpkt-afl-gcc"
     printf '#!/usr/bin/env bash\nexport AFL_PATH=%q\nexport AFL_CC=%q\nexport AFL_CXX=%q\nexec %q "$@"\n' \
-      "$root/lib/afl" "$cc" "$cxx" "$root/bin/afl-g++-fast" > "$temporary/bin/cpkt-afl-g++"
+      "$root/lib/afl" "$root/bin/bootlin-gcc" "$root/bin/bootlin-g++" "$root/bin/afl-g++-fast" > "$temporary/bin/cpkt-afl-g++"
     chmod +x "$temporary/bin/cpkt-afl-gcc" "$temporary/bin/cpkt-afl-g++"
     install -m 755 afl-gcc-pass.so afl-gcc-cmplog-pass.so afl-gcc-cmptrs-pass.so "$temporary/lib/afl/"
     install -m 644 afl-compiler-rt.o "$temporary/lib/afl/"
     install -m 644 dynamic_list.txt "$temporary/lib/afl/"
-    AFL_PATH="$temporary/lib/afl" AFL_CC="$cc" "$temporary/bin/afl-gcc-fast" -O0 test-instr.c -o test-instr
+    AFL_PATH="$temporary/lib/afl" AFL_CC="$cc" "$temporary/bin/afl-gcc-fast" -O0 test-instr.c -o test-instr "${cpkt_afl_runtime_link_options[@]}"
     "$temporary/bin/afl-showmap" -m none -q -o .cpkt-empty-map ./test-instr </dev/null
     printf '1\n' | "$temporary/bin/afl-showmap" -m none -q -o .cpkt-one-map ./test-instr
     cmp -s .cpkt-empty-map .cpkt-one-map && die 'Bootlin GCC AFL++ instrumentation did not record distinct paths'
@@ -204,13 +220,14 @@ ensure() {
 }
 
 ensure_locked() {
-  local cache=$1 archive_root archive root description cc cxx bootlin_root collection_id extract source temporary
+  local cache=$1 archive_root archive root description cc cxx bootlin_root collection_id extract source temporary sysroot
   archive_root="$cache/archives"
   archive="$archive_root/$archive_name"
   description=$(bootlin_description) || return "$?"
   cc=$(bootlin_value cc "$description")
   cxx=$(bootlin_value cxx "$description")
   bootlin_root=$(bootlin_value root "$description")
+  sysroot=$(bootlin_value sysroot "$description")
   collection_id=$(bootlin_collection_id "$bootlin_root") || return "$?"
   root=$(afl_root "$collection_id") || return "$?"
   afl_ready "$root" "$collection_id" && return
@@ -224,7 +241,7 @@ ensure_locked() {
   tar -xzf "$archive" -C "$extract"
   source="$extract/AFLplusplus-$version"
   [[ -d "$source" ]] || die "unexpected AFL++ archive layout: $archive_name"
-  build_afl "$root" "$source" "$cc" "$cxx" "$bootlin_root" "$collection_id" "$temporary"
+  build_afl "$root" "$source" "$cc" "$cxx" "$bootlin_root" "$collection_id" "$temporary" "$sysroot"
   rm -rf "$extract"
   trap - EXIT HUP INT TERM
 }
@@ -246,8 +263,8 @@ print_env() {
   bootlin_root=$(bootlin_value root "$description")
   collection_id=$(bootlin_collection_id "$bootlin_root") || return "$?"
   root=$(afl_root "$collection_id") || return "$?"
-  bootlin_cc=$(bootlin_value cc "$description")
-  bootlin_cxx=$(bootlin_value cxx "$description")
+  bootlin_cc="$root/bin/bootlin-gcc"
+  bootlin_cxx="$root/bin/bootlin-g++"
   printf 'export AFL_PATH=%q\n' "$root/lib/afl"
   printf 'export CPKT_AFLPP_ROOT=%q\n' "$root"
   printf 'export AFL_CC=%q\n' "$bootlin_cc"

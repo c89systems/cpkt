@@ -84,6 +84,8 @@ def check_toolchain_caches(work):
         (scripts / "resolver.sh").write_text(contents)
         shutil.copyfile(directory / "cpkt-archive-cache.sh", scripts / "cpkt-archive-cache.sh")
         shutil.copyfile(directory / "require-host-bash.sh", scripts / "require-host-bash.sh")
+        if "afl" in kind:
+            shutil.copyfile(directory / "cpkt-afl-runtime.sh", scripts / "cpkt-afl-runtime.sh")
         binaries = fixture / "bin"
         binaries.mkdir()
         for executable, body in (

@@ -45,6 +45,7 @@ signal_bootlin="$signal_root/bootlin"
 mkdir -p "$signal_skill/scripts" "$signal_bin" "$signal_bootlin/include"
 cp "$resolver" "$signal_skill/scripts/cpkt-aflpp.sh"
 cp "$skill_dir/scripts/cpkt-archive-cache.sh" "$signal_skill/scripts/cpkt-archive-cache.sh"
+cp "$skill_dir/scripts/cpkt-afl-runtime.sh" "$signal_skill/scripts/cpkt-afl-runtime.sh"
 cp "$skill_dir/scripts/require-host-bash.sh" "$signal_skill/scripts/require-host-bash.sh"
 chmod +x "$signal_skill/scripts/cpkt-aflpp.sh"
 touch "$signal_bootlin/include/gmp.h"
@@ -103,14 +104,18 @@ done
 
 # Exercise usable, incomplete and wrong-collection prepared roots without builds.
 prepared="$signal_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin"
-mkdir -p "$prepared/bin" "$prepared/lib/afl"
-for tool in afl-fuzz afl-showmap afl-cc cpkt-afl-gcc cpkt-afl-g++; do
+mkdir -p "$prepared/bin" "$prepared/lib/afl" "$prepared/libexec/bootlin-runtime"
+for tool in afl-fuzz afl-showmap afl-cc cpkt-afl-gcc cpkt-afl-g++ bootlin-gcc bootlin-g++; do
   printf '#!/bin/sh\nexit 0\n' > "$prepared/bin/$tool"
   chmod +x "$prepared/bin/$tool"
 done
 ln -s afl-cc "$prepared/bin/afl-gcc-fast"
 ln -s afl-cc "$prepared/bin/afl-g++-fast"
-touch "$prepared/lib/afl/afl-gcc-pass.so" "$prepared/lib/afl/afl-compiler-rt.o" "$prepared/.cpkt-aflpp-revision-1-bootlin"
+for tool in cc1 cc1plus; do
+  printf '#!/bin/sh\nexit 0\n' > "$prepared/libexec/bootlin-runtime/$tool"
+  chmod +x "$prepared/libexec/bootlin-runtime/$tool"
+done
+touch "$prepared/lib/afl/afl-gcc-pass.so" "$prepared/lib/afl/afl-compiler-rt.o" "$prepared/.cpkt-aflpp-revision-2-bootlin"
 description=$(CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-aflpp.sh" discover)
 grep -Fqx 'status=ready' <<< "$description" || fail 'prepared discovery did not report readiness'
 grep -Fqx "root=$prepared" <<< "$description" || fail 'prepared discovery reported wrong root'
@@ -118,10 +123,10 @@ environment=$(CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-a
 (
   eval "$environment"
   [[ "$CC" == "$prepared/bin/cpkt-afl-gcc" && "$CXX" == "$prepared/bin/cpkt-afl-g++" &&
-     "$AFL_CC" == "$signal_bin/cc" && "$AFL_CXX" == "$signal_bin/cxx" &&
+     "$AFL_CC" == "$prepared/bin/bootlin-gcc" && "$AFL_CXX" == "$prepared/bin/bootlin-g++" &&
      "$AFL_PATH" == "$prepared/lib/afl" && "$PATH" == "$prepared/bin:"* ]] || fail 'prepared environment selected incorrect tools'
 )
-for tool in afl-showmap afl-gcc-fast afl-g++-fast afl-cc; do
+for tool in afl-showmap afl-gcc-fast afl-g++-fast afl-cc bootlin-gcc bootlin-g++ ../libexec/bootlin-runtime/cc1 ../libexec/bootlin-runtime/cc1plus; do
   mv "$prepared/bin/$tool" "$prepared/bin/$tool.missing"
   for mode in discover env; do
     if CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-aflpp.sh" "$mode" > /dev/null 2>&1; then
@@ -131,14 +136,14 @@ for tool in afl-showmap afl-gcc-fast afl-g++-fast afl-cc; do
   [[ ! -e "$prepared/bin/$tool" ]] || fail "$mode repaired missing $tool"
   mv "$prepared/bin/$tool.missing" "$prepared/bin/$tool"
 done
-mv "$prepared/.cpkt-aflpp-revision-1-bootlin" "$prepared/.cpkt-aflpp-revision-1-other"
+mv "$prepared/.cpkt-aflpp-revision-2-bootlin" "$prepared/.cpkt-aflpp-revision-2-other"
 for mode in discover env; do
   if CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-aflpp.sh" "$mode" > /dev/null 2>&1; then
     fail "$mode accepted a wrong-collection AFL++ marker"
   fi
 done
 [[ ! -e "$CPKT_TEST_BOOTLIN_CALLS" && ! -e "$CPKT_TEST_DOWNLOADER_MARKER" &&
-   ! -e "$prepared/.cpkt-aflpp-revision-1-bootlin" ]] || fail 'discovery/environment repaired prepared state'
+   ! -e "$prepared/.cpkt-aflpp-revision-2-bootlin" ]] || fail 'discovery/environment repaired prepared state'
 rm -rf "$signal_cache"
 
 set +e
