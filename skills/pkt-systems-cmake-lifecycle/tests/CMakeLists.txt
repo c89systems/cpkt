@@ -10,4 +10,7 @@ add_test(NAME native_test_reuse
     "${SKILL_WORKSPACE_ROOT}")
 add_test(NAME release_policy_wording
   COMMAND "${HOST_BASH}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test-release-tag-contract.sh")
-set_tests_properties(native_test_reuse release_policy_wording PROPERTIES TIMEOUT 60)
+add_test(NAME source_root_context
+  COMMAND "${HOST_BASH}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test-source-root-context.sh"
+    "${SKILL_WORKSPACE_ROOT}")
+set_tests_properties(native_test_reuse release_policy_wording source_root_context PROPERTIES TIMEOUT 60)

@@ -121,4 +121,22 @@ expect_runs 14
 printf '\nmessage("fixture payload: <skipped/>")\n' >> "$source_dir/Fixture.cmake"
 check
 expect_runs 15
-printf 'native CMake/CTest reuse, skipped-result rejection and result integrity fixture passed\n'
+printf '\nfile(WRITE "${INPUT}" "changed during test\\n")\n' >> "$source_dir/Fixture.cmake"
+expect_failure
+grep -q 'inputs changed during verification' "$work/log" || fail 'input-drift case did not reach the post-test guard'
+expect_runs 16
+cp "$work/original-fixture" "$source_dir/Fixture.cmake"
+printf 'pass\n' > "$source_dir/input.txt"
+check
+expect_runs 17
+printf '\nfile(REMOVE "${INPUT}")\n' >> "$source_dir/Fixture.cmake"
+expect_failure
+grep -q 'Missing suite input' "$work/log" || fail 'input-removal case did not reach the post-test guard'
+expect_runs 18
+cp "$work/original-fixture" "$source_dir/Fixture.cmake"
+printf 'pass\n' > "$source_dir/input.txt"
+check
+expect_runs 19
+check
+expect_runs 19
+printf 'native CMake/CTest reuse, result integrity and input stability fixture passed\n'

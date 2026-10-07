@@ -76,7 +76,7 @@ Version decision:
 - For `0.y.z` projects, breaking changes may stay within major version `0`; state their nature and choose the requested/appropriate minor or patch under project policy. Ask when the bump or a compatibility transition requires a decision, not merely because a pre-1.0 non-ABI cleanup occurred.
 - Ensure generated headers, package metadata, Lua rockspecs, source archives, generated source-archive `VERSION`, and single-header artifacts agree with the selected version after the selected version is represented by a lightweight `vX.Y.Z` tag on `HEAD`.
 - Version detection for git worktrees must prefer only an exact lightweight `vX.Y.Z` tag on `HEAD`, then a deliberate project-prefixed version override for release candidates when explicitly supplied, and otherwise `0.0.0`. Lightweight means the tag ref resolves directly to a `commit` object; annotated or signed tag objects must not satisfy the release contract or produce a release version from shared version resolver surfaces such as `make print-release-version`, package naming, source archive naming, checksum naming, or package verification. A git worktree with no exact lightweight `vX.Y.Z` tag on `HEAD` must never default to the planned next release version, `0.1.0`, or any other inferred semver.
-- Git worktree version detection must not read `VERSION`. `/VERSION` should be ignored in git repositories. Version detection outside git uses the source-archive `VERSION` injected during staging. Publishable source archives require the exact lightweight release tag and its version. Nonpublishable rehearsal archives use the resolved candidate version (`0.0.0` or an explicit project-prefixed override) and inject that same value for full reconstruction; they do not require or authorize a release/candidate tag. Incremental binary rehearsals do not require source reconstruction. The final tagged release reconstructs shipped source once and only its final artifacts can be uploaded.
+- Determine [source-root authority](#source-root-authority) before version lookup. Git worktree version detection must not read `VERSION`. `/VERSION` should be ignored in git repositories. Source archives use their own injected `VERSION`, even when extracted beneath a Git checkout. Publishable source archives require the exact lightweight release tag and its version. Nonpublishable rehearsal archives use the resolved candidate version (`0.0.0` or an explicit project-prefixed override) and inject that same value for full reconstruction; they do not require or authorize a release/candidate tag. Incremental binary rehearsals do not require source reconstruction. The final tagged release reconstructs shipped source once and only its final artifacts can be uploaded.
 - Release-candidate overrides must be tested through both CMake and Make surfaces so Lua artifacts, source archives, package metadata, and checksum names cannot silently fall back to `0.0.0`.
 - Verify the selected `vX.Y.Z` tag does not already exist locally or on `<release-remote>`.
 - Verify the selected version is greater than the highest existing stable `vX.Y.Z` tag.
@@ -192,6 +192,38 @@ with the recorded local upload set, including the manifest. Missing digest
 evidence is an unverified delivery, not success. These are control-plane
 metadata requests, not permission to reacquire cached dependency archives.
 GitHub documents these fields in its [release asset API](https://docs.github.com/en/rest/releases/assets).
+
+## Source-root authority
+
+Git discovery alone does not establish ownership: an extracted archive under
+`build/` can discover the enclosing checkout. For a standalone component, compare
+the physical source root with Git's physical top-level root. Worktrees with a
+`.git` file count; checking only for a `.git` directory is insufficient.
+An intentional repository subproject may use an explicitly declared owning root;
+never infer that authority from an incidental ancestor. Extracted archives use
+their own `VERSION` and `RELEASE_MANIFEST` and fail if either is missing.
+
+This small standalone-root example selects the context, not the release version:
+
+```bash
+set -euo pipefail
+source_root=$(CDPATH= cd -- "${1:?pass the source root}" && pwd -P)
+git_root=$(git -C "$source_root" rev-parse --show-toplevel 2>/dev/null) || git_root=
+if [ -n "$git_root" ]; then
+  git_root=$(CDPATH= cd -- "$git_root" && pwd -P)
+fi
+if [ "$git_root" = "$source_root" ]; then
+  printf 'git\n'
+elif [ -f "$source_root/VERSION" ] && [ -f "$source_root/RELEASE_MANIFEST" ]; then
+  printf 'archive\n'
+else
+  printf 'source root has neither owned Git metadata nor archive metadata\n' >&2
+  exit 1
+fi
+```
+
+The [isolated fixture](../scripts/test-source-root-context.sh) tests this exact
+example through the skill's CTest graph; it does not belong in component pipelines.
 
 ## Failed local release recovery
 

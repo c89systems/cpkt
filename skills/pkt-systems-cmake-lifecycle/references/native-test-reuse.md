@@ -34,15 +34,19 @@ add_custom_target(check
 ## RunSuite.cmake
 
 ```cmake
-set(context "")
-foreach(input IN LISTS INPUTS)
-  if(NOT EXISTS "${input}")
-    file(REMOVE "${STAMP}")
-    message(FATAL_ERROR "Missing suite input: ${input}")
-  endif()
-  file(SHA256 "${input}" hash)
-  string(APPEND context "${hash}\n")
-endforeach()
+function(read_suite_inputs output)
+  set(value "")
+  foreach(input IN LISTS INPUTS)
+    if(NOT EXISTS "${input}")
+      file(REMOVE "${STAMP}")
+      message(FATAL_ERROR "Missing suite input: ${input}")
+    endif()
+    file(SHA256 "${input}" hash)
+    string(APPEND value "${hash}\n")
+  endforeach()
+  set("${output}" "${value}" PARENT_SCOPE)
+endfunction()
+read_suite_inputs(context)
 set(report_file "${TEST_DIR}/contract-results.xml")
 if(EXISTS "${STAMP}" AND EXISTS "${report_file}")
   file(SHA256 "${report_file}" report_hash)
@@ -66,6 +70,10 @@ if(NOT report MATCHES "<testcase[^>]* name=\"contract\"" OR
     report MATCHES "<(skipped|failure|error)([ \t\r\n/>])")
   message(FATAL_ERROR "Required contract case did not complete successfully")
 endif()
+read_suite_inputs(after)
+if(NOT after STREQUAL context)
+  message(FATAL_ERROR "Suite inputs changed during verification")
+endif()
 file(SHA256 "${report_file}" report_hash)
 string(SHA256 identity "${context}${report_hash}")
 file(WRITE "${STAMP}" "${identity}")
@@ -85,6 +93,10 @@ return zero. Validate the expected case and reject skipped/failed/error results
 in CTest's fresh JUnit report before writing success. The marker also binds that
 report's bytes; missing or changed results cannot supply cached success. This
 example checks CTest's own case/status fields, not arbitrary product XML.
+Recheck the declared inputs after CTest and before publishing. If they changed
+or disappeared, fail without success; do not claim the earlier input snapshot
+proves the current state. Keep inputs stable through publication using the
+workflow's existing ownership mechanisms, not a new locking service.
 Its required scope is the single `contract` case. If adapting the selection,
 validate the corresponding complete required case set; this marker is not
 project-wide readiness.
@@ -122,3 +134,4 @@ the requests and skill without the expected answers.
 | One case fails in a full suite or cross matrix | Reproduce and prove the specific repair in isolation; rerun the affected larger gate only after focused checks pass. |
 | A tiny follow-up fix after that failure | Run affected focused checks, not another entire suite/matrix; preserve unrelated valid work. |
 | Failure occurs during release | Stop release; focused remediation belongs to a separately authorized fix iteration. |
+| A declared input changes while tests run | Reject the run without publishing success, even if CTest reports a pass. |
