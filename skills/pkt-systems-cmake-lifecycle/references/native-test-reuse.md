@@ -119,3 +119,6 @@ the requests and skill without the expected answers.
 | Changed, missing, failed, skipped or partial suite inputs/results | Invalidate affected success; no full-readiness claim from partial checks or CTest exit status alone. |
 | Source release | Prove shipped source independently and avoid equivalent duplicate producers; do not impose an all-target workspace layout. |
 | Documentation-only edit | Validate documentation; do not run the component matrix. |
+| One case fails in a full suite or cross matrix | Reproduce and prove the specific repair in isolation; rerun the affected larger gate only after focused checks pass. |
+| A tiny follow-up fix after that failure | Run affected focused checks, not another entire suite/matrix; preserve unrelated valid work. |
+| Failure occurs during release | Stop release; focused remediation belongs to a separately authorized fix iteration. |

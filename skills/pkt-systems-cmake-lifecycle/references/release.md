@@ -125,7 +125,9 @@ commit where required. Do not equate candidate success with tagged artifact proo
 A failed candidate gate stops release preparation. Report it and wait for a
 separately authorized fix iteration; do not patch, squash, tag or publish inside
 the failed flow. During that fix iteration preserve unaffected outputs/evidence,
-verify the repair and complete remaining coverage before resuming preparation.
+prove the repair through [focused checks](local-ci.md#failure-and-fix-posture),
+then complete affected broader coverage before resuming preparation. Do not use
+repeated full candidate/matrix runs to debug the defect.
 
 When opted in, push the clean committed development branch and obtain the
 declared candidate native evidence through the existing workflow's trigger or

@@ -37,6 +37,32 @@ specific unresolved concern; review is not another exhaustive test scheduler.
 Performance claims require measured cold/warm results. Use existing timings and
 build/test logs to locate repeated work; do not add a telemetry framework.
 
+## Failure and fix posture
+
+A failing broad gate identifies the next focused investigation; it is not a
+reason to rerun that gate after every small edit.
+
+1. Preserve the failing case, diagnostics and relevant inputs. Reproduce it with
+   the smallest meaningful CTest selection or isolated fixture, retaining the
+   actual target, toolchain, configuration, runner and cache/install context where
+   they matter. A simplified fixture must reproduce the cause, not merely pass.
+2. Diagnose the cause and implement a coherent repair with a focused regression.
+   Prove the intended behavior and relevant failure/boundary cases. For intermittent
+   failures, use bounded targeted checks appropriate to the mechanism; repeated
+   green runs alone do not establish a fix.
+3. Resolve remaining issues in that focused scope before broadening. Reuse valid
+   unrelated builds/checks. Do not clean the whole tree, rebuild prerequisites,
+   increase timeouts or suppress coverage to conceal an unexplained failure.
+4. Once focused evidence is sufficient, rerun the affected larger gate once.
+   Run a cross matrix only when its coverage is affected or still unproven. If
+   another issue appears, return to focused investigation before the next broad run.
+
+Report what failed, what explains the repair, which focused checks passed and
+which broader coverage remains. Focused success proves its scope, not full-suite
+readiness. This loop applies to development and separately authorized fix work;
+failed candidate/release gates stop under [release.md](release.md), with no
+in-flow repair or automatic cold-release retry.
+
 ## Build And Test Gates
 
 Register executable tests, fixtures, examples and suitable CMake script checks

@@ -60,6 +60,15 @@ wrappers, duplicate state and competing descriptions of the graph.
 4. Inspect the diff, commit under project policy, and report changes, checks,
    remaining state and limitations. Never claim unexecuted tests passed.
 
+When a larger gate finds an issue, stop broad reruns. Reproduce the specific
+failure in its relevant target/configuration, fix it, and prove the repair with
+focused regression checks before rerunning the affected larger gate. Do not use
+entire suites or cross-build matrices as the edit/debug loop. Preserve unrelated
+valid work; broaden only after focused evidence supports proceeding. Follow
+[the failure and fix posture](references/local-ci.md#failure-and-fix-posture).
+Release failures remain stop-only; remediation requires a separate authorized
+fix iteration.
+
 Use CMake dependencies and native incremental state to build each effective input
 set once. Reuse passed checks while relevant inputs remain unchanged. Host-only
 fixtures run once on the host; target/runtime checks keep their actual scope.

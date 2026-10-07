@@ -32,6 +32,8 @@ Inspect the request and existing state; implement a coherent batch; run affected
 CTest coverage; complete missing gates; commit and report. Follow
 [local-ci.md](local-ci.md#feedback-loop). Do not clean or run a matrix after every
 edit. Escalate material product/API/ABI/release decisions and prohibited tool use.
+After a failure, use [focused remediation](local-ci.md#failure-and-fix-posture)
+before another broad gate; the full suite is not the debugging loop.
 
 Use serial commands and the configured job limits. Keep ownership boundaries
 explicit. Cancellation must stop owned descendants, clean owned temporary state
