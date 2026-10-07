@@ -241,7 +241,7 @@ Source archive staging must write `RELEASE_MANIFEST` into the staged tree. In a 
 
 Source archive verification must extract the tarball to a generated temporary directory, configure from the extracted tree, build, run the local tests that do not require unavailable external services, and verify the configured version, generated version header, CMake package metadata, pkg-config metadata, and archive `VERSION` agree. When the source archive is produced from a git worktree, verify the archive payload exactly matches the tracked non-ignored release manifest plus deliberate generated release files.
 
-Binary `package-verify` validates already-produced binary artifacts and their checksum manifest; it must never trigger source-archive reconstruction. Keep source extraction, configure, build and test behind `package-source-smoke`. Automatic prerelease/matrix/package verification orchestration runs it only in clean `make release` after binary packages are available. An explicitly requested standalone source-smoke operation is also supported; its proof does not replace either required clean release run.
+Binary `package-verify` validates already-produced binary artifacts and their checksum manifest; it must never trigger source-archive reconstruction. Keep source extraction/configuration behind `package-source-smoke`. In final clean `make release`, stage and validate the source archive before release compilation and use its extracted tree as the build domain, including the sole native Release lane. Binary-only preparation does not require reconstruction. An explicitly requested standalone source-smoke operation is supported; its preparation proof does not replace the final tagged clean release. Follow [feedback-loop.md](feedback-loop.md).
 
 Source archives may carry release scripts and deterministic fixtures needed to rebuild and test the source package. They must not carry generated dependency archives, local `.env` files, package-manager state, service volumes, VCS metadata, or private review notes unless explicitly part of a public source distribution.
 
@@ -279,10 +279,13 @@ Rules:
 - Verification clones or copies the upstream to a temporary generated directory, applies the patch series, and builds it there.
 - Vendored build output must not leak into release artifacts.
 
-For each independent cpkt provider, `make package-source-smoke` creates its
-source archive once and reconstructs that repository's native GNU Release product
-from fresh local compiled state, using its effective configured job limit,
-generator and shared digest cache. Eight is the family's local default/ceiling;
+For each independent cpkt provider, final release stages its source archive once
+and `make package-source-smoke` establishes a fresh extracted build domain. The
+native GNU Release reconstruction supplies that matrix lane's SDK rather than
+adding a second producer/test pass. Other release build/test lanes use the same
+extracted domain and share matching ordinary upstream producers. Use the effective
+configured job limit, generator and shared digest cache. Eight is the family's
+local default/ceiling;
 explicit lower limits are honored and native Darwin uses two. Never discover host
 cores or substitute a host compiler or an unrelated cache. Optional reconstruction
 acquires its exact pinned published core SDK from the shared verified archive cache;

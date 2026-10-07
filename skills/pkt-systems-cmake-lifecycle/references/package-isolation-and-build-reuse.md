@@ -113,6 +113,11 @@ outputs; incompatible/unknown records require explicit regeneration.
 
 ## Readiness and evidence lifetime
 
+Apply [feedback-loop.md](feedback-loop.md) to check selection and evidence
+invalidation. Successful preparation proof persists across commands and sessions
+while relevant inputs, outputs, runtime and coverage match. A command or operation
+ID alone does not require rebuilding or retesting.
+
 Define readiness profiles from actual prerequisite coverage, separating built,
 development-ready, package-ready and fully release-proven state. A build-only command
 cannot publish tested readiness. A prerequisite's own tests bootstrap from built
@@ -135,21 +140,22 @@ diagnostics. Invalidate old success before replacing outputs or rerunning requir
 verification, then atomically publish new evidence only after complete success.
 Failed, skipped, cancelled and timed-out cases never count as passes.
 
-Existing matching prerequisite readiness supports selected development operations.
-It does not authorize a general persistent test-skipping cache. Selected tests run
-normally. Initially suppress duplicate test/helper invocations only for exact
-successful matches within the current proof run. Preserve early fail-fast fixtures;
-later suites may reuse their exact evidence, while direct CTest without supplied
-matching evidence runs them. Require the expected case/executable inventory and
-reject an unexpectedly empty selection. Report legitimately inapplicable aggregate
-tiers separately; explicitly requesting an unsupported tier fails.
+Existing matching readiness supports selected development operations, including
+reuse of passed selected tests across preparation commands and sessions. Validate
+current input/output/runtime identities and exact required case coverage before
+reuse. Preserve provenance and report reused cases. Direct CTest without supplied
+matching evidence runs the requested tests. Preserve fail-fast checks; reject an
+unexpectedly empty selection or partial evidence offered as complete coverage.
+Report legitimately inapplicable aggregate tiers separately; explicitly requesting
+an unsupported tier fails.
 
-Each clean release run has fresh evidence. Aggregate all required targets/modes
-from actually passed cases and explicitly matched same-run proofs, recording reused
-work and its originating evidence. The candidate rehearsal cannot satisfy the
-tagged clean run. Debug versus Release, plain versus Memcheck, build-tree versus
-extracted-package, and native source versus exact distributed bytes remain distinct
-proof obligations. Follow [release.md](release.md) and [github-actions.md](github-actions.md).
+The final tagged clean release has fresh evidence. Aggregate all required
+targets/modes from actually passed cases and explicitly matched same-run proofs,
+recording reused work and its originating evidence. Preparation evidence cannot
+satisfy the tagged clean run's freshly produced outputs. Debug versus Release,
+plain versus Memcheck, build-tree versus extracted-package, and native source
+versus exact distributed bytes remain distinct proof obligations. Follow
+[release.md](release.md) and [github-actions.md](github-actions.md).
 
 ## Composable SDK acquisition and packaging
 
@@ -218,8 +224,12 @@ warm all-group work, selected edits and no-op builds under the configured job li
 No-op producer work must be zero when inputs/outputs match. Diagnose repeated
 upstream work from producer contracts/stamps before removing it. Bound e2e readiness,
 retain teardown on failure, and fix bottlenecks without reducing required coverage.
-Keep QEMU build-tree and extracted consumers, plain and Memcheck e2e, distinct
-configuration builds and independent reconstruction of shipped source archives.
-Generate each selected source archive once per clean run; reconstruction uses empty local compiled state and the
-shared verified archive caches. Logs/timings stay under `build/`. Both exhaustive
-clean `make release` runs remain mandatory.
+Keep QEMU build-tree and extracted consumers, plain and Memcheck e2e, and distinct
+effective configuration builds. Reconstruct shipped source from empty local
+compiled/install state and the shared verified archive caches; use those outputs
+as the final native Release lane instead of rebuilding an equivalent checkout
+lane. Generate each source archive once. Logs/timings stay under `build/`. Candidate
+preparation is incremental; only the final tagged `make release` must start clean.
+An additional cold audit requires an explicit request. Follow
+[feedback-loop.md](feedback-loop.md) for phase accounting, no-op/test invocation
+regressions and the engineer's end-to-end performance budget.

@@ -29,6 +29,7 @@ This skill is the process authority. It must not require external example reposi
 - Release artifacts must be relocatable and must not contain `$HOME`, source repository paths, build directory paths, dependency cache paths, package-manager temporary paths, or any absolute local workstation path. The release gate must expand and scan all checksum-listed artifacts, including nested source rocks and nested source archives, inspect runtime loader metadata, and fail before release on any local path or non-relocatable runtime path.
 - Preserve project-specific behavior, but move lifecycle behavior behind the standard surfaces when doing lifecycle work. Do not broaden ordinary engineering requests into lifecycle migrations unless the requested change requires it.
 - Verification is the release gate. Each new lifecycle behavior must have an executable check.
+- Optimize feedback for speed and accuracy together: build each effective input set once and execute each required check once, reusing validated outputs and passed evidence until relevant inputs change. Candidate preparation is incremental; the final tagged release starts clean and repeats no equivalent work within that run. Follow [references/feedback-loop.md](references/feedback-loop.md) before selecting gates; an exhaustive clean candidate rehearsal is not a default requirement.
 - Where the project supports selected packages/groups, preserve their build, test, cleanup and payload ownership boundaries. Import verified prerequisites; missing/stale prerequisites fail with a preparation command rather than silently widening scope. Producer and verification reuse follow [references/package-isolation-and-build-reuse.md](references/package-isolation-and-build-reuse.md). Use the owning repository inventory and executable contracts to determine implemented commands and artifact naming; publication evidence remains separate.
 - `release` is the final local release action and gate. Do not introduce a separate umbrella target as the accepted final gate; put the complete clean release pipeline behind `make release` and expose narrower rehearsals through named targets such as `prerelease`, `prerelease-hardening`, and `release-matrix`.
 - Release uploads must include the checksum manifest, normally `dist/<project>-<version>-CHECKSUMS`, and GitHub release assets must be selected from that manifest rather than from a `dist/` glob.
@@ -94,12 +95,18 @@ Do not maintain an exhaustive list of possible engineering task types. Instead, 
 The normal operating loop is:
 
 ```text
-inspect -> classify affected surfaces -> load references -> edit -> narrow gate -> repair -> broader gate -> summarize
+inspect inputs and evidence -> edit a coherent batch -> verify affected behavior -> run missing required coverage -> commit -> summarize
 ```
 
 For release work, replace the edit/repair loop with a stop-only gate loop: inspect -> classify -> load release references -> run the prescribed gates -> stop on any issue or publish only after all gates pass. Release gates are not invitations to repair during release.
 
 When the skill already covers a lifecycle-mechanical decision, do not ask for permission. Implement, verify, and report.
+
+Choose checks by missing evidence, not by repeating a target list. Documentation-only
+work uses documentation validation, not a native finalize suite or matrix. Broaden
+verification only for changed inputs, uncovered obligations or failures. See
+[references/feedback-loop.md](references/feedback-loop.md) for proof boundaries,
+review reuse and performance acceptance.
 
 ## Reference Router
 
@@ -112,6 +119,7 @@ Read references only after the request and repository state indicate they are re
 - Read [references/dependency-reporting.md](references/dependency-reporting.md) for task-relevant dependency summaries, explicit inventory questions, dependency changes, and release reports. Read the acquisition/provenance reference as well when those surfaces change.
 - Read [references/package-isolation-and-build-reuse.md](references/package-isolation-and-build-reuse.md) when changing component producer ownership, build/verification reuse, selected group operations, or composable SDK acquisition and packaging. It applies to implemented or explicitly requested capabilities, without requiring every project to split packages.
 - Read [references/local-ci.md](references/local-ci.md) when touching build/test gates, API or ABI behavior, native memory checking, fuzzing, benchmarks, install-tree consumers, or quality contracts.
+- Read [references/feedback-loop.md](references/feedback-loop.md) when planning implementation verification, review, release preparation, evidence invalidation, or build/test performance work.
 - Read [references/github-actions.md](references/github-actions.md) when native macOS hosted verification is requested, declared by project policy, or being evaluated for an eligible GitHub repository. It defines opt-in, development-branch push authority, existing-workflow adoption, evidence identity, and the release-ref boundary.
 - Read [references/podman-kube-e2e.md](references/podman-kube-e2e.md) when the repository has or needs deterministic local service e2e, including migration from containerd/Compose.
 - Read [references/lua.md](references/lua.md) when the repository has or needs Lua facades, Lua C modules, source rocks, Lua benchmarks, or Lua release artifacts.

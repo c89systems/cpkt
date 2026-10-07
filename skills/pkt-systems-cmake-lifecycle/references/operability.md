@@ -89,7 +89,7 @@ Execution tiers:
 
 - **Inner loop**: seconds to low minutes; targeted configure/build/test commands for the edited surface.
 - **Confidence loop**: normal local verification such as `test-all`, deterministic e2e, Lua tests, fuzz smoke, benchmark gates, and package verification.
-- **Release loop**: clean, serialized, no shortcuts; candidate branch gates, review, squash to the resolved local release branch, lightweight tag, final tagged build, package verification, push, and GitHub release. Follow [release.md](release.md).
+- **Release loop**: incremental candidate proof and review, squash to the resolved local release branch, lightweight tag, one final clean tagged build, package verification, push, and GitHub release. Reuse valid evidence during preparation and equivalent same-run work during release; follow [release.md](release.md).
 
 Failure taxonomy:
 
@@ -158,6 +158,10 @@ Every repository should converge to this spine:
 ```text
 deps -> configure -> build -> test -> hardening -> e2e -> package -> verify -> review -> release
 ```
+
+This spine describes proof obligations, not a command list to execute afresh
+after every edit. Follow [feedback-loop.md](feedback-loop.md) to reuse valid
+evidence and run only affected or missing coverage during preparation.
 
 The lifecycle has mandatory surfaces and optional extension surfaces.
 Each project chooses its shipped targets and artifact types. Required release

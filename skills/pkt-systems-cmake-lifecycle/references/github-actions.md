@@ -202,9 +202,9 @@ permission/action migrations need their own verification.
 
 ## Release-ref boundary
 
-The development opt-in allows candidate source checks before squash. Keep both
-clean local runs prescribed in [release.md](release.md): candidate rehearsal,
-then final tagged `make release` on the local release branch. Before the latter
+The development opt-in allows candidate source checks before squash. Follow
+[release.md](release.md): incremental candidate verification, then one final
+tagged clean `make release` on the local release branch. Before that release
 and all local checksum, package, privacy, and artifact gates pass, the release
 branch and actual release tag remain local. This includes dispatch ref selection:
 never publish them merely to obtain hosted feedback or bypass a trigger filter.

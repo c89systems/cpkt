@@ -3,10 +3,10 @@
 For selected groups and producer/test reuse, follow
 [package-isolation-and-build-reuse.md](package-isolation-and-build-reuse.md).
 Required coverage is inventory-derived; narrower operations cannot silently build
-or retest prerequisites. Reuse exact same-run proof without conflating Debug/Release,
-plain/Memcheck, build-tree/extracted-package or source/final-byte evidence. Existing
-matching prerequisite readiness supports development, not persistent skipping of
-selected tests or reuse across the two clean release runs.
+or retest prerequisites. Follow [feedback-loop.md](feedback-loop.md): reuse
+matching successful preparation evidence across commands/sessions, and fresh
+same-run evidence within the final tagged clean release. Keep distinct effective
+configuration, instrumentation, runtime and artifact obligations explicit.
 
 ## Build And Test Gates
 
@@ -17,22 +17,20 @@ must remain unexecuted. Synchronize subprocess and lock tests with readiness
 and explicit release signals; fixed sleeps must not determine whether a child
 is still alive. Bound startup waits and provide cleanup on assertion failure.
 
-Fast local confidence:
+Fast local confidence completes affected build and test coverage through the
+public targets. A test command builds its prerequisites; do not separately build
+them first unless that produces needed feedback. Native Valgrind is affected-area
+hardening, not a mandatory full pass after every edit.
 
-1. `make build`
-2. `make test`
-3. `make valgrind`
-
-Broader local confidence:
-
-1. `make test-all`
-2. `make package-verify`
+Broader local confidence completes missing `make test-all` and package coverage
+when the change affects those obligations. Reuse matching passed checks rather
+than execute the entire suite again.
 
 Release confidence:
 
 1. the explicit applicable pre-release gates
 2. independent review on the feature branch
-3. final clean `make release` package build from the tagged main commit
+3. final clean `make release` package build from the tagged release-branch commit
 
 `make test-all` includes fast host tests, host release tests when useful, cross product tests that can execute locally or through an approved runner, native Valgrind checking, native AFL++ fuzz smoke, deterministic e2e when part of normal confidence, and benchmark gates when performance is a product property. Cross runners never execute Valgrind or fuzzing gates.
 
@@ -40,11 +38,11 @@ Do not add a separate umbrella target as a standard lifecycle target. The exhaus
 
 Recommended production-loop tiers:
 
-- `make finalize-slice`: formatting, narrow debug checks, and a read-only formatting assertion before committing a small slice. Run it after each implementation iteration and before every commit; any edit after it requires rerunning it or at least `make format` and `make format-check` with the affected checks.
-- `make prerelease`: local, deterministic pre-release confidence. Include formatting, debug unit tests, the native Valgrind target, native fuzz smoke, Lua tests, local example smoke, and deterministic local e2e when those surfaces exist.
+- `make finalize-slice`: formatting, affected Debug checks, and a read-only formatting assertion for a completed implementation batch before committing. Reuse valid checks; subsequent edits require only affected verification. Documentation/policy-only batches use their own validation rather than the executable suite. If this target runs an exhaustive suite indiscriminately, report the lifecycle gap and use the appropriate focused public checks during preparation.
+- `make prerelease`: incremental local pre-release confidence. Cover formatting, Debug unit tests, native Valgrind/fuzz smoke, Lua, examples, deterministic e2e and binary matrix where those surfaces exist, executing only obligations without matching successful proof.
 - `make prerelease-live`: opt-in external-provider or credentialed integration tests. Refuse to run unless a project-prefixed environment variable explicitly enables them.
 - `make prerelease-hardening`: the expensive tier. Include `prerelease`, live checks when explicitly enabled, long fuzz runs, benchmark gates when applicable, and the release matrix.
-- `make release-matrix`: incrementally build, test, package, checksum, and verify the binary SDK/runtime artifacts for every release target, including their headers, metadata, notices and applicable binary smoke bundles. Source archives, standalone source distributions/source rocks and single-header distributions are assembled and verified by final `make release` after the binary matrix; source reconstruction is not a matrix prerequisite.
+- `make release-matrix`: incrementally complete build, test, package, checksum and verification for every release target's binary artifacts. Binary-only preparation does not require source reconstruction. In the final clean release, consume verified native Release outputs from the fresh source reconstruction instead of duplicating that producer; verify remaining non-binary artifacts and the complete manifest once all payloads exist.
 
 These names are preferred over project-specific gate names. Retain compatibility
 aliases only for an explicit request or declared external-support commitment;
@@ -113,6 +111,7 @@ Add tests that assert observable behavior:
 
 Test registration:
 
+- Separate host lifecycle fixtures from target tests. Execute each matching host fixture once and combine its proof with the required target suites; configured-target assertions keep their actual target scope. Never multiply a host-only fixture across the matrix for completeness.
 - Large unit suites should expose named test groups or labels so agents can run narrow checks while still allowing broad gates.
 - Generate or verify the list of registered unit groups when possible, so adding a test function without registering it fails locally.
 - Use CTest labels consistently: `unit`, `smoke`, `local`, `packaging`, `fuzz`, `integration`, `example-smoke`, and additional project-specific labels only when they help select meaningful gates.
