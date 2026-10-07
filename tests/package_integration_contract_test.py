@@ -388,6 +388,67 @@ leading]==] [==[literal "quotes"]==])
         self.assertEqual(0o755,(prefix/'probe/payload').stat().st_mode & 0o777);self.assertEqual(0o640,(prefix/'probe/renamed').stat().st_mode & 0o777)
         self.assertEqual('payload',os.readlink(prefix/'probe/alias'))
 
+    def test_sdk_install_uses_configured_dependency_roots(self):
+        from native_lifecycle_fixture import metadata
+        for warm_default in (False,True):
+            with self.subTest(warm_default=warm_default):
+                root=self.work/('warm-default' if warm_default else 'cold-default')
+                external=root/'configured dependency installs'
+                builds=root/'configured dependency builds'
+                expected={
+                    'include/fixture.h':b'configured header\n',
+                    'lib/libfixture.a':b'configured static library\n',
+                    'lib/libfixture.so.2.0':b'configured shared library\n',
+                    'share/doc/cpkt/core/third_party/fixture/LICENSE':b'configured upstream license\n',
+                    'share/doc/cpkt/core/third_party/project-notice/LICENSE':b'project license\n',
+                    'share/cpkt/mqtt-c/auxiliary-notice':b'configured auxiliary file\n'}
+                for relative in ('include/fixture.h','lib/libfixture.a','lib/libfixture.so.2.0'):
+                    path=external/'fixture/install'/relative
+                    path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(expected[relative])
+                (external/'fixture/install/lib/libfixture.so').symlink_to('libfixture.so.2.0')
+                license_path=builds/'fixture/src/LICENSE';license_path.parent.mkdir(parents=True)
+                license_path.write_bytes(expected['share/doc/cpkt/core/third_party/fixture/LICENSE'])
+                project_notice=root/'fixture-notice';project_notice.mkdir()
+                (project_notice/'LICENSE').write_bytes(expected['share/doc/cpkt/core/third_party/project-notice/LICENSE'])
+                auxiliary=external/'mqtt-c/install/share/cpkt/mqtt-c/auxiliary-notice'
+                auxiliary.parent.mkdir(parents=True);auxiliary.write_bytes(expected['share/cpkt/mqtt-c/auxiliary-notice'])
+                if warm_default:
+                    for relative in ('include/fixture.h','include/stale-only.h','lib/libfixture.a','lib/libfixture.so.2.0'):
+                        path=root/'.cache/deps/x86_64-linux-gnu/fixture/install'/relative
+                        path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'stale default bytes\n')
+                    stale_license=root/'.cache/deps-build/x86_64-linux-gnu/fixture/src/LICENSE'
+                    stale_license.parent.mkdir(parents=True);stale_license.write_bytes(b'stale license\n')
+                    stale_auxiliary=root/'.cache/deps/x86_64-linux-gnu/mqtt-c/install/share/cpkt/mqtt-c/stale-only'
+                    stale_auxiliary.parent.mkdir(parents=True);stale_auxiliary.write_bytes(b'stale auxiliary\n')
+                components={
+                    'fixture':{'group':'core','directory':'fixture','dependencies':[],
+                        'package':{'cmake':[],'pkgconfig':[],'license':'src/LICENSE','facades':[]}},
+                    'project-notice':{'group':'core','directory':'project-notice','dependencies':[],
+                        'package':{'cmake':[],'pkgconfig':[],'license':'@fixture-notice/LICENSE','facades':[]}}}
+                configured={'CPKT_EXTERNAL_ROOT':external,'CPKT_DEPENDENCY_BUILD_ROOT':builds}
+                prefix,graph=metadata(root,configured,components)
+                def verify(stage):
+                    for relative,payload in expected.items():
+                        self.assertEqual(payload,(stage/relative).read_bytes(),relative)
+                    self.assertEqual('libfixture.so.2.0',os.readlink(stage/'lib/libfixture.so'))
+                    self.assertFalse((stage/'include/stale-only.h').exists())
+                    self.assertFalse((stage/'share/cpkt/mqtt-c/stale-only').exists())
+                verify(prefix)
+                # The selected values can also be ordinary CMake variables.
+                cmake_source=(root/'CMakeLists.txt').read_text()
+                normal=''
+                for key,value in configured.items():
+                    normal+='unset('+key+' CACHE)\nset('+key+' [==['+str(value)+']==])\n'
+                cmake_source=cmake_source.replace('include(cmake/CpktGroups.cmake)',normal+'include(cmake/CpktGroups.cmake)')
+                (root/'CMakeLists.txt').write_text(cmake_source)
+                result=subprocess.run(['cmake','-S',str(root),'-B',str(graph)],env=environment(),capture_output=True,text=True)
+                self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+                normal_prefix=root/'build/normal variable SDK'
+                result=subprocess.run(['bash',str(root/'scripts/operation.sh'),'--group','core','--',
+                    'cmake','--install',str(graph),'--prefix',str(normal_prefix)],env=environment(),capture_output=True,text=True)
+                self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+                verify(normal_prefix)
+
     def test_package_metadata_does_not_replay_parent_diagnostic_controls(self):
         from native_lifecycle_fixture import metadata
         prefix,graph=metadata(self.work/'metadata',{'CMAKE_WARN_DEPRECATED':'TRUE','CMAKE_ERROR_DEPRECATED':'FALSE'})

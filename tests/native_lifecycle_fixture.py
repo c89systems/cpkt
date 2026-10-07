@@ -111,18 +111,20 @@ def archive(prefix,destination):
     subprocess.run(['bash',str(ROOT/'scripts/archive.sh'),str(prefix),str(destination)],check=True,capture_output=True)
 
 
-def metadata(root,configured=None):
+def metadata(root,configured=None,components=None):
     root=Path(root);seed(root)
     for name in ('LICENSE','docs/sdk-installation.md','cmake/payload-ownership.json'):
         destination=root/name;destination.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(ROOT/name,destination)
-    data={'repository_group':'core','groups':{'core':{'requires':[],'package':{'docs':[],'examples':[],'files':[],'extra_notices':[]}}},'components':{},'targets':{},'tests':{}}
+    data={'repository_group':'core','groups':{'core':{'requires':[],'package':{'docs':[],'examples':[],'files':[],'extra_notices':[]}}},'components':components or {},'targets':{},'tests':{}}
     (root/'cmake/components.json').write_text(json.dumps(data))
     (root/'cmake/CpktDependencies.cmake').write_text('# no synthetic upstream builds\n')
     producer=root/'build/x86_64-linux-gnu/core/producer';producer.mkdir(parents=True)
     (producer/'CMakeCache.txt').write_text('CPKT_CMOCKA_VERSION:STRING=1.1.7\n')
     values={'CMAKE_BUILD_TYPE':'Release','CPKT_TARGET_ID':'x86_64-linux-gnu','CPKT_GROUP':'core','CPKT_CMOCKA_VERSION':'1.1.7','CPKT_BUNDLE_VERSION':'1.2.3'}
+    values['CPKT_EXTERNAL_ROOT']=root/'.cache/deps/x86_64-linux-gnu'
+    values['CPKT_DEPENDENCY_BUILD_ROOT']=root/'.cache/deps-build/x86_64-linux-gnu'
     values.update(configured or {})
-    mqtt=root/'.cache/deps/x86_64-linux-gnu/mqtt-c/install/share/cpkt/mqtt-c';mqtt.mkdir(parents=True)
+    mqtt=Path(values['CPKT_EXTERNAL_ROOT'])/'mqtt-c/install/share/cpkt/mqtt-c';mqtt.mkdir(parents=True,exist_ok=True)
     (mqtt/'README').write_text('synthetic public MQTT headers notice')
     source='cmake_minimum_required(VERSION 3.21)\nproject(metadata NONE)\n'
     for key,value in values.items():source+='set('+key+' [==['+str(value)+']==] CACHE STRING "")\n'

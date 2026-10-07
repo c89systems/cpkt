@@ -21,6 +21,9 @@ function(cpkt_register_sdk_install facades)
   file(WRITE "${CMAKE_BINARY_DIR}/cpkt-package-components.json" "${_components}\n")
   set(CPKT_SDK_CONFIGURED_VALUES "")
   get_cmake_property(_variables CACHE_VARIABLES)
+  # Dependency selection may use ordinary variables overriding cache entries.
+  list(APPEND _variables CPKT_EXTERNAL_ROOT CPKT_DEPENDENCY_BUILD_ROOT)
+  list(REMOVE_DUPLICATES _variables)
   foreach(_variable IN LISTS _variables)
     if(_variable MATCHES "^_CMAKE" OR _variable MATCHES "^CMAKE_(WARN|ERROR)_DEPRECATED$"
         OR _variable STREQUAL "CMAKE_INSTALL_PREFIX")
