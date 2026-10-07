@@ -6,12 +6,11 @@ is read-only unless the task also authorizes dependency or documentation changes
 
 ## Dependencies
 
-Downstream projects consume external C dependencies as SDK bundles from
-`cpkt`. A bundle producer acquires its own pinned upstream sources. Core `cpkt` has no
-SDK prerequisite; `cpktdb` and `cpktmisc` import an exactly pinned published
-`cpkt` SDK and build only their own upstreams/facades. No producer depends on
-itself or acquires a sibling checkout as an SDK. Imported component versions
-come from the validated provider manifest, not copied source defaults.
+The project chooses its dependency sources and supported modes. Using this
+lifecycle does not require cpkt, an SDK dependency or a bundle-producer layout.
+Projects that choose published SDKs pin and validate those packages; source
+producers acquire their declared upstream inputs. cpkt-family ownership and exact
+core prerequisite rules apply only under [cpkt-providers.md](cpkt-providers.md).
 The lifecycle must support the applicable producer or consumer surfaces:
 
 - Host debug dependency root.
@@ -26,7 +25,7 @@ The lifecycle must support the applicable producer or consumer surfaces:
 
 For implemented composable SDKs, select and validate the required package closure
 using [package-isolation-and-build-reuse.md](package-isolation-and-build-reuse.md).
-For producer reuse, apply its build-identity and completion-evidence rules even
+For producer reuse, apply its native dependency and successful-output rules even
 when the project ships one package. Proposed layouts do not select current assets.
 
 ## Upgrade compatibility
@@ -131,12 +130,12 @@ Rules:
 - Do not vendor generated dependency installs into release source.
 - Shared archive cache reuse is the default. Do not re-download a verified global archive when the requested SHA-256 already exists and verifies.
 - Repo-local dependency builds and install roots are disposable local state. Unqualified global clean/release removes that state; selected cleanup/dependency operations remove only owned roots. Normal no-clean entrypoints use explicit stale-component detection for source, patches, output-affecting helpers/options, toolchain and layout. Repair only the stale owned component and affected dependency closure from verified archives; selected consumers fail instead of repairing borrowed prerequisites. Preserve matching unrelated components.
-- Model each upstream as an independently buildable component. Keep its extraction/build root at `.cache/deps-build/<target-id>/<component>/`, its install root at `.cache/deps/<target-id>/<component>/install/`, and its contract at `.cache/dependency-contracts/<target-id>/<component>.txt`. Do not make façades, tests, examples, or a single component target depend on a universal all-dependencies target.
-- Expose `cpkt_deps_<component>` targets and a Make entrypoint such as `make deps DEPENDENCY=<component> PRESET=<preset>` for a component closure. Direct dependency edges must build only the required transitive closure. Reserve `cpkt_deps_all` for intentional complete-SDK assembly and final release work.
-- A component contract includes its recipe, output-affecting helper closure, pinned inputs, relevant options/toolchain state, and direct dependency contract identifiers. A bookkeeping-only change must not invalidate every component. Schema migration may adopt old state only after proving equivalent meaning and validating completed outputs; expected configure-time contracts alone are not success. Reject unknown/incompatible evidence. Later mismatches repair only stale owned components and affected dependents, subject to selected-operation boundaries.
+- Model each upstream as an independently buildable CMake component with declared source/recipe dependencies and build/install outputs. Let the native graph build its required transitive closure. Keep local roots clearly owned; no particular contract directory, serialization schema or identity engine is required.
+- Expose component preparation only where useful, for example `make deps DEPENDENCY=<component> PRESET=<preset>`. Use the owning project's target names; cpkt-specific prefixes are not a requirement for other deliveries. Complete-SDK assembly is an explicit aggregate operation, not a prerequisite of every facade, test or example.
+- Invalidate only affected native build state when actual source, recipe, toolchain, options or dependency outputs change. Do not create a separate contract engine or schema-migration layer. Expected configure-time outputs are not successful builds; failed or incomplete producers cannot supply prerequisites.
 - When dependency rebuilding is disabled, a stale component root must fail with an actionable diagnostic. Never delete caller-owned roots; require the caller to refresh them or remove the override.
 - Compiler collection metadata may be recorded for diagnostics and package provenance, but it must not become a repo-local cache path component. For a pinned Bootlin build, diagnostics should include the Bootlin target ID, pinned collection release/root, and sysroot path; GCC version alone and `CMAKE_C_COMPILER_TARGET` are insufficient to describe the selected compiler collection.
-- `scripts/deps.sh` refreshes stale owned component roots from verified global archives. A selected invocation must not delete/rebuild borrowed prerequisite roots or provision missing prerequisite tools. Stale local state must not be hidden behind longer path names.
+- The public dependency-preparation command refreshes only stale owned components from verified archives. Selected consumers cannot repair borrowed prerequisites or provision their tools. Stale state must not be hidden behind longer path names.
 - Do not leak dependency cache paths into package metadata, CMake config files, pkg-config files, binaries, scripts, or release archives.
 - Imported CMake targets and pkg-config metadata must expose only the public dependency contract needed by downstream consumers.
 - Static SDKs may require downstream consumers to provide dependency include and library roots; encode that clearly in CMake package config, pkg-config metadata, tests, and README examples.
@@ -145,13 +144,13 @@ Rules:
 - Prefer upstream-compatible CMake target names for bundled dependencies, such as `OpenSSL::SSL`, `OpenSSL::Crypto`, `CURL::libcurl`, `ZLIB::ZLIB`, `Libssh2::libssh2`, `nghttp2::nghttp2`, and `LibXml2::LibXml2`. Add project-namespaced aliases only when they clarify a bundle-specific variant without replacing the standard consumer path.
 - Pkg-config metadata for static consumers must use `Requires.private` for dependencies that also ship `.pc` files and `Libs.private` for private system libraries or linker flags. Do not make consumers spell out `-ldl`, `-lm`, `-lz`, `-pthread`, framework flags, or similar workaround closures when those are requirements of bundled dependencies.
 - Shared SDKs must not require bundled private static archives unless the project deliberately ships them as part of the artifact contract.
-- Do not implement bespoke JSON parsers, serializers, tokenizers, compactors, escaping logic, or JSON framing code when the project declares `lonejson` as a dependency. `lonejson` owns all JSON parsing, serialization, validation, streaming, framing, escaping, and fixture normalization surfaces.
+- Product JSON behavior covered by a declared `lonejson` dependency belongs to that dependency, including parsing, serialization, validation, streaming and framing. Do not implement a competing product parser or serializer.
 - When a project already declares `lonejson` and the task authorizes lifecycle consolidation of its legacy JSON handling, migrate that handling behind the dependency and test preservation of behavior. Do not add lonejson or migrate unrelated code merely because this skill is active.
 - If the needed JSON behavior cannot be implemented through the project's declared `lonejson` dependency, stop and flag it to the engineer. Propose a change request for the missing capability instead of bespoke JSON behavior in that consuming project. This rule does not select a dependency for projects that do not declare it.
-- Do not implement bespoke parsers, serializers, tokenizers, compactors, escaping logic, or framing code for a data format when the project declares a lifecycle component that owns that format.
+- The same ownership applies to product data-format behavior covered by another declared dependency; do not implement a competing product parser, serializer or framing layer.
 - When the project declares the format-owning dependency and the task authorizes lifecycle consolidation, migrate legacy structured-data handling covered by it behind that dependency and test preservation of behavior.
 - If the needed structured-data behavior cannot be implemented through the declared lifecycle dependency, stop and flag it to the engineer. Propose a change request for adding the missing capability to the owning dependency instead of implementing bespoke behavior in the consuming project.
-- Exceptions to declared format-ownership rules require explicit engineer approval and documentation as a narrow non-parser use case, such as fixed fixture text or protocol examples not parsed/serialized by project code.
+- This product boundary does not require a C library executable for ordinary CMake configuration, build metadata, generators or test-fixture assertions. Native CMake JSON facilities and standard Python libraries in permitted generators/fixtures remain available. They must not replace product-format behavior or become pipeline controllers. Other Python pipeline use still requires explicit developer permission.
 - Do not implement a bespoke structured logging subsystem when the project declares a pkt.systems logging dependency. Put logging behind a narrow adapter, keep it optional at the public API boundary, and test that disabling logging removes side effects.
 - Logging dependencies must not leak into public headers unless the project deliberately accepts that type as part of the API. When a logger handle is accepted publicly, forward-declare it where possible and document that ownership stays with the caller.
 - Host dependency modes must validate ABI-sensitive dependencies, not just headers. Wrong-ABI or partial host installs must fail with actionable diagnostics or fall back to bundled SDK mode when auto mode is explicitly supported.

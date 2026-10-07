@@ -21,6 +21,11 @@ real inputs; publish it only after success and invalidate it before changed work
 Do not create a parallel scheduler, receipt service or source-closure interpreter.
 Missing, corrupt, failed, interrupted or partial results cannot prove full coverage.
 
+Use the [small native suite example](native-test-reuse.md) when a marker is needed.
+It defines actual input binding, failure invalidation, suite scope and explicit
+reruns; its executable fixture tests the example itself. This is not a requirement
+to introduce per-case records or a reusable caching framework.
+
 Host lifecycle fixtures run once for their relevant host inputs. Target runtime,
 ABI, loader and extracted-package checks keep their actual target/byte scope.
 Debug/Release and plain/Memcheck are distinct when their behavior differs, while

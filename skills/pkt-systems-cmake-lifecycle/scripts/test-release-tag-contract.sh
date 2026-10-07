@@ -7,6 +7,8 @@ local_ci_ref="$skill_dir/references/local-ci.md"
 operability_ref="$skill_dir/references/operability.md"
 
 # Validate canonical policy and reference routing without mutating Git refs.
+# These are wording guards, not proof of agent decisions. Also review the decision
+# cases and execute the isolated native example in references/native-test-reuse.md.
 
 fail() {
   printf 'test-release-tag-contract: %s\n' "$*" >&2
@@ -51,4 +53,4 @@ for reference in "$local_ci_ref" "$operability_ref"; do
     'routing to canonical ownership policy'
 done
 
-printf 'release tag lifecycle contract tests passed\n'
+printf 'release tag policy wording guards passed\n'

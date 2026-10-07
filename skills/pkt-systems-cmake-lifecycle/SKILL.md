@@ -94,3 +94,4 @@ run, share identical prerequisites and execute each required check once.
 | Bootstrap or migration | [bootstrap.md](references/bootstrap.md), [migration.md](references/migration.md) |
 | Optional surfaces | [lua.md](references/lua.md), [podman-kube-e2e.md](references/podman-kube-e2e.md), [github-actions.md](references/github-actions.md) |
 | cpkt provider contracts only | [cpkt-providers.md](references/cpkt-providers.md) |
+| Native reuse example and skill decision checks | [native-test-reuse.md](references/native-test-reuse.md) |
