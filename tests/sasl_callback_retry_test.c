@@ -27,6 +27,10 @@ static int mock_application_credential_releases;
 static unsigned long mock_option_length = 6;
 static int mock_option_status = SASL_OK;
 static int mock_option_calls;
+static unsigned long mock_canonicalize_length;
+static int mock_canonicalize_status;
+static int mock_canonicalize_calls;
+static cpkt_sasl *mock_canonicalize_receiver;
 
 /* The injected provider test links only the receiver implementation. Native
  * global shutdown owns these plugin registries in the production build. */
@@ -51,6 +55,7 @@ typedef union mock_callback_bridge {
   sasl_getsecret_t *secret;
   sasl_chalprompt_t *challenge;
   sasl_getopt_t *option;
+  sasl_canon_user_t *canonicalize;
 } mock_callback_bridge;
 
 static int mock_extended_simple(void *context, int identifier,
@@ -164,6 +169,68 @@ static int mock_option_boundaries(const sasl_callback_t *callback) {
       }
   mock_option_length = 6;
   mock_option_status = SASL_OK;
+  return 0;
+}
+
+static int mock_canonicalize(cpkt_sasl *receiver, void *context,
+                             const char *input, unsigned long input_length,
+                             unsigned long flags, const char *realm,
+                             char *output, unsigned long capacity,
+                             unsigned long *length) {
+  if (receiver != mock_canonicalize_receiver || context == 0 ||
+      input_length != 4 || memcmp(input, "user", 4) != 0 ||
+      flags != (SASL_CU_AUTHID | SASL_CU_AUTHZID) ||
+      strcmp(realm, "realm") != 0 || capacity != 16 || length == 0)
+    return SASL_BADPARAM;
+  ++mock_canonicalize_calls;
+  memcpy(output, "user", 5);
+  *length = mock_canonicalize_length;
+  return mock_canonicalize_status;
+}
+
+static int mock_canonicalize_boundaries(const sasl_callback_t *callback,
+                                        cpkt_sasl *receiver) {
+  mock_callback_bridge bridge;
+  unsigned long lengths[7];
+  unsigned native_length;
+  char output[16];
+  int count, index, error, null_length, expected, status, previous;
+
+  if (callback == 0 || callback->proc == 0)
+    return 1;
+  bridge.generic = callback->proc;
+  mock_canonicalize_receiver = receiver;
+  lengths[0] = 0;
+  lengths[1] = 4;
+  lengths[2] = (unsigned long)UINT_MAX - 1UL;
+  lengths[3] = UINT_MAX;
+  count = 4;
+#if ULONG_MAX > UINT_MAX
+  lengths[count++] = (unsigned long)UINT_MAX + 1UL;
+  lengths[count++] = (unsigned long)UINT_MAX + 2UL;
+  lengths[count++] = ULONG_MAX;
+#endif
+  for (index = 0; index < count; ++index)
+    for (error = 0; error < 2; ++error)
+      for (null_length = 0; null_length < 2; ++null_length) {
+        mock_canonicalize_length = lengths[index];
+        mock_canonicalize_status = error ? SASL_FAIL : SASL_OK;
+        expected = lengths[index] > UINT_MAX ? SASL_BADPARAM
+                                             : mock_canonicalize_status;
+        memset(output, 0, sizeof(output));
+        native_length = 37;
+        previous = mock_canonicalize_calls;
+        status = bridge.canonicalize(
+            (sasl_conn_t *)&mock_connection, callback->context, "user", 4,
+            SASL_CU_AUTHID | SASL_CU_AUTHZID, "realm", output, sizeof(output),
+            null_length ? 0 : &native_length);
+        if (status != expected || mock_canonicalize_calls != previous + 1 ||
+            memcmp(output, "user", 5) != 0 ||
+            native_length != (null_length || lengths[index] > UINT_MAX
+                                  ? 37U
+                                  : (unsigned)lengths[index]))
+          return 1;
+      }
   return 0;
 }
 
@@ -476,6 +543,7 @@ int main(void) {
   callbacks.context = &callback_calls;
   callbacks.simple = mock_simple;
   callbacks.option = mock_option;
+  callbacks.canonicalize = mock_canonicalize;
   callbacks.language = mock_extended_simple;
   callbacks.client_nonce = mock_extended_simple;
   callbacks.challenge_no_echo = mock_extended_challenge;
@@ -497,6 +565,9 @@ int main(void) {
     return 35;
   if (mock_option_boundaries(mock_callback(SASL_CB_GETOPT)) != 0)
     return 36;
+  if (mock_canonicalize_boundaries(mock_callback(SASL_CB_CANON_USER), client) !=
+      0)
+    return 39;
   callback = mock_callback(SASL_CB_AUTHNAME);
   if (callback == 0 || callback->proc == 0)
     return 2;
@@ -643,6 +714,10 @@ int main(void) {
   if (mock_option_boundaries(mock_find_callback(mock_client_global_callbacks,
                                                 SASL_CB_GETOPT)) != 0)
     return 37;
+  if (mock_canonicalize_boundaries(
+          mock_find_callback(mock_client_global_callbacks, SASL_CB_CANON_USER),
+          0) != 0)
+    return 40;
   callback = mock_find_callback(mock_client_global_callbacks, SASL_CB_AUTHNAME);
   if (callback == 0 || callback->proc == 0)
     return 15;
@@ -668,6 +743,10 @@ int main(void) {
   if (mock_option_boundaries(mock_find_callback(mock_server_global_callbacks,
                                                 SASL_CB_GETOPT)) != 0)
     return 38;
+  if (mock_canonicalize_boundaries(
+          mock_find_callback(mock_server_global_callbacks, SASL_CB_CANON_USER),
+          0) != 0)
+    return 41;
   callback = mock_find_callback(mock_server_global_callbacks, SASL_CB_AUTHNAME);
   if (callback == 0 || callback->proc == 0)
     return 19;

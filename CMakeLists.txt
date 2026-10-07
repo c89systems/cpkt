@@ -1266,7 +1266,7 @@ if(CPKT_BUILD_TESTS)
           cpkt_sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_test PRIVATE
           cpkt_sasl_${_cpkt_sasl_roundtrip_linkage})
     if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
-      foreach(_cpkt_sasl_roundtrip_case IN ITEMS global_options security_callbacks interaction_terminator)
+      foreach(_cpkt_sasl_roundtrip_case IN ITEMS global_options security_callbacks interaction_terminator canonicalization_lengths)
         cpkt_group_add_test(NAME sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_${_cpkt_sasl_roundtrip_case}
               COMMAND cpkt_sasl_plugin_roundtrip_${_cpkt_sasl_roundtrip_linkage}_test
                 ${_cpkt_sasl_roundtrip_case})

@@ -500,6 +500,8 @@ static int cpkt_sasl_canonicalize_native(sasl_conn_t *native, void *context,
       receiver, owner->callbacks.context, input, (unsigned long)input_length,
       (unsigned long)flags, realm, output, (unsigned long)output_capacity,
       &public_length);
+  if (public_length > UINT_MAX)
+    return SASL_BADPARAM;
   if (output_length != NULL)
     *output_length = (unsigned)public_length;
   return status;

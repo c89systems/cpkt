@@ -409,6 +409,126 @@ static int security_callbacks(void) {
   return 0;
 }
 
+static unsigned long canonical_reported_length;
+static cpkt_sasl *canonical_receiver;
+static int canonical_calls;
+
+static int canonical_callback(cpkt_sasl *receiver, void *context,
+                              const char *input, unsigned long length,
+                              unsigned long flags, const char *realm,
+                              char *output, unsigned long capacity,
+                              unsigned long *output_length) {
+  CHECK(receiver == canonical_receiver && context == &canonical_calls);
+  CHECK(length == 4 && memcmp(input, "user", 4) == 0 && realm == NULL);
+  CHECK(flags == (CPKT_SASL_CANONICALIZE_AUTHENTICATION_ID |
+                  CPKT_SASL_CANONICALIZE_AUTHORIZATION_ID));
+  CHECK(capacity >= 5 && output_length != NULL);
+  ++canonical_calls;
+  memcpy(output, "user", 5);
+  *output_length = canonical_reported_length;
+  return CPKT_SASL_OK;
+}
+
+static int canonical_step(void *context, cpkt_sasl_client_params *params,
+                          const char *input, unsigned long input_length,
+                          cpkt_sasl_interaction **interactions,
+                          const char **output, unsigned long *length,
+                          cpkt_sasl_plugin_output *out) {
+  cpkt_sasl_plugin_output canonical, saved;
+  int status;
+  (void)input;
+  (void)input_length;
+  (void)interactions;
+  CHECK(context == &phase && params->canonicalize != NULL);
+  memset(&canonical, 0, sizeof(canonical));
+  canonical.user = canonical.authentication_identity = "unchanged";
+  canonical.user_length = canonical.authentication_length = 9;
+  memcpy(&saved, &canonical, sizeof(saved));
+  status = params->canonicalize(params, "user", 4,
+                                CPKT_SASL_CANONICALIZE_AUTHENTICATION_ID |
+                                    CPKT_SASL_CANONICALIZE_AUTHORIZATION_ID,
+                                &canonical);
+  CHECK(canonical_calls == 1);
+  if (canonical_reported_length > UINT_MAX) {
+    CHECK(status == CPKT_SASL_BADPARAM);
+    CHECK(memcmp(&canonical, &saved, sizeof(saved)) == 0);
+  } else {
+    CHECK(status == CPKT_SASL_OK);
+    CHECK(canonical.user_length == 4 && canonical.authentication_length == 4);
+    CHECK(memcmp(canonical.user, "user", 4) == 0);
+    CHECK(memcmp(canonical.authentication_identity, "user", 4) == 0);
+  }
+  *output = "token";
+  *length = 5;
+  out->done = 1;
+  out->user = out->authentication_identity = "user";
+  out->user_length = out->authentication_length = 4;
+  return CPKT_SASL_OK;
+}
+
+static int canonical_init(void *context, const cpkt_sasl_plugin_utils *utils,
+                          int maximum, int *version,
+                          const cpkt_sasl_client_plugin **plugins, int *count) {
+  static cpkt_sasl_client_plugin plugin;
+  static const unsigned long prompts[] = {CPKT_SASL_CALLBACK_LIST_END};
+  (void)context;
+  (void)utils;
+  CHECK(maximum >= CPKT_SASL_CLIENT_PLUGIN_VERSION);
+  memset(&plugin, 0, sizeof(plugin));
+  plugin.mechanism_name = "CPKT-CANON-LENGTH";
+  plugin.security_flags = CPKT_SASL_SECURITY_NO_ANONYMOUS;
+  plugin.required_prompts = prompts;
+  plugin.new_connection = layer_new;
+  plugin.step = canonical_step;
+  *plugins = &plugin;
+  *count = 1;
+  *version = CPKT_SASL_CLIENT_PLUGIN_VERSION;
+  return CPKT_SASL_OK;
+}
+
+static int canonicalization_lengths(void) {
+  cpkt_sasl_callbacks callbacks;
+  cpkt_sasl_interaction *interactions;
+  const char *output, *mechanism;
+  unsigned long lengths[4], length;
+  int count, global, index, status;
+  lengths[0] = 4;
+  count = 1;
+#if ULONG_MAX > UINT_MAX
+  lengths[count++] = (unsigned long)UINT_MAX + 1UL;
+  lengths[count++] = (unsigned long)UINT_MAX + 2UL;
+  lengths[count++] = ULONG_MAX;
+#endif
+  memset(&callbacks, 0, sizeof(callbacks));
+  callbacks.context = &canonical_calls;
+  callbacks.canonicalize = canonical_callback;
+  for (global = 0; global < 2; ++global) {
+    CHECK(cpkt_sasl_set_path(CPKT_SASL_PATH_PLUGIN,
+                             "/cpkt-no-external-sasl-plugins") == CPKT_SASL_OK);
+    CHECK(cpkt_sasl_client_initialize(global ? &callbacks : NULL) ==
+          CPKT_SASL_OK);
+    CHECK(cpkt_sasl_client_add_plugin("cpkt-canon-length", canonical_init,
+                                      NULL) == CPKT_SASL_OK);
+    for (index = 0; index < count; ++index) {
+      canonical_reported_length = lengths[index];
+      canonical_calls = 0;
+      canonical_receiver =
+          cpkt_sasl_client_new("test", "localhost", NULL, NULL,
+                               global ? NULL : &callbacks, 0, &status);
+      CHECK(canonical_receiver != NULL && status == CPKT_SASL_OK);
+      interactions = NULL;
+      CHECK(canonical_receiver->start(canonical_receiver, "CPKT-CANON-LENGTH",
+                                      &interactions, &output, &length,
+                                      &mechanism) == CPKT_SASL_OK);
+      CHECK(canonical_calls == 1 && length == 5);
+      CHECK(output != NULL && memcmp(output, "token", 5) == 0);
+      canonical_receiver->close(canonical_receiver);
+    }
+    CHECK(cpkt_sasl_client_finish() == CPKT_SASL_OK);
+  }
+  return 0;
+}
+
 static cpkt_sasl_interaction *interaction_list;
 static int interaction_count, interaction_phase;
 
@@ -629,5 +749,7 @@ int main(int argc, char **argv) {
     return security_callbacks();
   if (strcmp(argv[1], "interaction_terminator") == 0)
     return interaction_terminator();
+  if (strcmp(argv[1], "canonicalization_lengths") == 0)
+    return canonicalization_lengths();
   return 1;
 }
