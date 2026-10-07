@@ -449,6 +449,25 @@ leading]==] [==[literal "quotes"]==])
                 self.assertEqual(0,result.returncode,result.stdout+result.stderr)
                 verify(normal_prefix)
 
+    def test_sdk_install_capture_preserves_terminal_bracket_values(self):
+        from native_lifecycle_fixture import metadata
+        captured={
+            'FIND_PACKAGE_MESSAGE_DETAILS_Iconv':'[built in to C library][v()]',
+            'FIND_PACKAGE_MESSAGE_DETAILS_Threads':'[TRUE][v()]',
+            'CPKT_LITERAL_TERMINAL':'last]',
+            'CPKT_LITERAL_PARTIAL':'last]='}
+        root=self.work/'terminal-brackets'
+        prefix,graph=metadata(root,captured)
+        script=graph/'literal-readback.cmake'
+        script.write_text('set(CMAKE_INSTALL_PREFIX [==['+str(prefix)+']==])\n'
+            'include([==['+str(graph/'cpkt-sdk-install.cmake')+']==])\n'+
+            ''.join('if(NOT '+key+' STREQUAL [==['+value+']==])\n'
+                'message(FATAL_ERROR "captured value changed: '+key+'")\nendif()\n'
+                for key,value in captured.items()))
+        result=subprocess.run(['bash',str(root/'scripts/operation.sh'),'--group','core','--',
+            'cmake','-P',str(script)],env=environment(),capture_output=True,text=True)
+        self.assertEqual(0,result.returncode,result.stdout+result.stderr)
+
     def test_package_metadata_does_not_replay_parent_diagnostic_controls(self):
         from native_lifecycle_fixture import metadata
         prefix,graph=metadata(self.work/'metadata',{'CMAKE_WARN_DEPRECATED':'TRUE','CMAKE_ERROR_DEPRECATED':'FALSE'})

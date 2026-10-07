@@ -828,7 +828,11 @@ include(cmake/CpktPackage.cmake)
         (self.root/'cmake/components.json').write_text(json.dumps(inventory))
         working=self.root/'working directory';working.mkdir()
         arguments=['','semi;colon','quote"slash\\dollar${unexpanded}',
-                   'brackets ]] ]=] ]==]','\nleading newline','']
+                   'brackets ]] ]=] ]==]','\nleading newline','',
+                   '[built in to C library][v()]','terminal]','terminal]=',
+                   'terminal]==','terminal]===','terminal]]','terminal]=]']
+        arguments += [' '.join(']'+('='*n)+']' for n in range(level))+
+                      ' suffix]'+('='*level) for level in range(1,5)]
         (self.root/'expected.json').write_text(json.dumps(arguments))
         checker=self.root/'argv-check.py'
         checker.write_text('import json,os,sys\nfrom pathlib import Path\n'
@@ -840,9 +844,9 @@ include(cmake/CpktPackage.cmake)
             'if sys.argv[1]!="registered":assert os.environ["CPKT_TEST_CONTEXT_SENTINEL"]=="kept"\n'
             '(root/sys.argv[1]).write_text("passed")\n')
         def literal(value):
-            equals=''
-            while ']'+equals+']' in value:equals+='='
-            return '['+equals+'[\n'+value+']'+equals+']'
+            # Independent quoted input keeps bracket edge cases valid before
+            # the production encoder reconstructs the registered command.
+            return '"'+value.replace('\\','\\\\').replace('"','\\"').replace('$','\\$')+'"'
         source='cmake_minimum_required(VERSION 3.21)\nproject(arguments NONE)\nenable_testing()\n'
         source+='include(cmake/CpktGroups.cmake)\n'
         source+='set(CPKT_TARGET_ID initial)\n'
