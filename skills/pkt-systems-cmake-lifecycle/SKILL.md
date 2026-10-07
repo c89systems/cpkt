@@ -1,7 +1,8 @@
 ---
 name: pkt-systems-cmake-lifecycle
 description: >-
-  Self-contained lifecycle authority for pkt.systems-style C/CMake repositories:
+  Self-contained lifecycle authority for any C/CMake pkt.systems or c89 systems
+  component that chooses to use it, with or without cpkt as a dependency:
   bootstrap new components, migrate
   existing projects, standardize Make/CMake/dependency/test/e2e/Lua/package/release
   workflows, resolve and cache cpkt C/C++ toolchains, preserve bespoke behavior
@@ -9,14 +10,14 @@ description: >-
   artifacts, publish GitHub releases, and report project dependencies including
   cpkt, other pkt.systems components, external libraries, and vendored code.
 metadata:
-  short-description: pkt.systems C/CMake lifecycle
+  short-description: pkt.systems and c89 systems C/CMake lifecycle
 ---
 
-# pkt.systems C/CMake Lifecycle
+# pkt.systems and c89 systems C/CMake Lifecycle
 
-Use this skill from a C/CMake repository root when asked to work on a pkt.systems-style library, executable or other software delivery. This includes dependency inventory questions, ordinary engineering work, lifecycle consolidation, bootstrap, migration, verification, packaging, and release. It applies whether or not the project consumes or produces a cpkt SDK.
+This skill is for any C/CMake pkt.systems or c89 systems component that chooses to use it, with or without cpkt as a dependency. Use it from the component's repository root for dependency inventory questions, ordinary engineering work, lifecycle consolidation, bootstrap, migration, verification, packaging, and release.
 
-This skill is the process authority. It must not require external example repositories, prior local knowledge, or historical convention lookup. Everything needed to shape the repository lifecycle is encoded in this skill and its first-level references.
+For components that adopt it, this skill is the lifecycle process authority. It must not require external example repositories, prior local knowledge, or historical convention lookup. Everything needed to shape the repository lifecycle is encoded in this skill and its first-level references.
 
 ## Non-Negotiables
 
@@ -56,7 +57,7 @@ use of this skill. cpkt owns the skill sources, not the scope of its consumers.
 
 ## Operating Posture
 
-Use the lifecycle on every pkt.systems C/CMake task, but do not turn every request into a lifecycle migration. Determine the engineer's intent from the request and repository state, then load only the references needed for the affected surfaces.
+Apply the lifecycle to C/CMake tasks for components that choose to use it. Do not turn every request into a lifecycle migration. Determine the engineer's intent from the request and repository state, then load only the references needed for the affected surfaces.
 
 - If the request is ordinary engineering work, use the lifecycle as constraints, verification policy, and command discovery. Make the requested change with the smallest coherent repository impact.
 - If the request is lifecycle work, actively shape the repository toward the consolidated lifecycle while preserving product behavior and bespoke project value.
