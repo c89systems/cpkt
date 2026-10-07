@@ -1644,6 +1644,10 @@ if(CPKT_BUILD_TESTS)
                 "${CMAKE_SOURCE_DIR}")
       # This suite covers 25 separately bounded failure/cancellation scenarios.
       cpkt_group_set_tests_properties(package_failure_diagnostics PROPERTIES LABELS "packaging" TIMEOUT 120)
+      cpkt_group_add_test(NAME operation_signal_cleanup
+              COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/operation_signal_cleanup_test.py"
+                "${CMAKE_SOURCE_DIR}")
+      cpkt_group_set_tests_properties(operation_signal_cleanup PROPERTIES LABELS "packaging" TIMEOUT 30)
       cpkt_group_add_test(
               NAME package_consumer_execution
               COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/package_consumer_execution_test.py"

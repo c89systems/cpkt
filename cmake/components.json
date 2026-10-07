@@ -4232,6 +4232,26 @@
       ],
       "target_sensitive": false
     },
+    "operation_signal_cleanup": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/operation_signal_cleanup_test.py",
+        "scripts/operation.sh"
+      ],
+      "execution": "helper",
+      "requires": [],
+      "registrations": [
+        {
+          "name": "operation_signal_cleanup",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
     "package_consumer_execution": {
       "group": "tooling",
       "command_inputs": [

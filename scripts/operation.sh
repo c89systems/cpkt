@@ -79,7 +79,10 @@ terminate_child() {
 }
 cleanup() {
   status=$?
-  trap - EXIT HUP INT TERM
+  trap - EXIT
+  trap 'received_signal=HUP; status=129' HUP
+  trap 'received_signal=INT; status=130' INT
+  trap 'received_signal=TERM; status=143' TERM
   terminate_child
   if [ "$initialized" = yes ]; then
     python3 "$cpkt_scripts/cpkt_lock.py" --root "$root" --group "$group" --exit-status "$status" || true
