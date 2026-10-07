@@ -116,10 +116,7 @@ Missing coverage, changed runtime inputs, corrupt outputs, stale evidence and
 interruption must fail closed. These regressions are implementation requirements,
 not claims that changing this policy alone fixes existing scripts.
 
-Use the engineer's stated end-to-end budget as acceptance, including review and
-all required targets. cpkt core's current target is less than one hour for review,
-tests and the full seven-target release build; this is not a default budget for
-every downstream repository. Establish cold/warm phase measurements before
-claiming compliance. If measured work exceeds the budget, expose the dominant
-phase and correct it before repeating a broad run. Do not reduce required
+Measure cold/warm end-to-end performance, including review and all required
+targets, before claiming improvement. Identify and correct dominant bottlenecks
+and redundant work before repeating a broad run. Do not reduce required
 coverage, weaken identity checks or raise configured job limits to hide a regression.

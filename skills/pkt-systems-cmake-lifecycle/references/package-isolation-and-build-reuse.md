@@ -232,4 +232,4 @@ lane. Generate each source archive once. Logs/timings stay under `build/`. Candi
 preparation is incremental; only the final tagged `make release` must start clean.
 An additional cold audit requires an explicit request. Follow
 [feedback-loop.md](feedback-loop.md) for phase accounting, no-op/test invocation
-regressions and the engineer's end-to-end performance budget.
+regressions and end-to-end performance measurements.
