@@ -2,7 +2,7 @@
 
 ## Release Procedure
 
-Apply [feedback-loop.md](feedback-loop.md): incremental candidate proof, then
+Apply [local-ci.md](local-ci.md#feedback-loop): incremental candidate proof, then
 one mandatory final tagged clean release. Reuse valid preparation evidence and
 execute equivalent work once within the clean run.
 

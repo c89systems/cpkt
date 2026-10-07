@@ -1,188 +1,116 @@
-# Local Build, Test, Quality, Fuzzing, And Benchmarking
+# Local build, test and quality
 
-For selected groups and producer/test reuse, follow
-[package-isolation-and-build-reuse.md](package-isolation-and-build-reuse.md).
-Required coverage is inventory-derived; narrower operations cannot silently build
-or retest prerequisites. Follow [feedback-loop.md](feedback-loop.md): reuse
-matching successful preparation evidence across commands/sessions, and fresh
-same-run evidence within the final tagged clean release. Keep distinct effective
-configuration, instrumentation, runtime and artifact obligations explicit.
+## Feedback loop
+
+Use the native tool ownership in [SKILL.md](../SKILL.md#first-rule-a-simple-native-pipeline).
+CMake owns the dependency graph; CTest owns test execution. Python generators and
+fixtures are permitted leaf tasks, not alternate build/test controllers.
+
+Implement a coherent batch, run affected CTest checks, then complete only missing
+required coverage. Do not run a full suite, matrix or review between every edit.
+Documentation-only changes use readback, syntax/link or rendered validation.
+
+Build each effective source/toolchain/configuration once. Reuse matching upstream
+outputs across consumers. Reuse passed checks until their actual inputs, outputs,
+environment or mode change. A test-only edit does not rebuild an unchanged library.
+Session, commit-message and signing changes do not invalidate tested code.
+
+Use CMake dependencies and declared outputs for reuse. CTest does not itself cache
+passed tests. If a success marker is needed, keep it local and tied to that check's
+real inputs; publish it only after success and invalidate it before changed work.
+Do not create a parallel scheduler, receipt service or source-closure interpreter.
+Missing, corrupt, failed, interrupted or partial results cannot prove full coverage.
+
+Host lifecycle fixtures run once for their relevant host inputs. Target runtime,
+ABI, loader and extracted-package checks keep their actual target/byte scope.
+Debug/Release and plain/Memcheck are distinct when their behavior differs, while
+identical prerequisite builds are shared. Preserve configured job limits.
+
+Reuse a clean review for the same tree, scope and baseline. Review probes need a
+specific unresolved concern; review is not another exhaustive test scheduler.
+Performance claims require measured cold/warm results. Use existing timings and
+build/test logs to locate repeated work; do not add a telemetry framework.
 
 ## Build And Test Gates
 
-Required CTest gates use `--stop-on-failure`, including selected suites,
-composition suites and Memcheck. A failed or partial suite revokes readiness.
-Verify this behavior with a failing first case and a later observable case that
-must remain unexecuted. Synchronize subprocess and lock tests with readiness
-and explicit release signals; fixed sleeps must not determine whether a child
-is still alive. Bound startup waits and provide cleanup on assertion failure.
+Register executable tests, fixtures, examples and suitable CMake script checks
+with CTest. Expose meaningful labels, exact scope and bounded timeouts. Fail when
+required test executables or runners are missing. Required suites use
+`--stop-on-failure`, `--output-on-failure` and reject an unexpectedly empty selection.
+Test observable behavior rather than source wording or internal bookkeeping.
 
-Fast local confidence completes affected build and test coverage through the
-public targets. A test command builds its prerequisites; do not separately build
-them first unless that produces needed feedback. Native Valgrind is affected-area
-hardening, not a mandatory full pass after every edit.
+Use `finalize-slice` for affected Debug checks and formatting before a coherent
+implementation commit. `prerelease` completes ordinary native/hardening and binary
+matrix coverage incrementally. `prerelease-hardening` adds only declared expensive
+tiers. `release-matrix` covers the project's binary shipment set. Final tagged
+`release` starts clean and covers all required artifacts; follow [release.md](release.md).
+A target name is not a reason to rerun coverage already supplied by another gate.
 
-Broader local confidence completes missing `make test-all` and package coverage
-when the change affects those obligations. Reuse matching passed checks rather
-than execute the entire suite again.
-
-Release confidence:
-
-1. the explicit applicable pre-release gates
-2. independent review on the feature branch
-3. final clean `make release` package build from the tagged release-branch commit
-
-`make test-all` includes fast host tests, host release tests when useful, cross product tests that can execute locally or through an approved runner, native Valgrind checking, native AFL++ fuzz smoke, deterministic e2e when part of normal confidence, and benchmark gates when performance is a product property. Cross runners never execute Valgrind or fuzzing gates.
-
-Do not add a separate umbrella target as a standard lifecycle target. The exhaustive clean-slate release gate is `make release`; expensive pre-release confidence belongs in `make prerelease-hardening` or another documented rehearsal target that does not replace final release.
-
-Recommended production-loop tiers:
-
-- `make finalize-slice`: formatting, affected Debug checks, and a read-only formatting assertion for a completed implementation batch before committing. Reuse valid checks; subsequent edits require only affected verification. Documentation/policy-only batches use their own validation rather than the executable suite. If this target runs an exhaustive suite indiscriminately, report the lifecycle gap and use the appropriate focused public checks during preparation.
-- `make prerelease`: incremental local pre-release confidence. Cover formatting, Debug unit tests, native Valgrind/fuzz smoke, Lua, examples, deterministic e2e and binary matrix where those surfaces exist, executing only obligations without matching successful proof.
-- `make prerelease-live`: opt-in external-provider or credentialed integration tests. Refuse to run unless a project-prefixed environment variable explicitly enables them.
-- `make prerelease-hardening`: the expensive tier. Include `prerelease`, live checks when explicitly enabled, long fuzz runs, benchmark gates when applicable, and the release matrix.
-- `make release-matrix`: incrementally complete build, test, package, checksum and verification for every release target's binary artifacts. Binary-only preparation does not require source reconstruction. In the final clean release, consume verified native Release outputs from the fresh source reconstruction instead of duplicating that producer; verify remaining non-binary artifacts and the complete manifest once all payloads exist.
-
-These names are preferred over project-specific gate names. Retain compatibility
-aliases only for an explicit request or declared external-support commitment;
-documentation alone does not prevent a pre-1.0 clean cutover.
-
-## Optional Native macOS Hosted Verification
-
-Follow [github-actions.md](github-actions.md) when the engineer opts in or project
-policy records an existing opt-in. The extension includes normal development
-branch pushes and execution of the declared workflow; public GitHub availability
-alone does not enable it. Keep repository commands as the proof authority and
-record exactly which commit, tests, and artifacts were verified. Required native
-coverage fails closed. Release branches/tags stay local until the final tagged
-`make release` and local artifact verification succeed under release authority.
+Keep deterministic integration local. Live/credentialed tests require explicit
+opt-in and cannot be part of fast `test`. Fixture workspaces belong under `build/`.
+Use readiness signals rather than fixed sleeps for subprocess/service tests;
+bound waits and guarantee teardown after failure.
 
 ## Cross-Target Runner Contract
 
-- Each downstream project decides whether to execute cross-target tests under QEMU. QEMU is not an implicit lifecycle requirement merely because a project cross-compiles.
-- Once a project opts in to QEMU testing for a release target such as `aarch64` or `armhf`, those target tests are mandatory release coverage. Include them in `release-matrix` and therefore in the shared prerelease/release proof graph; do not leave an existing QEMU test behind an optional or manual-only target.
-- A project that opts in must fail `release-matrix` and `release` clearly when the required QEMU user-mode runner, target sysroot, or runner configuration is unavailable. Do not silently skip the selected target tests.
-- A project that does not opt in may limit cross-target release coverage to configure, build, link, package, and artifact verification. Native Valgrind and AFL++ gates remain native x86_64 Linux-only and are never QEMU gates.
+QEMU execution is a project choice. Once selected for a release target, its tests
+are mandatory and missing runner/sysroot/configuration fails clearly. Without
+that opt-in, cross coverage may be configure/build/link/package verification.
+Never run Valgrind or AFL++ through QEMU or a cross target. osxcross proves build,
+link and metadata, not native Darwin runtime success; report deferred coverage.
 
+Native macOS hosted verification is explicit opt-in under
+[github-actions.md](github-actions.md). Required hosted proof names the exact
+commit and coverage. Hosted outputs do not replace local release artifacts.
 
 ## Quality Contracts
 
-Add tests that assert observable behavior:
+Cover the project's observable contracts, including relevant negative cases:
 
-- Public API success and failure paths.
-- Preferred public API usage style, including receiver-style handle operations when that is the project convention.
-- ABI and exported symbol expectations where ABI is promised.
-- Exact dynamic-export allowlists for every project-owned shared library,
-  facade, plugin, or module: maintain a source-controlled allowlist per binary
-  target, including intentional runtime entry points not declared in a primary
-  C header; inspect target-correct defined dynamic symbols and fail on
-  unexpected or missing exports. Prove a manually declared private sentinel
-  cannot link from a downstream fixture, but treat that as negative evidence
-  rather than a substitute for table inspection. Header absence is not an
-  export policy. Repeat the assertion against extracted SDK libraries.
-- Independently check the dynamic import layer of every project facade,
-  plugin, or module. Imports from the project's core library must resolve only
-  to documented public-header declarations; private-core imports are forbidden.
-  Run the check with target-correct tooling on build outputs and extracted SDK
-  artifacts when dynamic imports are retained.
-- Header self-sufficiency and C-only consumer builds.
-- C89 or project-selected C standard compatibility for installed SDK consumers.
-- Optional C++ consumer builds when headers must be C++ compatible.
-- Warning-clean builds with strict flags for project-owned code.
-- Warning-clean release builds with warnings treated as errors for all project-owned or otherwise controllable code, including facades, wrappers, generated project-owned sources, examples, tests, package smoke consumers, and release verification helpers. Exclude upstream dependency warnings only when they are outside practical project control, and document the boundary in the warning regression test.
-- Install-tree downstream consumers through CMake `find_package`.
-- Install-tree downstream consumers through pkg-config when pkg-config is shipped.
-- Examples built from the source tree and, when shipped, from installed examples.
-- Example help/version smoke tests and deterministic local example workflows.
-- Version resolution from lightweight `vX.Y.Z` tags in git worktrees, and from injected `VERSION` files only in non-git source archive builds. Include negative checks proving a git worktree with no exact lightweight `vX.Y.Z` tag on `HEAD` resolves to `0.0.0`, not `0.1.0`, a planned next release version, or a repository-local `VERSION` file.
-- Lightweight-tag mutation belongs only in the pre-clean `make lifecycle-version-contract` gate. Follow [temporary test-tag ownership](release.md#temporary-test-tag-ownership) for execution, recovery and cleanup.
-- Version override behavior for release-candidate builds, including Make, CMake, Lua artifacts, source archives, and dry-run packaging targets.
-- CMake preset presence and option defaults that are part of the lifecycle contract.
-- Dependency mode behavior, including host mode, bundled SDK mode, auto mode fallback, unsupported targets, and wrong-ABI dependency rejection.
-- Package archive layout and forbidden payload checks.
-- Release artifact privacy and relocatability checks that expand checksum-listed artifacts and nested payloads before scanning and inspecting runtime loader metadata.
-- Negative release privacy fixtures that create release-shaped throwaway artifacts containing representative leaks and prove the gate fails with the exact artifact/file path. Cover at least repository paths, `$HOME`, absolute local `file://` URLs, absolute local or non-system ELF RPATH/RUNPATH, local Darwin install names, Darwin non-system absolute dependency paths such as `/lib/libfoo.dylib`, and Darwin local rpaths when the platform/tooling surface exists.
-- Lua release artifact checks, when Lua artifacts exist, that build `dist/<project>-lua-<version>.tar.gz`, render the release rockspec, build the `.src.rock`, verify the standalone Lua source package layout and manifest, unpack the `.src.rock`, expand the embedded Lua source package, and fail on absolute local `file://` URLs or live-worktree source paths.
-- Lua/C interop checks, when a Lua facade deliberately exposes C embedder interop, that validate a Lua-created object from C, obtain a generic core borrowed view, preserve fragmented callback-backed streaming across the boundary without full payload materialization, return status/error values for wrong stack values or wrong userdata, reject wrong `size` or `abi_version`, reject mismatched schema/record pairs, prove Lua registry references preserve retained-object lifetime, verify clear/reset behavior invalidates or updates record view state according to the documented contract, prove Lua-facing and C-interop behavior have parity for success and policy failures, and allow only intentional Lua interop exports while catching accidental core symbol leaks.
-- Source archive extraction, configure, build, version agreement, and test smoke.
-- Source archive manifest exactness: tracked non-ignored files plus deliberate generated release files, no more and no less.
-- Release privacy and relocatability scans for `$HOME`, repository paths, build roots, dependency caches, package-manager temporary paths, parent-relative paths, absolute local `file://` URLs, credentials, VCS metadata, generated service state, hardening artifacts, ELF RPATH/RUNPATH, Darwin install names/dependency paths/rpaths, Darwin invalid post-mutation signature risk when `LC_CODE_SIGNATURE` is present, and unstripped binary metadata that exposes local toolchain or home paths.
+- API success/error paths, ownership, allocator behavior and declared ABI.
+- Standalone installed headers, selected C standard and promised C++ compatibility.
+- Warning-clean owned code, generators' output, examples and consumers; treat
+  compiler/linker warnings as errors. Document uncontrollable upstream exclusions.
+- Exact shared-library export allowlists and public-only facade imports. Check
+  build outputs and extracted SDK bytes; header absence is not export policy.
+- CMake/pkg-config install-tree consumers, static/shared/PIC closure and examples.
+- Dependency modes/pins, target tools, package layout, version propagation,
+  checksums, relocatability and privacy, including nested shipped artifacts.
+- Shipped source extraction/build/test and exact source manifest coverage.
 
-Test registration:
+Follow [api-design.md](api-design.md), [packaging.md](packaging.md) and any applicable
+Lua/e2e reference for their detailed contracts. Do not invent new product surfaces
+or expand ordinary edits into every optional gate.
 
-- Separate host lifecycle fixtures from target tests. Execute each matching host fixture once and combine its proof with the required target suites; configured-target assertions keep their actual target scope. Never multiply a host-only fixture across the matrix for completeness.
-- Large unit suites should expose named test groups or labels so agents can run narrow checks while still allowing broad gates.
-- Generate or verify the list of registered unit groups when possible, so adding a test function without registering it fails locally.
-- Use CTest labels consistently: `unit`, `smoke`, `local`, `packaging`, `fuzz`, `integration`, `example-smoke`, and additional project-specific labels only when they help select meaningful gates.
-- Keep deterministic local integration separate from live external integration. Use a distinct label such as `offline` for integration-shaped tests that do not require credentials or real providers.
-- Live tests must be opt-in and must never be required by `make test` or fast local confidence.
-- Put explicit timeouts on CTest tests. Short local tests should fail quickly; live or long integration tests should have bounded, documented longer timeouts.
-- Tests that intentionally skip unless an opt-in variable is set should print a clear `SKIP` line and exit successfully only when absence is acceptable for that gate.
-
+Tag-mutating tests stay in the pre-clean version contract. Follow
+[temporary test-tag ownership](release.md#temporary-test-tag-ownership).
 
 ## API And ABI Contract
 
-The public API is the installed C header set, documented CLI behavior, documented Lua facade behavior, exported CMake targets, pkg-config metadata, and release artifact layout.
-
-The ABI is promised only when the project ships shared libraries with an explicit stable ABI contract. Static-only libraries still need source compatibility and downstream rebuild compatibility, but do not imply a stable dynamic ABI by themselves.
-
-Rules:
-
-- Public headers installed under `include/` define the C source API.
-- Public headers must compile standalone.
-- Public headers must support C consumers with the selected project C standard.
-- Public headers must support C++ consumers when the project claims C++ compatibility.
-- Public structs should be opaque unless their layout is intentionally part of the API. Receiver-shell structs with public method fields and private `impl` pointers are an intentional public layout and must be treated accordingly.
-- Changing function signatures, public struct layout, enum values, constants, ownership rules, error semantics, CLI behavior, CMake/pkg-config names or artifact paths can be breaking. Discuss transitions for mature interfaces or declared external-support commitments; pre-1.0 non-ABI cleanups without such a commitment permit a clean cutover without shims or permission solely for the cleanup. Shared-library ABI obligations remain independent of maturity.
-- Shared libraries must set `SOVERSION` or the platform equivalent explicitly when ABI stability is promised.
-- Linux shared libraries must have the intended SONAME and symlink set.
-- Darwin shared libraries must have explicit install name and compatibility/current version policy when shared libraries are shipped.
-- Removing or changing exported ABI symbols is breaking unless the symbol was explicitly private.
-- ABI symbol checks are required when the project promises stable ABI; otherwise, at minimum verify the shipped shared library exposes only the exact intended public symbols. Every project-owned shared library needs an explicit export policy and a dynamic-symbol allowlist check; compiler visibility controls plus an executable symbol-table check are acceptable when they produce the exact approved dynamic table. An unadvertised but linkable symbol is still an accidental ABI surface.
-- Breaking API/ABI changes do not automatically imply a release major bump. Follow repository maturity and support commitments; apply necessary shared-library ABI version changes from the last released baseline. Discuss unresolved authority or supported compatibility transitions, not merely a pre-1.0 non-ABI cleanup without a commitment.
-
+The installed headers and declared CLI/Lua/CMake/pkg-config/artifact interfaces
+are public contracts. Follow project maturity and external-support policy for
+source compatibility. Shared-library ABI is independently versioned: required
+breaking bumps derive from the latest released ABI and advance exactly one.
+Do not infer ABI compatibility from a repository version or hide required bumps.
 
 ## Native memory checking
 
-Valgrind Memcheck is the first-class native memory hardening gate.
-
-Contract:
-
-- `valgrind` runs the native x86_64 Linux Bootlin debug C facade CTests under Memcheck with leak checking, origin tracking, and a nonzero error exit code. Include the executable tests for every public C facade, including local database e2e where that facade needs services; do not limit it to one facade or a mock. It must not run through cross-compilation, emulation, or QEMU.
-- Declare any Memcheck suppression file in the owning repository input inventory. Require it before building, include it in source distributions and hash it into hardening evidence. Suppress only justified upstream failures with narrow stacks; a provider needing no suppressions may use an explicit empty policy or omit the override. Never inherit another provider's suppression merely to make the command run.
-- The gate runs serially and fails clearly when the host has not installed Valgrind.
-- Valgrind does not provide true MemorySanitizer coverage; document that boundary rather than claiming MSan equivalence.
-- Release package verification must fail if hardening runtime paths or build paths appear in shipped artifacts.
-
+Run the established native Valgrind gate for C test coverage. Fail on memory
+defects and incomplete required cases. Suppress only identified upstream issues
+with narrow stacks. Keep suppression inputs in source distributions; do not copy
+another provider's policy merely to pass. Reuse unchanged valid coverage.
 
 ## Fuzzing
 
-Enable fuzzing when the project parses, frames, serializes, accepts untrusted bytes, handles protocols, or exposes complex state transitions.
-
-Contract:
-
-- `fuzz/` or `tests/fuzz/` contains fuzz targets and seeds.
-- `fuzz` preset builds with the selected engine; the Bootlin GCC lifecycle selects pinned AFL++ GCC-plugin instrumentation. It runs only on the native x86_64 Linux host, never through cross-compilation, emulation, or QEMU.
-- `make fuzz-smoke` runs bounded short jobs suitable for `prerelease`, `prerelease-hardening`, or `release` when fuzzing is part of the release gate.
-- `make fuzz` runs standard bounded local jobs.
-- `make fuzz-long` is opt-in and may run longer.
-- Commit a nonempty initial seed corpus for each enabled harness. Declare its files in the owning input inventory, include them in source distributions and hash them into hardening evidence. Add fast tests proving missing or empty seeds fail before acquisition/compilation; a compiled harness alone does not prove that the fuzz command can run.
-- Regression seeds that fixed bugs should be committed.
-- Fuzzer targets should be added through a small CMake helper so compile flags, link flags, corpus paths, labels, and smoke tests remain consistent.
-- Generated large corpora stay out of source unless deliberately curated.
-
+Use the pinned native AFL++ GCC-plugin toolchain and explicit CMake fuzz targets.
+Run smoke as declared by ordinary confidence; standard/long runs remain separate
+coverage modes, with long runs opt-in. Crashes/timeouts fail the gate. Preserve
+findings and a nonempty checked-in seed corpus; missing seeds fail before building.
+Fixtures may use Python to test these behaviors through the public commands.
 
 ## Benchmarks
 
-Enable benchmarks when performance is part of the product contract.
-
-Contract:
-
-- `bench/` contains native benchmark sources, scripts, baselines, and README notes.
-- `make bench` or `make benchmarks` runs normal local benchmarks.
-- `make bench-gate` or `make perf-gate` enforces regression thresholds.
-- `make bench-freeze-baseline` updates committed baselines intentionally.
-- Language parity benchmarks, including Go benchmark harnesses, live behind explicit targets such as `benchmarks-go` or `benchmarks-gobencher`.
-- Benchmark-generated source or fixture data must have deterministic regeneration targets.
-- Benchmarks used as gates must use stable thresholds and actionable failure output.
+When performance is a product contract, keep comparable baselines and declared
+regression thresholds. Run the affected benchmark gate after hot-path changes;
+report unmeasured behavior rather than claiming improvement. Do not create a
+benchmark system merely because this skill is active.
