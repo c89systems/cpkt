@@ -1,8 +1,8 @@
 ---
 name: pkt-systems-cmake-lifecycle
 description: >-
-  Self-contained lifecycle authority for pkt.systems-style C/CMake repositories
-  that consume or produce cpkt SDK bundles: bootstrap new components, migrate
+  Self-contained lifecycle authority for pkt.systems-style C/CMake repositories:
+  bootstrap new components, migrate
   existing projects, standardize Make/CMake/dependency/test/e2e/Lua/package/release
   workflows, resolve and cache cpkt C/C++ toolchains, preserve bespoke behavior
   behind lifecycle extension points, verify thoroughly, squash/tag, build dist
@@ -14,7 +14,7 @@ metadata:
 
 # pkt.systems C/CMake Lifecycle
 
-Use this skill from a C/CMake repository root when asked to work on a pkt.systems-style C component that consumes or produces SDK bundles from `cpkt`. This includes dependency inventory questions, ordinary engineering work, lifecycle consolidation, bootstrap, migration, verification, packaging, and release.
+Use this skill from a C/CMake repository root when asked to work on a pkt.systems-style library, executable or other software delivery. This includes dependency inventory questions, ordinary engineering work, lifecycle consolidation, bootstrap, migration, verification, packaging, and release. It applies whether or not the project consumes or produces a cpkt SDK.
 
 This skill is the process authority. It must not require external example repositories, prior local knowledge, or historical convention lookup. Everything needed to shape the repository lifecycle is encoded in this skill and its first-level references.
 
@@ -45,40 +45,14 @@ This skill is the process authority. It must not require external example reposi
 - Dependency acquisition is lifecycle-owned. Cache every checksum-pinned external archive, including `cpkt` SDK bundles, third-party sources, and test-only packages, under `${CPKT_DEPENDENCY_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cpkt/deps}`. A verified SHA-256 hit must perform zero network requests, regardless of archive name, URL, source root, build mode, or source-archive reconstruction. Never override the resolved shared cache with a repository-local or temporary cache for real dependencies. This is a shared archive cache, not a build tree: local `.cache/` holds disposable extracted sources, dependency builds, and install roots. Verify every cache hit, publish verified downloads through an atomic rename, and never let clean, release, or packaging remove the shared archive cache. Follow [references/dependencies.md](references/dependencies.md).
 - Apply the same digest-hit/no-network rule to toolchain archives, including Bootlin, host MIG, and AFL++. Keep their existing shared toolchain cache boundary; archive filenames must not prevent reuse of verified bytes already present there.
 
-## Independent cpkt providers
+## Delivery scope
 
-The SDK family has three public repositories with independent release versions:
-
-| Provider | Repository | Own payload | SDK prerequisite |
-| --- | --- | --- | --- |
-| `cpkt` | `https://github.com/c89systems/cpkt` | Core libraries and cmocka | None |
-| `cpktdb` | `https://github.com/c89systems/cpktdb` | PostgreSQL, SQLite and iODBC | Exact pinned published `cpkt` SDK |
-| `cpktmisc` | `https://github.com/c89systems/cpktmisc` | OPC UA, PDF, audio and speech | Exact pinned published `cpkt` SDK |
-
-Only `cpkt` owns the authoritative `skills/` sources and the installer for both
-lifecycle and review skills. Update those sources when producer, acquisition,
-packaging or release contracts change. Review all affected references for
-consistency before installing; change installed skills only through an explicitly
-requested installation operation.
-
-`GROUP=all` in one provider means that repository's complete payload. It cannot
-build, test, clean, commit or release a sibling repository. Optional providers do
-not require each other. Their core prerequisite comes from a checked-in exact
-release/target/archive-SHA-256/package-ID pin, never a sibling checkout or host
-libraries. Resolve imported component versions from the validated core manifest;
-copied producer defaults are not the imported dependency selection.
-
-Use each repository's inventory and `make help` for its actual commands. The
-family's archive names are `<provider>-<version>-<target>.tar.gz`; strip/map each
-archive root into the chosen shared install prefix when composing them. Optional
-archives contain only owned payload and identify the exact required core version,
-target and package ID. Their own version need not match core. Preserve public
-`<cpkt/...>` header names and library ABI identities through repository moves.
-See [references/package-isolation-and-build-reuse.md](references/package-isolation-and-build-reuse.md)
-and [references/packaging.md](references/packaging.md).
-
-These provider assignments describe this SDK family, not a requirement to split
-all downstream projects into three repositories.
+The owning project's specification and repository determine its products,
+dependencies, supported targets, artifact types and required verification.
+Shared lifecycle rules apply across deliveries; provider-specific contracts apply
+only when that provider or package surface is present. Do not infer a cpkt
+prerequisite, SDK shipment, three-repository split or seven-target matrix from
+use of this skill. cpkt owns the skill sources, not the scope of its consumers.
 
 ## Operating Posture
 
@@ -115,6 +89,7 @@ Read references only after the request and repository state indicate they are re
 - Read [references/api-design.md](references/api-design.md) when creating or changing public C APIs, handle/object boundaries, receiver-style functions, examples, streaming APIs, error/ownership rules, or implementation layering.
 - Read [references/operability.md](references/operability.md) for repository layout, CMake presets, Make targets, script surfaces, cache discipline, diagnostics, and lifecycle command shape.
 - Read [references/toolchains.md](references/toolchains.md) when touching C/C++ compiler discovery, cross-target setup, autodownloaded compiler collections, CMake toolchain files or presets, static C++ runtime closure, downstream setup instructions, release target matrices, or package metadata that exposes compiler/runtime requirements.
+- Read [references/cpkt-providers.md](references/cpkt-providers.md) when working on cpkt, cpktdb or cpktmisc provider ownership, prerequisites, SDK composition, or maintaining the shared skill sources. Other deliveries do not inherit those provider contracts.
 - Read [references/dependencies.md](references/dependencies.md) when touching SDK dependencies, cache invalidation, dependency provenance, bundled/external dependency rules, license provenance, any JSON behavior owned by `lonejson`, or project-owned dependency behavior.
 - Read [references/dependency-reporting.md](references/dependency-reporting.md) for task-relevant dependency summaries, explicit inventory questions, dependency changes, and release reports. Read the acquisition/provenance reference as well when those surfaces change.
 - Read [references/package-isolation-and-build-reuse.md](references/package-isolation-and-build-reuse.md) when changing component producer ownership, build/verification reuse, selected group operations, or composable SDK acquisition and packaging. It applies to implemented or explicitly requested capabilities, without requiring every project to split packages.

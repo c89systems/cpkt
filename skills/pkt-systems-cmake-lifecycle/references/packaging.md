@@ -279,6 +279,11 @@ Rules:
 - Verification clones or copies the upstream to a temporary generated directory, applies the patch series, and builds it there.
 - Vendored build output must not leak into release artifacts.
 
+## cpkt provider packaging
+
+This section applies to cpkt, cpktdb and cpktmisc. Other deliveries derive their
+artifact set, prerequisites and configured job limits from their own contracts.
+
 For each independent cpkt provider, final release stages its source archive once
 and `make package-source-smoke` establishes a fresh extracted build domain. The
 native GNU Release reconstruction supplies that matrix lane's SDK rather than
