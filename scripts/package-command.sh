@@ -32,7 +32,9 @@ stop_child() {
 finish() {
   status=$?
   trap - EXIT
-  trap '' HUP INT TERM
+  trap 'received=SIGHUP; status=129' HUP
+  trap 'received=SIGINT; status=130' INT
+  trap 'received=SIGTERM; status=143' TERM
   stop_child
   if [ "$status" -ne 0 ]; then
     control="$root/build/control"

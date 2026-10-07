@@ -91,6 +91,9 @@ with tempfile.TemporaryDirectory(prefix='package cancellation-',dir=source/'buil
     leaf.write_text("""import fcntl,os,signal,time
 from pathlib import Path
 for signum in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):signal.signal(signum,signal.SIG_IGN)
+def cleanup_started(signum,frame):
+    Path(os.environ['TREE_CLEANUP']).touch()
+signal.signal(signal.SIGTERM,cleanup_started)
 with open(os.environ['TREE_LEASE'],'w') as lease:
     fcntl.flock(lease,fcntl.LOCK_EX)
     Path(os.environ['TREE_READY']).write_text(str(os.getpid()))
@@ -117,8 +120,8 @@ os.execvp('bash',['bash',os.environ['TREE_SOURCE']+'/scripts/package-command.sh'
     for capture,depth,exit_leader in ((False,0,False),(True,0,True),(True,2,False)):
         for signum in (signal.SIGTERM,signal.SIGINT,signal.SIGHUP):
             name=str(int(capture))+'-'+str(depth)+'-'+str(int(exit_leader))+'-'+signal.Signals(signum).name
-            ready=root/(name+'.ready');lease=root/(name+'.lease');late=root/(name+'.late')
-            env=dict(os.environ,TREE_SOURCE=str(source),TREE_ROOT=str(root),TREE_LEAF=str(leaf),TREE_LAUNCHER=str(launcher),TREE_DEPTH=str(depth),TREE_CAPTURE=str(int(capture)),TREE_EXIT_LEADER=str(int(exit_leader)),TREE_READY=str(ready),TREE_LEASE=str(lease),TREE_LATE=str(late),_CPKT_PACKAGE_TERMINATION_GRACE_SECONDS='.5')
+            ready=root/(name+'.ready');lease=root/(name+'.lease');late=root/(name+'.late');cleanup=root/(name+'.cleanup')
+            env=dict(os.environ,TREE_SOURCE=str(source),TREE_ROOT=str(root),TREE_LEAF=str(leaf),TREE_LAUNCHER=str(launcher),TREE_DEPTH=str(depth),TREE_CAPTURE=str(int(capture)),TREE_EXIT_LEADER=str(int(exit_leader)),TREE_READY=str(ready),TREE_LEASE=str(lease),TREE_LATE=str(late),TREE_CLEANUP=str(cleanup),_CPKT_PACKAGE_TERMINATION_GRACE_SECONDS='.5')
             for key in list(env):
                 if key.startswith('CPKT_OPERATION_') or key in ('MAKEFLAGS','MFLAGS','MAKELEVEL'):env.pop(key,None)
             process=subprocess.Popen([sys.executable,str(driver)],cwd=root,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,start_new_session=True)
@@ -127,6 +130,10 @@ os.execvp('bash',['bash',os.environ['TREE_SOURCE']+'/scripts/package-command.sh'
                 while not ready.exists():
                     assert process.poll() is None and time.monotonic()<deadline,'descendant never acquired its lease'
                     time.sleep(.01)
+                if exit_leader:
+                    while not cleanup.exists():
+                        assert process.poll() is None and time.monotonic()<deadline,'cleanup never started'
+                        time.sleep(.01)
                 started=time.monotonic()
                 os.kill(process.pid,signum)
                 output,_=process.communicate(timeout=3)
@@ -149,7 +156,7 @@ os.execvp('bash',['bash',os.environ['TREE_SOURCE']+'/scripts/package-command.sh'
     for capture in (False,True):
         name='failed-leader-'+str(int(capture))
         ready=root/(name+'.ready');lease=root/(name+'.lease');late=root/(name+'.late')
-        env=dict(os.environ,TREE_SOURCE=str(source),TREE_ROOT=str(root),TREE_LEAF=str(leaf),TREE_LAUNCHER=str(launcher),TREE_DEPTH='0',TREE_CAPTURE=str(int(capture)),TREE_EXIT_LEADER='fail',TREE_READY=str(ready),TREE_LEASE=str(lease),TREE_LATE=str(late),_CPKT_PACKAGE_TERMINATION_GRACE_SECONDS='.5')
+        env=dict(os.environ,TREE_SOURCE=str(source),TREE_ROOT=str(root),TREE_LEAF=str(leaf),TREE_LAUNCHER=str(launcher),TREE_DEPTH='0',TREE_CAPTURE=str(int(capture)),TREE_EXIT_LEADER='fail',TREE_READY=str(ready),TREE_LEASE=str(lease),TREE_LATE=str(late),TREE_CLEANUP=str(root/(name+'.cleanup')),_CPKT_PACKAGE_TERMINATION_GRACE_SECONDS='.5')
         for key in list(env):
             if key.startswith('CPKT_OPERATION_') or key in ('MAKEFLAGS','MFLAGS','MAKELEVEL'):env.pop(key,None)
         process=subprocess.Popen([sys.executable,str(driver)],cwd=root,env=env,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,start_new_session=True)
