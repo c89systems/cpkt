@@ -37,6 +37,7 @@ if [ "$action" = release ]; then
 fi
 if [ "$action" != test-all ]; then run format; run format-check; fi
 bash "$cpkt_scripts/build.sh" preflight --group all --preset debug
+if [ "$cpkt_owner" != db ]; then bash "$cpkt_scripts/cpkt-aflpp.sh" ensure; fi
 run debug
 if [ "$cpkt_owner" = db ]; then run e2e-postgres; fi
 run clangd-surface

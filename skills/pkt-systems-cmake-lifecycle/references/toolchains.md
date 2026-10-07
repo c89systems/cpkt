@@ -39,6 +39,7 @@ ${CPKT_TOOLCHAIN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cpkt/toolchains}
 
 - `archives/` contains verified Bootlin, AFL++, and host MIG source tarballs.
 - `roots/` contains extracted immutable compiler collections.
+- AFL++ root names include the Bootlin collection and tooling build revision so different lifecycle helper revisions can coexist in the shared cache.
 - `locks/` contains per-collection advisory lock files. Provisioning must hold the matching lock from its post-lock readiness check through publication; a waiting process must recheck readiness and never remove a root another process has already published. Use host `flock` for these lifecycle cache locks, with `CPKT_TOOLCHAIN_LOCK_TIMEOUT` (default `600` seconds) as the bounded wait.
 
 The cache survives project cleans and is shared by all downstream pkt.systems projects. Do not create project-local compiler caches.

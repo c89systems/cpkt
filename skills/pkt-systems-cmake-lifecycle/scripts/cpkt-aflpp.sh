@@ -44,7 +44,7 @@ collection_id() {
   [[ "$id" =~ ^[A-Za-z0-9._-]+$ ]] || die "Bootlin collection identity contains unsupported characters: $id"
   printf '%s\n' "$id"
 }
-root() { local id=$1; printf '%s/roots/aflplusplus-%s-x86_64-linux-gnu-%s\n' "$(cache)" "$version" "$id"; }
+root() { local id=$1; printf '%s/roots/aflplusplus-%s-x86_64-linux-gnu-%s-r%s\n' "$(cache)" "$version" "$id" "$revision"; }
 value() { sed -n "s/^$1=//p" <<<"$2" | tail -1; }
 ready() {
   local r=$1 id=$2

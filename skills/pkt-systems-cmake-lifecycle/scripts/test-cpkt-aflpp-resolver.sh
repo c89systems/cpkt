@@ -103,7 +103,7 @@ done
 [[ ! -e "$CPKT_TEST_BOOTLIN_CALLS" && ! -e "$signal_cache" && ! -e "$CPKT_TEST_DOWNLOADER_MARKER" ]] || fail 'discovery/environment provisioned missing tools'
 
 # Exercise usable, incomplete and wrong-collection prepared roots without builds.
-prepared="$signal_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin"
+prepared="$signal_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-r2"
 mkdir -p "$prepared/bin" "$prepared/lib/afl" "$prepared/libexec/bootlin-runtime"
 for tool in afl-fuzz afl-showmap afl-cc cpkt-afl-gcc cpkt-afl-g++ bootlin-gcc bootlin-g++; do
   printf '#!/bin/sh\nexit 0\n' > "$prepared/bin/$tool"
@@ -120,6 +120,13 @@ description=$(CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-a
 grep -Fqx 'status=ready' <<< "$description" || fail 'prepared discovery did not report readiness'
 grep -Fqx "root=$prepared" <<< "$description" || fail 'prepared discovery reported wrong root'
 environment=$(CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-aflpp.sh" env)
+foreign="$signal_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin"
+mkdir -p "$foreign"
+printf 'another resolver revision\n' > "$foreign/owned-by-other-resolver"
+CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-aflpp.sh" ensure
+[[ $(cat "$foreign/owned-by-other-resolver") = 'another resolver revision' ]] || fail 'ensure replaced another resolver revision'
+[[ ! -e "$CPKT_TEST_DOWNLOADER_MARKER" ]] || fail 'ensure rebuilt a prepared revision'
+rm -f "$CPKT_TEST_BOOTLIN_CALLS"
 (
   eval "$environment"
   [[ "$CC" == "$prepared/bin/cpkt-afl-gcc" && "$CXX" == "$prepared/bin/cpkt-afl-g++" &&

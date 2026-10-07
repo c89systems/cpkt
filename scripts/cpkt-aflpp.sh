@@ -52,7 +52,7 @@ bootlin_collection_id() {
 
 afl_root() {
   local collection_id=$1
-  printf '%s/roots/aflplusplus-%s-x86_64-linux-gnu-%s\n' "$(cache_root)" "$version" "$collection_id"
+  printf '%s/roots/aflplusplus-%s-x86_64-linux-gnu-%s-r%s\n' "$(cache_root)" "$version" "$collection_id" "$build_revision"
 }
 
 bootlin_value() {

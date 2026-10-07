@@ -100,7 +100,7 @@ def trace(root):
     root=Path(root);seed(root)
     record=root/'build/trace.jsonl';record.parent.mkdir(exist_ok=True)
     body='#!'+shutil.which('python3')+'\nimport json,os,sys\nwith open('+repr(str(record))+',"a") as f:f.write(json.dumps(dict(command=sys.argv,args=sys.argv[1:],production=os.environ.get("CPKT_RELEASE_PRODUCTION")))+"\\n")\n'
-    for name in ('build.sh','format.sh','clean.sh','package.sh','source-reconstruct.sh','version-contract.sh','verify-clangd-surface.sh','memcheck.sh','fuzz.sh','e2e-postgres.sh','test-e2e.sh','package-source.sh','source-archive-verify.sh'):
+    for name in ('build.sh','cpkt-aflpp.sh','format.sh','clean.sh','package.sh','source-reconstruct.sh','version-contract.sh','verify-clangd-surface.sh','memcheck.sh','fuzz.sh','e2e-postgres.sh','test-e2e.sh','package-source.sh','source-archive-verify.sh'):
         (root/'scripts'/name).write_text('#!/usr/bin/env bash\nexec python3 '+shlex.quote(str(root/'build/record.py'))+' '+shlex.quote(name)+' "$@"\n')
     (root/'build/record.py').write_text(body)
     (root/'VERSION').write_text('1.2.3\n')

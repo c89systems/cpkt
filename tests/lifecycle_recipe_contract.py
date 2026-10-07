@@ -16,8 +16,16 @@ with tempfile.TemporaryDirectory(prefix='recipe-contract-',dir=ROOT/'build') as 
     (root/'scripts/lifecycle.sh').write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$1" >> "$(dirname "$0")/../phases"\n')
     (root/'scripts/build.sh').write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$1" >> "$(dirname "$0")/../phases"\n')
     (root/'scripts/package.sh').write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$1" >> "$(dirname "$0")/../phases"\n')
+    (root/'scripts/cpkt-aflpp.sh').write_text('#!/usr/bin/env bash\nprintf "afl-%s\\n" "$1" >> "$(dirname "$0")/../phases"\n')
     subprocess.run(['bash',str(root/'scripts/release.sh'),selected],cwd=root,check=True,env=environment())
     actual=(root/'phases').read_text().splitlines()
     if actual!=expected:
         sys.exit('recipe '+selected+' expected '+repr(expected)+' observed '+repr(actual))
+    if 'afl-ensure' in expected:
+        (root/'phases').unlink()
+        (root/'scripts/cpkt-aflpp.sh').write_text('#!/usr/bin/env bash\nprintf "afl-%s\\n" "$1" >> "$(dirname "$0")/../phases"\nexit 73\n')
+        failed=subprocess.run(['bash',str(root/'scripts/release.sh'),selected],cwd=root,env=environment())
+        assert failed.returncode==73,failed.returncode
+        actual=(root/'phases').read_text().splitlines()
+        assert actual==expected[:expected.index('afl-ensure')+1],actual
 print('serialized Bash lifecycle recipe passed: '+selected)

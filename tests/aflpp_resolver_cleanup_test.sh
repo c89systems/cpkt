@@ -118,7 +118,7 @@ for mode in discover env; do
   esac
   [[ ! -e "$missing_cache" && ! -e "$work_dir/bootlin-calls" && ! -e "$work_dir/download-called" ]]
 done
-prepared="$missing_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-v1"
+prepared="$missing_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-v1-r2"
 mkdir -p "$prepared/bin" "$prepared/lib/afl" "$prepared/libexec/bootlin-runtime"
 for executable in afl-fuzz afl-showmap cpkt-afl-gcc cpkt-afl-g++ afl-cc afl-gcc-fast afl-g++-fast bootlin-gcc bootlin-g++; do
   printf '#!/bin/sh\nexit 0\n' > "$prepared/bin/$executable"
@@ -144,6 +144,14 @@ for required in bin/afl-fuzz bin/afl-showmap bin/cpkt-afl-gcc bin/cpkt-afl-g++ b
 done
 [[ ! -e "$work_dir/bootlin-calls" && ! -e "$work_dir/download-called" ]]
 
+# An older resolver can rebuild its own root without replacing this revision.
+foreign="$missing_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-v1"
+mkdir -p "$foreign"
+printf 'another resolver revision\n' > "$foreign/owned-by-other-resolver"
+PATH="$fake_bin:$PATH" CPKT_TOOLCHAIN_CACHE="$missing_cache" "$fake_repo/scripts/cpkt-aflpp.sh" ensure
+[[ $(cat "$foreign/owned-by-other-resolver") = 'another resolver revision' ]]
+[[ ! -e "$work_dir/download-called" && ! -e "$work_dir/make-arguments" ]]
+
 old_root="$cache_root/roots/aflplusplus-5.02c-x86_64-linux-gnu"
 mkdir -p "$old_root/bin" "$old_root/lib/afl"
 for executable in afl-fuzz afl-showmap cpkt-afl-gcc cpkt-afl-g++; do
@@ -151,6 +159,9 @@ for executable in afl-fuzz afl-showmap cpkt-afl-gcc cpkt-afl-g++; do
   chmod +x "$old_root/bin/$executable"
 done
 touch "$old_root/.cpkt-aflpp-revision-1" "$old_root/lib/afl/afl-gcc-pass.so" "$old_root/lib/afl/afl-compiler-rt.o"
+foreign="$cache_root/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-v1"
+mkdir -p "$foreign"
+printf 'another resolver revision\n' > "$foreign/owned-by-other-resolver"
 
 : > "$cache_root/archives/AFLplusplus-5.02c.tar.gz"
 set +e
@@ -161,6 +172,7 @@ if [[ $status -ne 73 ]]; then
   printf 'AFL++ build failure status was %s, expected 73\n%s\n' "$status" "$output" >&2
   exit 1
 fi
+[[ $(cat "$foreign/owned-by-other-resolver") = 'another resolver revision' ]]
 case "$output" in
   *'simulated AFL++ compiler failure'*) ;;
   *) printf 'AFL++ compiler failure was not preserved\n%s\n' "$output" >&2; exit 1 ;;
@@ -180,7 +192,7 @@ if [ ! -f "$cache_root/locks/aflplusplus-5.02c-x86_64-linux-gnu.lock" ]; then
   printf 'AFL++ provisioning did not create its shared cache lock\n' >&2
   exit 1
 fi
-expected_helper="$cache_root/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-v1/lib/afl"
+expected_helper="$cache_root/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin-v1-r2/lib/afl"
 grep -Fx -- '-B' "$compiler_arguments" >/dev/null || {
   printf 'AFL++ build bypassed the Bootlin runtime compiler backend route\n' >&2; exit 1
 }
