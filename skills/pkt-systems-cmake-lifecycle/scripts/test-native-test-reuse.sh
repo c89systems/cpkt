@@ -76,9 +76,49 @@ mv "$source_dir/input.txt" "$work/saved-input"
 expect_failure
 expect_runs 6
 mv "$work/saved-input" "$source_dir/input.txt"
+cp "$source_dir/CMakeLists.txt" "$work/with-case"
 sed 's/add_test(NAME contract/add_test(NAME unrelated/' "$source_dir/CMakeLists.txt" > "$work/without-case"
 cp "$work/without-case" "$source_dir/CMakeLists.txt"
 configure
 expect_failure
 expect_runs 6
-printf 'native CMake/CTest reuse, invalidation, failure and scope fixture passed\n'
+cp "$work/with-case" "$source_dir/CMakeLists.txt"
+configure -DCHECK_MODE=normal
+check
+expect_runs 7
+printf '\nmessage("skip requested")\n' >> "$source_dir/Fixture.cmake"
+printf '\nset_tests_properties(contract PROPERTIES SKIP_REGULAR_EXPRESSION "skip requested")\n' >> "$source_dir/CMakeLists.txt"
+configure
+expect_failure
+grep -q 'Skipped' "$work/log" || fail 'skip-regex case did not exercise a skipped CTest result'
+expect_runs 8
+expect_failure
+expect_runs 9
+cp "$work/original-fixture" "$source_dir/Fixture.cmake"
+cp "$work/with-case" "$source_dir/CMakeLists.txt"
+configure
+check
+expect_runs 10
+printf '\nset_tests_properties(contract PROPERTIES SKIP_RETURN_CODE 1)\n' >> "$source_dir/CMakeLists.txt"
+printf 'fail\n' > "$source_dir/input.txt"
+configure
+expect_failure
+grep -q 'Skipped' "$work/log" || fail 'skip-return-code case did not exercise a skipped CTest result'
+expect_runs 11
+printf 'pass\n' > "$source_dir/input.txt"
+cp "$work/with-case" "$source_dir/CMakeLists.txt"
+configure
+check
+expect_runs 12
+printf '<testsuite><testcase name="contract"><skipped/></testcase></testsuite>\n' > "$binary_dir/contract-results.xml"
+check
+expect_runs 13
+check
+expect_runs 13
+cmake -E rm -f "$binary_dir/contract-results.xml"
+check
+expect_runs 14
+printf '\nmessage("fixture payload: <skipped/>")\n' >> "$source_dir/Fixture.cmake"
+check
+expect_runs 15
+printf 'native CMake/CTest reuse, skipped-result rejection and result integrity fixture passed\n'

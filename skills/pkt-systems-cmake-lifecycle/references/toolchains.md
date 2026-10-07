@@ -6,8 +6,9 @@ This lifecycle owns C and C++ compiler resolution for pkt.systems C/CMake projec
 
 - Every ordinary Linux build uses the pinned Bootlin GCC collection for its target. Its triple-prefixed `gcc`, `g++`, `ld`, `ar`, `ranlib`, `strip`, `nm`, `objcopy`, `objdump`, `addr2line`, `gdb`, and `readelf`, plus its sysroot libc and headers, are one inseparable collection.
 - Do not use `/usr/bin/cc`, `gcc`, `clang`, distro cross compilers, or unpinned compiler paths as a fallback. A cached Bootlin collection is the only Linux default.
-- `arm64-apple-darwin` uses a local, project-pinned osxcross collection. The lifecycle must not download Apple SDKs or Darwin compiler collections. Once that collection is ready, the lifecycle provisions its separately pinned, Linux-host `mig` helper as described below.
-- cpkt owns the pinned PureDarwin-derived Linux host `mig` and `migcom` build helpers. The resolver downloads and builds them into the shared toolchain cache when ensuring Darwin; neither helper is a workstation package-manager prerequisite or an SDK payload.
+- On a Linux host, cross-building `arm64-apple-darwin` uses a local, project-pinned osxcross collection and the separately pinned Linux-host MIG helper. The lifecycle must not download Apple SDKs or Darwin compiler collections.
+- Native macOS builds use the selected Xcode/Apple Clang compiler, SDK and tools via `xcrun`; they do not use Linux osxcross wrappers, Linux-host MIG or the Linux Valgrind/AFL++ gates. Follow the same native selection in local and hosted builds; see [github-actions.md](github-actions.md).
+- cpkt owns the pinned PureDarwin-derived Linux-host `mig` and `migcom` helpers. The resolver builds them in the shared cache only for Linux-host Darwin cross builds; they are neither workstation package-manager prerequisites nor SDK payloads.
 - Native memory checking uses host-provided Valgrind against executables compiled by the selected Bootlin collection. It is a required gate on the native x86_64 Linux host, but it is not an MSan substitute. Never run Valgrind through cross-compilation, an emulator, or QEMU.
 - Native fuzzing uses a pinned cached AFL++ release built with Bootlin and its matching x86_64 GCC plugin headers. AFL++ compiler wrappers must delegate to the selected Bootlin `gcc`/`g++`; never use host GCC or Clang. Never run fuzzing through cross-compilation, an emulator, or QEMU.
 - LLVM/Clang is installed by the workstation operator outside all cpkt caches and artifacts. Host `clang`/`clang++` support osxcross; `clang-format` and `clangd` are native development tools. None may enter Linux CMake compiler or linker discovery. `clangd` validation is a native development-host editor gate: register and run it only against the native host compile database. Cross-target CTest, package, and release configurations must not invoke it or rely on host `clangd` to emulate a target compiler or sysroot ABI; prove those targets through their selected compiler, supported target runner, and package verification gates.
@@ -257,6 +258,9 @@ release artifacts.
 
 ### Darwin osxcross input and setup
 
+This section applies to Linux-host Darwin cross builds. Native macOS uses its
+selected Xcode SDK and tools; it does not provision osxcross or Linux-host MIG.
+
 The Apple SDK is proprietary input supplied by the developer. Before Darwin
 provisioning, the developer must sign in to Apple Developer Downloads with an
 account entitled to obtain Xcode, download the approved Xcode archive manually,
@@ -305,7 +309,7 @@ The provisioning sequence is:
    does not authorize deleting it; remove that input only when the engineer
    explicitly requests its deletion.
 
-The workstation must not configure a cpkt Darwin build until this
+The Linux cross-build workstation must not configure a cpkt Darwin build until this
 Mach-O smoke check passes. Do not distribute osxcross, the SDK package, the
 Xcode archive, or their Apple license material with a cpkt SDK.
 

@@ -4,11 +4,14 @@
 
 For an existing repository:
 
+Apply only steps relevant to the authorized migration. A pipeline-only migration
+preserves product interfaces and public usage; it does not authorize API restyling.
+
 1. Inventory current public API, ABI, binaries, examples, tests, dependencies, release artifacts, e2e services, Lua artifacts, benchmarks, fuzz targets, vendored patches, and documented commands.
 2. Classify each behavior into a lifecycle surface.
 3. Preserve product behavior and declared artifact/consumer compatibility commitments. For pre-1.0 non-ABI refactors without an external-support commitment, prefer a clean cutover without legacy paths or shims; do not ask solely because the old non-ABI interface changes. Shared-library ABI and published bundle/dependency compatibility requirements still apply regardless of maturity.
-4. Inventory public API style separately from implementation style. Prefer receiver-style handle functions for new usage. Preserve free-function compatibility surfaces when a mature API or declared support commitment requires them; otherwise follow the preceding clean-cutover rule.
-5. Update examples and documentation snippets to the preferred public style and add executable checks that prevent regression to discouraged usage forms.
+4. When public API work is in scope, inventory its style separately from implementation style and follow [api-design.md](api-design.md). Preserve declared compatibility; a lifecycle migration alone is not permission to redesign handles or naming.
+5. Update examples and public API-style checks only when their usage is affected by the authorized change. Pipeline migrations update build/install instructions as needed while preserving product usage.
 6. Replace bespoke command names with standard Make targets. Retain compatibility aliases only when a declared external-support commitment or explicit engineer request requires them. Documentation alone does not require legacy aliases for a pre-1.0 clean cutover.
 7. Follow [tool ownership](../SKILL.md#first-rule-a-simple-native-pipeline): short Make recipes, readable Bash sequencing, one CMake graph and CTest-owned tests. Remove competing controllers and redundant wrappers within the authorized migration; do not port them wholesale into Bash/CMake. Python generators and fixtures are allowed; other pipeline use requires explicit developer permission, not a documented exception invented by the agent.
 8. Normalize presets, target IDs, dependency roots, cache layout, host/bundled dependency modes, and target-tool discovery for packaging and verification.

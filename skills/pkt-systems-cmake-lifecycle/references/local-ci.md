@@ -19,7 +19,8 @@ Use CMake dependencies and declared outputs for reuse. CTest does not itself cac
 passed tests. If a success marker is needed, keep it local and tied to that check's
 real inputs; publish it only after success and invalidate it before changed work.
 Do not create a parallel scheduler, receipt service or source-closure interpreter.
-Missing, corrupt, failed, interrupted or partial results cannot prove full coverage.
+Missing, corrupt, failed, skipped, interrupted or partial results cannot prove full
+coverage. A zero CTest exit status alone is insufficient; required cases must pass.
 
 Use the [small native suite example](native-test-reuse.md) when a marker is needed.
 It defines actual input binding, failure invalidation, suite scope and explicit

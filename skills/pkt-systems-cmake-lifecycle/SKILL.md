@@ -73,7 +73,8 @@ run, share identical prerequisites and execute each required check once.
 - Keep scratch, logs and generated fixtures under ignored `build/`; final artifacts
   belong in `dist/`. Preserve shared verified archive/toolchain caches.
 - Use the pinned lifecycle toolchains; no host compiler/binutils fallback for Linux.
-  Host Bash >= 4.4, LLVM/Clang and Valgrind remain development prerequisites.
+  Host Bash >= 4.4 and LLVM/Clang are development prerequisites. Valgrind is required
+  for the native x86_64 Linux memory gate, not for native macOS or cross execution.
 - Preserve product behavior, warning cleanliness, public ABI and declared support
   commitments. Follow project maturity policy for non-ABI changes.
 - Released artifacts must be relocatable, complete and free of private/local paths.

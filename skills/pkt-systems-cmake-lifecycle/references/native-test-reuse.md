@@ -43,21 +43,31 @@ foreach(input IN LISTS INPUTS)
   file(SHA256 "${input}" hash)
   string(APPEND context "${hash}\n")
 endforeach()
-string(SHA256 identity "${context}")
-if(EXISTS "${STAMP}")
+set(report_file "${TEST_DIR}/contract-results.xml")
+if(EXISTS "${STAMP}" AND EXISTS "${report_file}")
+  file(SHA256 "${report_file}" report_hash)
+  string(SHA256 previous_identity "${context}${report_hash}")
   file(READ "${STAMP}" previous)
-  if(previous STREQUAL identity)
+  if(previous STREQUAL previous_identity)
     message(STATUS "Reused unchanged contract suite")
     return()
   endif()
 endif()
-file(REMOVE "${STAMP}")
+file(REMOVE "${STAMP}" "${report_file}")
 execute_process(COMMAND "${CTEST_TOOL}" --test-dir "${TEST_DIR}"
   -R "^contract$" --no-tests=error --stop-on-failure --output-on-failure
+  --output-junit "${report_file}"
   RESULT_VARIABLE result)
 if(NOT result STREQUAL "0")
   message(FATAL_ERROR "Contract suite failed: ${result}")
 endif()
+file(READ "${report_file}" report)
+if(NOT report MATCHES "<testcase[^>]* name=\"contract\"" OR
+    report MATCHES "<(skipped|failure|error)([ \t\r\n/>])")
+  message(FATAL_ERROR "Required contract case did not complete successfully")
+endif()
+file(SHA256 "${report_file}" report_hash)
+string(SHA256 identity "${context}${report_hash}")
 file(WRITE "${STAMP}" "${identity}")
 ```
 
@@ -69,6 +79,15 @@ or toolchain. If external state cannot be bound reliably, that check is not elig
 for reuse. Keep markers in the owned build tree; they prove only the selected suite
 when its inputs still match. Hashes are not a substitute for native prerequisite
 checks such as executable usability or declared runtime availability.
+
+CTest exit status alone does not prove required coverage: skipped cases can
+return zero. Validate the expected case and reject skipped/failed/error results
+in CTest's fresh JUnit report before writing success. The marker also binds that
+report's bytes; missing or changed results cannot supply cached success. This
+example checks CTest's own case/status fields, not arbitrary product XML.
+Its required scope is the single `contract` case. If adapting the selection,
+validate the corresponding complete required case set; this marker is not
+project-wide readiness.
 
 Explicit rerun: remove that suite's marker with `cmake -E rm -f`, then build
 `check`. Direct CTest remains available, but does not manage this marker; remove
@@ -97,6 +116,6 @@ the requests and skill without the expected answers.
 | Python configure cache or test scheduler, renamed a validator/generator | Prohibited lifecycle control; use native tools or obtain explicit permission. |
 | Product declares lonejson; fixture compares JSON | Product JSON stays with lonejson; native metadata and fixture standard libraries remain allowed. |
 | Unchanged deterministic suite | Reuse matching success; execute no test cases. |
-| Changed, missing, failed or partial suite inputs/results | Invalidate affected success; no full-readiness claim from partial checks. |
+| Changed, missing, failed, skipped or partial suite inputs/results | Invalidate affected success; no full-readiness claim from partial checks or CTest exit status alone. |
 | Source release | Prove shipped source independently and avoid equivalent duplicate producers; do not impose an all-target workspace layout. |
 | Documentation-only edit | Validate documentation; do not run the component matrix. |
