@@ -128,7 +128,7 @@ def configuration(target,preset):
         values=dict(line.split('=',1) for line in report.splitlines() if '=' in line)
         if values.get('status')!='ready':raise ValueError('missing verified toolchain; prepare '+target+' explicitly')
         result={'CPKT_TARGET_ID':target,'CPKT_DEPENDENCY_BUILD_JOBS':os.environ.get('CPKT_DEPENDENCY_BUILD_JOBS',prior.get('CPKT_DEPENDENCY_BUILD_JOBS','8')),'CMAKE_SYSROOT':values.get('sysroot','')}
-        for out,key in [('CMAKE_C_COMPILER','cc'),('CMAKE_CXX_COMPILER','cxx'),('CMAKE_NM','nm'),('CMAKE_AR','ar'),('CMAKE_READELF','readelf'),('CMAKE_OTOOL','otool')]:
+        for out,key in [('CMAKE_C_COMPILER','cc'),('CMAKE_CXX_COMPILER','cxx'),('CMAKE_LINKER','ld'),('CMAKE_NM','nm'),('CMAKE_AR','ar'),('CMAKE_READELF','readelf'),('CMAKE_OTOOL','otool')]:
             if key in values:result[out]=values[key]
         for out,key in [('CPKT_CXX_STDLIB_STATIC_LIBRARY','libstdcxx_a'),('CPKT_CXX_LIBGCC_STATIC_LIBRARY','libgcc_a')]:
             if key in values:result[out]=values[key]
@@ -137,7 +137,7 @@ def configuration(target,preset):
             sdks=sorted((Path(values['root'])/'SDK').glob('MacOSX*.sdk'),reverse=True)
             if not sdks:raise ValueError('verified osxcross toolchain has no SDK')
             result['CMAKE_OSX_SYSROOT']=str(sdks[0].resolve())
-    for key in ('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_NM','CMAKE_AR','CMAKE_READELF','CMAKE_OTOOL','CMAKE_OSX_SYSROOT'):
+    for key in ('CMAKE_C_COMPILER','CMAKE_CXX_COMPILER','CMAKE_LINKER','CMAKE_NM','CMAKE_AR','CMAKE_READELF','CMAKE_OTOOL','CMAKE_OSX_SYSROOT'):
         if prior.get(key) and key in result and Path(prior[key]).resolve()!=Path(result[key]).resolve():
             raise ValueError('configured '+key+' differs from verified selected toolchain; prepare core explicitly')
     jobs=os.environ.get('CPKT_DEPENDENCY_BUILD_JOBS',os.environ.get('CMAKE_BUILD_PARALLEL_LEVEL',prior.get('CPKT_DEPENDENCY_BUILD_JOBS','2' if sys.platform=='darwin' else '8')))

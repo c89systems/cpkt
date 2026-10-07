@@ -86,13 +86,15 @@ class Fixtures(unittest.TestCase):
             'args=sys.argv[1:]\npathlib.Path(args[args.index("-o")+1]).write_text(json.dumps(args))\n')
         compiler.chmod(0o755)
         pkg=root/'pkg-config';pkg.write_text('#!/bin/sh\nexit 0\n');pkg.chmod(0o755)
+        linker=root/'selected linker';linker.write_text('#!/bin/sh\nexit 0\n');linker.chmod(0o755)
         data={'components':{},'installed_examples':{relative:{'group':'core',
             'target':'fixture_example','runtime_args':[],'pkg_config_script':'build-pkg-config.sh'}}}
         configured={'CMAKE_C_COMPILER':str(compiler),'CMAKE_CXX_COMPILER':str(compiler),
-            'CPKT_DEPENDENCY_BUILD_JOBS':'1'}
-        phase=root/'phase';phase.mkdir();calls=[]
+            'CMAKE_LINKER':str(linker),'CPKT_DEPENDENCY_BUILD_JOBS':'1'}
+        calls=[]
         def invoke(args,env=None,**kwargs):
             calls.append(list(map(str,args)))
+            if '-print-prog-name=ld' in args:return '/usr/bin/ld'
             if 'installed example configure' in args:
                 build=Path(args[args.index('-B')+1]);build.mkdir()
                 (build/'runtime-flags.txt').write_text('')
@@ -107,11 +109,16 @@ class Fixtures(unittest.TestCase):
                 self.assertIn('-Wl,-rpath,'+str(prefix/'lib'),words)
                 self.assertIn('-mmacosx-version-min=15.0',words)
                 self.assertFalse(any(word.startswith("'") for word in words))
+                if sys.platform!='darwin':
+                    self.assertIn('--ld-path='+str(linker),words)
+                    self.assertNotIn('--ld-path=/usr/bin/ld',words)
             return {'status':'passed'}
-        with patch.object(examples,'command',side_effect=invoke),patch.object(sys,'platform','darwin'):
-            results=examples.run_examples(prefix,'arm64-apple-darwin',configured,data,['core'],phase,execute)
-        self.assertEqual(len(results),2)
-        self.assertEqual(len([call for call in calls if 'installed pkg-config example' in call]),1)
+        for platform in ('darwin','linux'):
+            phase=root/platform;phase.mkdir()
+            with patch.object(examples,'command',side_effect=invoke),patch.object(sys,'platform',platform):
+                results=examples.run_examples(prefix,'arm64-apple-darwin',configured,data,['core'],phase,execute)
+            self.assertEqual(len(results),2)
+        self.assertEqual(len([call for call in calls if 'installed pkg-config example' in call]),2)
 
     def test_lua_pkg_config_example_preserves_quoted_arguments(self):
         source=ROOT/'examples/lua-runtime-c89/build-pkg-config.sh'

@@ -5067,6 +5067,7 @@
     },
     "release_smoke_static": {
       "group": "core",
+      "execution": "runtime",
       "source_inputs": [
         "tests/release_smoke.c"
       ],
@@ -5078,13 +5079,15 @@
           "name": "release_smoke_static",
           "conditions": [
             "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Darwin\""
+            "CMAKE_SYSTEM_NAME STREQUAL \"Darwin\"",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
           ]
         }
       ]
     },
     "release_smoke_shared": {
       "group": "core",
+      "execution": "runtime",
       "source_inputs": [
         "tests/release_smoke.c"
       ],
@@ -5096,7 +5099,8 @@
           "name": "release_smoke_shared",
           "conditions": [
             "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Darwin\""
+            "CMAKE_SYSTEM_NAME STREQUAL \"Darwin\"",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
           ]
         }
       ]

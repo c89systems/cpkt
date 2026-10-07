@@ -1915,10 +1915,12 @@ if(CPKT_BUILD_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     target_link_libraries(cpkt_abi_smoke_${linkage} PRIVATE cpkt_openssl_${linkage})
     set_target_properties(cpkt_abi_smoke_${linkage} PROPERTIES
           BUILD_WITH_INSTALL_RPATH ON INSTALL_RPATH "@executable_path/../lib")
-    cpkt_group_add_test(NAME release_smoke_${linkage}
-          COMMAND "${CMAKE_COMMAND}" -E env
-            "DYLD_LIBRARY_PATH=${CMAKE_BINARY_DIR}:${CPKT_EXTERNAL_ROOT}/openssl/install/lib"
-            "$<TARGET_FILE:cpkt_abi_smoke_${linkage}>")
+    if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
+      cpkt_group_add_test(NAME release_smoke_${linkage}
+            COMMAND "${CMAKE_COMMAND}" -E env
+              "DYLD_LIBRARY_PATH=${CMAKE_BINARY_DIR}:${CPKT_EXTERNAL_ROOT}/openssl/install/lib"
+              "$<TARGET_FILE:cpkt_abi_smoke_${linkage}>")
+    endif()
   endforeach()
 endif()
 if(CPKT_BUILD_TESTS)

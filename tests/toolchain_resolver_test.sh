@@ -44,7 +44,7 @@ grep -Fq "export LD=$bootlin_root/bin/x86_64-linux-ld" <<<"$bootlin_env" || fail
 darwin_root="$cache/osxcross"
 darwin_prefix=arm64-apple-darwin25.4
 mkdir -p "$darwin_root/bin"
-for tool in clang clang++ ld ar ranlib strip nm otool; do
+for tool in clang clang++ ld ar ranlib strip nm otool install_name_tool; do
   make_executable "$darwin_root/bin/$darwin_prefix-$tool" '#!/bin/sh\nexit 0'
   make_executable "$darwin_root/bin/arm64-apple-darwin25.3-$tool" '#!/bin/sh\nexit 0'
 done
@@ -72,6 +72,24 @@ darwin_latest=$(env -u CPKT_OSXCROSS_HOST OSXCROSS_ROOT="$darwin_root" CPKT_TOOL
 require_line "prefix=$darwin_prefix" "$darwin_latest"
 darwin_pinned=$(OSXCROSS_ROOT="$darwin_root" CPKT_OSXCROSS_HOST=arm64-apple-darwin25.3 CPKT_TOOLCHAIN_CACHE="$cache" "$bootlin" discover arm64-apple-darwin)
 require_line 'prefix=arm64-apple-darwin25.3' "$darwin_pinned"
+
+# Configure the actual toolchain, including a cache left by host discovery.
+mkdir -p "$darwin_root/SDK/MacOSX26.4.sdk/usr/include"
+cat > "$cache/check-darwin-tools.cmake" <<'CMAKE'
+set(CMAKE_NM "/host/llvm-nm" CACHE FILEPATH "")
+set(CMAKE_OTOOL "/host/llvm-otool" CACHE FILEPATH "")
+include("${CPKT_TEST_TOOLCHAIN}")
+foreach(tool IN ITEMS NM OTOOL)
+  string(TOLOWER "${tool}" suffix)
+  set(expected "${CPKT_TEST_CROSS_ROOT}/bin/arm64-apple-darwin25.4-${suffix}")
+  if(NOT CMAKE_${tool} STREQUAL expected)
+    message(FATAL_ERROR "Darwin ${tool} retained unselected tool: ${CMAKE_${tool}}")
+  endif()
+endforeach()
+CMAKE
+OSXCROSS_ROOT="$darwin_root" CPKT_OSXCROSS_HOST="$darwin_prefix" CPKT_TOOLCHAIN_CACHE="$cache" \
+  cmake "-DCPKT_TEST_TOOLCHAIN=$source_dir/cmake/toolchains/arm64-apple-darwin.cmake" \
+  "-DCPKT_TEST_CROSS_ROOT=$darwin_root" -P "$cache/check-darwin-tools.cmake"
 
 make_executable "$fake_bin/curl" '#!/bin/sh
 while [ "$#" -gt 0 ]; do
