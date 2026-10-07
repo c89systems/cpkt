@@ -81,7 +81,7 @@ if phase==os.environ['DIAG_PHASE']:
     run('make-group-term','test',mode='group',via_make=True)
     run('success')
     assert len(cases)==14
-    print('Package phase/status/sender/signal/fail-fast diagnostics passed: '+', '.join(cases))
+    print('Package phase/status/sender/signal/fail-fast diagnostics passed: '+', '.join(cases),flush=True)
 
 # Observe descendant ownership through an advisory lock instead of a host-wide
 # process search. The leaf ignores TERM and can retain both captured pipes.
@@ -177,4 +177,4 @@ os.execvp('bash',['bash',os.environ['TREE_SOURCE']+'/scripts/package-command.sh'
             raise
         cases.append(name)
     assert len(cases)==11
-    print('Cancellation reaps owned descendants and closes captured pipes: '+', '.join(cases))
+    print('Cancellation reaps owned descendants and closes captured pipes: '+', '.join(cases),flush=True)
