@@ -3,10 +3,10 @@ include("${CPKT_REPO}/tests/test-command.cmake")
 set(work "${CPKT_SCRATCH}/zconf-namespace")
 file(REMOVE_RECURSE "${work}")
 file(MAKE_DIRECTORY "${work}")
-set(template [=[#if HAVE_UNISTD_H-0
+set(template [=[#if HAVE_UNISTD_H-0     /* may be set to #if 1 by ./configure */
 #  define Z_HAVE_UNISTD_H
 #endif
-#if HAVE_STDARG_H-0
+#if HAVE_STDARG_H-0     /* may be set to #if 1 by ./configure */
 #  define Z_HAVE_STDARG_H
 #endif
 ]=])

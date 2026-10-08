@@ -463,6 +463,7 @@ void cpkt_sasl_set_allocators(cpkt_sasl_malloc_callback malloc_callback,
                               cpkt_sasl_calloc_callback calloc_callback,
                               cpkt_sasl_realloc_callback realloc_callback,
                               cpkt_sasl_free_callback free_callback);
+/** Installs process-lifetime mutex hooks before SASL initialization. */
 void cpkt_sasl_set_mutexes(cpkt_sasl_mutex_alloc_callback allocate,
                            cpkt_sasl_mutex_lock_callback lock,
                            cpkt_sasl_mutex_unlock_callback unlock,
@@ -471,8 +472,11 @@ void cpkt_sasl_set_mutexes(cpkt_sasl_mutex_alloc_callback allocate,
 /** Property contexts own their request/value storage. Names supplied to
  * request must remain valid until requests are cleared or disposed. */
 cpkt_sasl_property_context *cpkt_sasl_property_new(unsigned long estimate);
+/** Duplicates a property context into independently owned request/value
+ * storage. */
 int cpkt_sasl_property_duplicate(cpkt_sasl_property_context *source,
                                  cpkt_sasl_property_context **copy_out);
+/** Requests properties; supplied names must outlive the retained requests. */
 int cpkt_sasl_property_request(cpkt_sasl_property_context *context,
                                const char *const *names);
 /** Return borrowed native property metadata. Each call observes the current
@@ -490,41 +494,57 @@ int cpkt_sasl_property_getnames(cpkt_sasl_property_context *context,
                                 const char *const *names,
                                 cpkt_sasl_property_value *values_out,
                                 size_t capacity, size_t *count_out);
+/** Formats requested property names into a bounded caller-owned buffer. */
 int cpkt_sasl_property_format(cpkt_sasl_property_context *context,
                               const char *separator, int separator_length,
                               char *output, unsigned long capacity,
                               unsigned long *length_out);
+/** Sets a property value using the supplied byte length. */
 int cpkt_sasl_property_set(cpkt_sasl_property_context *context,
                            const char *name, const char *value,
                            int value_length);
+/** Sets a property's values from a NULL-terminated string array. */
 int cpkt_sasl_property_set_values(cpkt_sasl_property_context *context,
                                   const char *name, const char *const *values);
+/** Clears property values and optionally their retained requests. */
 void cpkt_sasl_property_clear(cpkt_sasl_property_context *context,
                               int clear_requests);
+/** Erases the value associated with the supplied property name. */
 void cpkt_sasl_property_erase(cpkt_sasl_property_context *context,
                               const char *name);
+/** Disposes the property context and invalidates its borrowed views. */
 void cpkt_sasl_property_dispose(cpkt_sasl_property_context **context);
 
 /** Stateless helpers write only into caller-owned bounded buffers. */
 int cpkt_sasl_base64_encode(const char *input, unsigned long input_length,
                             char *output, unsigned long capacity,
                             unsigned long *length_out);
+/** Decodes base64 into a bounded caller-owned output buffer. */
 int cpkt_sasl_base64_decode(const char *input, unsigned long input_length,
                             char *output, unsigned long capacity,
                             unsigned long *length_out);
+/** Validates the supplied UTF-8 bytes using the native SASL helper. */
 int cpkt_sasl_utf8_verify(const char *input, unsigned long length);
+/** Erases the supplied caller-owned buffer bytes. */
 void cpkt_sasl_erase_buffer(char *buffer, unsigned long length);
+/** Converts the supplied writable string to lowercase in place. */
 char *cpkt_sasl_lowercase(char *text);
+/** Initializes the native SASL configuration from file_name. */
 int cpkt_sasl_config_initialize(const char *file_name);
+/** Releases native SASL configuration state. */
 void cpkt_sasl_config_finish(void);
 
 /** Random state is owned until cpkt_sasl_random_free(). */
 int cpkt_sasl_random_new(cpkt_sasl_random **out);
+/** Releases owned SASL random state. */
 void cpkt_sasl_random_free(cpkt_sasl_random **random);
+/** Seeds the random state with the supplied bytes. */
 int cpkt_sasl_random_seed(cpkt_sasl_random *random, const char *bytes,
                           unsigned long length);
+/** Writes random bytes into the supplied caller-owned buffer. */
 int cpkt_sasl_random_fill(cpkt_sasl_random *random, char *bytes,
                           unsigned long length);
+/** Mixes the supplied bytes into the random state. */
 int cpkt_sasl_random_churn(cpkt_sasl_random *random, const char *bytes,
                            unsigned long length);
 

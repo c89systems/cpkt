@@ -27,6 +27,17 @@ function(cpkt_contract_declarations content output)
     foreach(index RANGE 0 ${last})
       string(JSON name MEMBER "${content}" "${category}" ${index})
       string(JSON type GET "${content}" "${category}" "${name}")
+      if(category STREQUAL "typedefs" AND
+          (type STREQUAL "struct ${name}" OR type STREQUAL "enum ${name}"))
+        # The frozen extractor names anonymous types after their typedef.
+        # There is no matching C tag; fields and enumerators are checked below.
+        set(class 1)
+        if(type STREQUAL "struct ${name}")
+          set(class 12)
+        endif()
+        string(APPEND source "typedef char check_${name}[sizeof(${name}) > 0 && __builtin_classify_type(*((${name} *)0)) == ${class} ? 1 : -1];\n")
+        continue()
+      endif()
       if(category STREQUAL "functions")
         cpkt_contract_type(declaration "${type}" "(*expected_${name})")
         set(actual "__typeof__(&${name})")

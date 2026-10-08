@@ -2406,13 +2406,28 @@
       ]
     },
     "cpkt_auth_facade_contract": {
-      "group": "core"
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": []
     },
     "cpkt_auth_gssapi_contract": {
-      "group": "core"
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": []
     },
     "cpkt_auth_sasl_contract": {
-      "group": "core"
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": []
+    },
+    "cpkt_data_${inventory_NAME}": {
+      "group": "tooling",
+      "kind": "add_custom_target",
+      "public": false,
+      "requires": []
     }
   },
   "tests": {
