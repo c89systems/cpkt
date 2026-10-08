@@ -338,7 +338,18 @@ case "${1:-}" in
   -h|--help|'') usage ;;
   targets) target_ids ;;
   discover) if [[ $# -eq 2 ]]; then report_target "$2"; elif [[ $# -eq 1 ]]; then first=1; while IFS= read -r target; do [[ $first -eq 1 ]] || printf '\n'; first=0; report_target "$target"; done < <(target_ids); else die 'usage: cpkt-toolchains.sh discover [target]'; fi ;;
-  ensure) [[ $# -eq 2 ]] || die 'usage: cpkt-toolchains.sh ensure <target|all>'; if [[ "$2" == all ]]; then while IFS= read -r target; do if is_linux_target "$target"; then ensure_target "$target"; else report_target "$target"; fi; done < <(target_ids); else ensure_target "$2"; fi ;;
+  ensure)
+    [[ $# -eq 2 ]] || die 'usage: cpkt-toolchains.sh ensure <target|all>'
+    [[ "$2" == all ]] || require_target "$2"
+    cpkt_provision_with_signals "$@"
+    if [[ "$2" == all ]]; then
+      while IFS= read -r target; do
+        if is_linux_target "$target"; then ensure_target "$target"; else report_target "$target"; fi
+      done < <(target_ids)
+    else
+      ensure_target "$2"
+    fi
+    ;;
   env) [[ $# -eq 2 ]] || die 'usage: cpkt-toolchains.sh env <target>'; print_env "$2" ;;
   *) die "unknown command: $1" ;;
 esac

@@ -101,13 +101,18 @@ cat > "$signal_bin/curl" <<'EOF'
 #!/bin/sh
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    -o) output=$2; shift 2 ;;
+    -o|--output) output=$2; shift 2 ;;
     *) shift ;;
   esac
 done
 mkdir -p "$(dirname -- "$output")"
 : > "$output"
 printf '%s\n' "$output" > "${CPKT_TEST_DOWNLOADER_MARKER:?}"
+if [ "${CPKT_TEST_BLOCK_DOWNLOAD:-0}" = 1 ]; then
+  printf '%s %s\n' "$$" "$PPID" > "$CPKT_TEST_BLOCKED_MARKER"
+  trap 'printf "stopped\n" >> "$CPKT_TEST_BLOCKED_MARKER"; exit 1' TERM
+  while :; do sleep 0.1; done
+fi
 kill -TERM "$PPID"
 printf 'signalled\n' >> "$CPKT_TEST_DOWNLOADER_MARKER"
 EOF
@@ -221,6 +226,40 @@ grep -Fqx signalled "$CPKT_TEST_DOWNLOADER_MARKER" || fail 'interruption fixture
 [[ -d "$signal_cache/archives" ]] || fail 'interruption fixture did not create its archive directory'
 leftovers=$(find "$signal_cache/archives" -maxdepth 1 -name 'AFLplusplus-5.02c.tar.gz.tmp.*' -print) || fail 'unable to inspect interrupted download cleanup'
 [[ -z "$leftovers" ]] || fail 'interrupted AFL++ download left a temporary archive in the shared cache'
+
+# Cancel the top-level resolver while its downloader stays alive until signalled.
+cancel_provisioning_fixture() {
+export CPKT_TEST_BLOCKED_MARKER="$signal_root/blocked-downloader"
+rm -f "$CPKT_TEST_BLOCKED_MARKER"
+CPKT_TEST_BLOCK_DOWNLOAD=1 PATH="$signal_bin:$PATH" CPKT_TOOLCHAIN_CACHE="$signal_cache" \
+  "$@" > "$signal_root/cancel.log" 2>&1 &
+owned_resolver=$!
+for attempt in {1..100}; do
+  [[ ! -s "$CPKT_TEST_BLOCKED_MARKER" ]] || break
+  sleep 0.01
+done
+[[ -s "$CPKT_TEST_BLOCKED_MARKER" ]] || { kill -KILL "$owned_resolver" 2>/dev/null || :; fail 'blocking downloader was not reached'; }
+read -r owned_downloader owned_group < "$CPKT_TEST_BLOCKED_MARKER"
+kill -TERM "$owned_resolver"
+for attempt in {1..40}; do
+  kill -0 "$owned_resolver" 2>/dev/null || break
+  sleep 0.1
+done
+if kill -0 "$owned_resolver" 2>/dev/null; then
+  kill -KILL -- "-$owned_group" "$owned_downloader" "$owned_resolver" 2>/dev/null || :
+  wait "$owned_resolver" 2>/dev/null || :
+  fail 'cancellation did not stop owned provisioning within the bound'
+fi
+if wait "$owned_resolver"; then fail 'cancelled provisioning returned success'; fi
+grep -Fxq stopped "$CPKT_TEST_BLOCKED_MARKER" || fail 'cancellation was not forwarded to downloader'
+if kill -0 "$owned_downloader" 2>/dev/null; then fail 'cancelled downloader remains alive'; fi
+leftovers=$(find "$signal_cache/archives" -maxdepth 1 -name '*.tmp.*' -print)
+[[ -z "$leftovers" ]] || fail 'cancellation cleaned before downloader teardown'
+
+}
+cancel_provisioning_fixture "$signal_skill/scripts/cpkt-aflpp.sh" ensure
+signal_cache="$signal_root/bootlin-cancel-cache"
+cancel_provisioning_fixture "$skill_dir/scripts/cpkt-toolchains.sh" ensure x86_64-linux-gnu
 
 # Exercise runtime wrapper generation without compiling or using a real cache.
 source "$skill_dir/scripts/cpkt-afl-runtime.sh"

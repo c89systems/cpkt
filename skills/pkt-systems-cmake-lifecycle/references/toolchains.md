@@ -45,6 +45,10 @@ ${CPKT_TOOLCHAIN_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cpkt/toolchains}
 
 The cache survives project cleans and is shared by all downstream pkt.systems projects. Do not create project-local compiler caches.
 
+Explicit provisioning runs in one owned Bash job group, including nested ensure
+calls. Cancellation signals that group, waits for teardown, and bounds escalation
+before returning failure. Discovery/environment paths do not start this worker.
+
 Before a download, reuse any archive in `archives/` whose verified SHA-256
 matches the pin, even if its filename differs. A digest hit must make zero
 network requests. Ignore temporary/unpublished files; verify copied bytes before

@@ -160,7 +160,7 @@ env_out() {
   printf 'export CPKT_AFLPP_ROOT=%q\nexport AFL_PATH=%q\nexport AFL_CC=%q\nexport AFL_CXX=%q\nexport CC=%q\nexport CXX=%q\nexport PATH=%q\n' "$r" "$r/lib/afl" "$r/bin/bootlin-gcc" "$r/bin/bootlin-g++" "$r/bin/cpkt-afl-gcc" "$r/bin/cpkt-afl-g++" "$r/bin:$PATH"
 }
 case "${1:-}" in
-  ensure) [[ $# -eq 1 ]] || die 'usage: cpkt-aflpp.sh ensure'; ensure;;
+  ensure) [[ $# -eq 1 ]] || die 'usage: cpkt-aflpp.sh ensure'; require_native_host; cpkt_provision_with_signals "$@"; ensure;;
   discover) [[ $# -eq 1 ]] || die 'usage: cpkt-aflpp.sh discover'; report;;
   env) [[ $# -eq 1 ]] || die 'usage: cpkt-aflpp.sh env'; env_out;;
   *) die 'usage: cpkt-aflpp.sh {ensure|discover|env}';;
