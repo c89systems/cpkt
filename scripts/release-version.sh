@@ -1,48 +1,23 @@
 #!/usr/bin/env bash
-set -eu
-
-repo_root=${1:-}
-if [ -z "$repo_root" ]; then
-  repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+set -euo pipefail
+root=${1:-$(dirname -- "$0")/..}
+root=$(CDPATH= cd -- "$root" && pwd -P)
+top=$(git -C "$root" rev-parse --show-toplevel 2>/dev/null) || top=
+if [ -n "$top" ]; then top=$(CDPATH= cd -- "$top" && pwd -P); fi
+if [ "$top" = "$root" ]; then
+  version=
+  while IFS= read -r tag; do
+    [[ "$tag" =~ ^v[0-9]+[.][0-9]+[.][0-9]+$ ]] || continue
+    [ -z "$version" ] || { printf 'ambiguous exact release tags\n' >&2; exit 1; }
+    [ "$(git -C "$root" cat-file -t "refs/tags/$tag")" = commit ] || { printf 'release tag must be lightweight\n' >&2; exit 1; }
+    [ -z "$(git -C "$root" symbolic-ref -q "refs/tags/$tag" || true)" ] || { printf 'symbolic release tag is unsupported\n' >&2; exit 1; }
+    version=${tag#v}
+  done < <(git -C "$root" tag --points-at HEAD --list 'v[0-9]*.[0-9]*.[0-9]*')
+  if [ -n "${CPKT_RELEASE_VERSION_OVERRIDE:-}" ]; then version=$CPKT_RELEASE_VERSION_OVERRIDE; fi
+  version=${version:-0.0.0}
+else
+  [ -f "$root/VERSION" ] && [ -f "$root/RELEASE_MANIFEST" ] || { printf 'source archive version/manifest missing\n' >&2; exit 1; }
+  IFS= read -r version < "$root/VERSION"
 fi
-repo_root=$(CDPATH= cd -- "$repo_root" && pwd)
-
-git_top_level=
-if git_top_level=$(git -C "$repo_root" rev-parse --show-toplevel 2>/dev/null); then
-  git_top_level=$(CDPATH= cd -- "$git_top_level" && pwd)
-fi
-
-if [ "$git_top_level" = "$repo_root" ]; then
-  version_tag=
-  candidate_tags=$(
-    git -C "$repo_root" tag --points-at HEAD --list 'v[0-9]*.[0-9]*.[0-9]*' 2>/dev/null |
-      sed -n '/^v[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$/p' |
-      sort -V
-  )
-  for candidate_tag in $candidate_tags; do
-    candidate_type=$(git -C "$repo_root" cat-file -t "$candidate_tag")
-    if [ "$candidate_type" = "commit" ]; then
-      version_tag=$candidate_tag
-    fi
-  done
-
-  if [ -z "$version_tag" ]; then
-    printf '0.0.0\n'
-  else
-    printf '%s\n' "${version_tag#v}"
-  fi
-  exit 0
-fi
-
-if [ -f "$repo_root/VERSION" ]; then
-  version=$(sed -n '1{s/[[:space:]]*$//;p;q;}' "$repo_root/VERSION")
-  if [ -z "$version" ]; then
-    printf 'failed to resolve version: %s/VERSION is empty\n' "$repo_root" >&2
-    exit 1
-  fi
-  printf '%s\n' "$version"
-  exit 0
-fi
-
-printf 'failed to resolve version: %s is neither a git worktree nor a source archive with VERSION\n' "$repo_root" >&2
-exit 1
+[[ "$version" =~ ^[0-9]+[.][0-9]+[.][0-9]+$ ]] || { printf 'invalid release version\n' >&2; exit 1; }
+printf '%s\n' "$version"

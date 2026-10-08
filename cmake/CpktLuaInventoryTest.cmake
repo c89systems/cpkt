@@ -1,5 +1,6 @@
-  cpkt_group_add_test(
-      NAME lua_api_inventory
+  cpkt_add_api_inventory(NAME lua_api_inventory
+      KIND lua
+      OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/lua-api-inventory.json"
       COMMAND
         "${CPKT_PYTHON3_EXECUTABLE}"
         "${CMAKE_SOURCE_DIR}/tools/generate_lua_api_inventory.py"

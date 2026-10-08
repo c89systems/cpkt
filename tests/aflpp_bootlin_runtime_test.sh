@@ -3,11 +3,6 @@ set -euo pipefail
 [[ $# -eq 2 ]] || { printf 'usage: aflpp_bootlin_runtime_test.sh <source-dir> <Bootlin-root>\n' >&2; exit 2; }
 source_dir=$1
 configured_root=$2
-group=${GROUP:-core}
-if [[ -z ${CPKT_OPERATION_FD:-} ]]; then
-  exec bash "$source_dir/scripts/operation.sh" --root "$source_dir" --group "$group" -- bash "$0" "$@"
-fi
-bash "$source_dir/scripts/operation.sh" --root "$source_dir" --group "$group" --check
 die() { printf 'AFL++ Bootlin runtime: %s\n' "$*" >&2; exit 1; }
 description=$(bash "$source_dir/scripts/cpkt-toolchains.sh" discover x86_64-linux-gnu)
 value() { sed -n "s/^$1=//p" <<< "$description"; }
@@ -63,10 +58,11 @@ cat > "$work/target.c" <<'C'
 int main(void) {
   printf("target libc=%s\n", gnu_get_libc_version());
   fflush(stdout);
-  return system("python3 -c 'import ctypes; c=ctypes.CDLL(None); c.gnu_get_libc_version.restype=ctypes.c_char_p; print(\"host child libc=\"+c.gnu_get_libc_version().decode())'") == 0 ? 0 : 1;
+  return system("getconf GNU_LIBC_VERSION | sed 's/^glibc /host child libc=/'") == 0 ? 0 : 1;
 }
 C
-host_version=$(python3 -c 'import ctypes; c=ctypes.CDLL(None); c.gnu_get_libc_version.restype=ctypes.c_char_p; print(c.gnu_get_libc_version().decode())')
+host_version=$(getconf GNU_LIBC_VERSION)
+host_version=${host_version#glibc }
 for mode in c c++; do
   compiler=$runtime_cc
   [[ $mode != c++ ]] || compiler=$runtime_cxx

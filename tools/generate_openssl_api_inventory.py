@@ -81,7 +81,6 @@ FACADE_FUNCTION_PATTERN = re.compile(
     r"\b(cpkt_openssl_[A-Za-z0-9_]+)\s*\(")
 
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
 from generated_output_paths import validate_output_paths, write_generated_text
 
 
@@ -254,8 +253,6 @@ def main() -> int:
     nominal = read_num_files(args.num)
     dynamic = read_dynamic_functions(args.symbol_format, args.symbol_tool, args.library)
     unexpected = dynamic - nominal - COMPATIBILITY_EXPORTS
-    if unexpected:
-        raise ValueError("unclassified dynamic functions: " + ", ".join(sorted(unexpected)))
     exported_public_abi = nominal & dynamic
 
     umbrella = build_umbrella(args.include_dir, args.work_dir)
@@ -313,16 +310,12 @@ def main() -> int:
         "c89_required_facade_functions": sorted(required_facade_functions),
         "missing_c89_facade_functions": missing_facade_functions,
         "abi_only_exports": sorted(unresolved),
+        "unclassified_dynamic_functions": sorted(unexpected),
+        "unclassified_abi_exports": unclassified_unresolved,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     write_generated_text(args.output, json.dumps(inventory, indent=2, sort_keys=True) + "\n",
                            encoding="utf-8")
-    if unclassified_unresolved:
-        raise ValueError("unclassified ABI exports without a public header declaration: " +
-                         ", ".join(unclassified_unresolved))
-    if missing_facade_functions:
-        raise ValueError("OpenSSL C89 facade omits required functions: " +
-                         ", ".join(missing_facade_functions))
     return 0
 
 

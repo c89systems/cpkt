@@ -13,7 +13,6 @@ cpkt_check_group "$group"
 cpkt_preset "$preset"
 [ "$cpkt_configuration" = Release ] || cpkt_fail 'SDK packaging requires Release'
 export GROUP="$cpkt_owner"
-cpkt_locked --group "$group" --preset "$preset"
 version=$(bash "$cpkt_scripts/release-version.sh" "$cpkt_root")
 workspace="$cpkt_root/build/package-stage/$cpkt_target/$cpkt_owner"
 prefix="$workspace/$cpkt_provider-$version-$cpkt_target"
@@ -23,6 +22,4 @@ cpkt_owned_path "$archive"
 cpkt_owned_path "$archive.tmp"
 bash "$cpkt_scripts/clean.sh" stage --path "$prefix"
 "$cpkt_cmake" --install "$cpkt_binary" --prefix "$prefix"
-python3 "$cpkt_scripts/cpkt_package_manifest.py" --root "$cpkt_root" --group "$cpkt_owner" \
-  --target "$cpkt_target" --preset "$preset" --prefix "$prefix" --version "$version"
 bash "$cpkt_scripts/archive.sh" "$prefix" "$archive"

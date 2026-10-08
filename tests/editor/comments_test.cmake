@@ -1,0 +1,28 @@
+file(GLOB headers "${CPKT_SOURCE}/include/cpkt/*.h")
+list(APPEND headers "${CPKT_BUILD}/generated/lua/include/cpkt/lua.h"
+  "${CPKT_BUILD}/generated/cmocka/include/cpkt/cmocka.h"
+  "${CPKT_BUILD}/generated/cmocka/include/cpkt/cmocka_types.h")
+set(comment "/\\*([^*]|\\*+[^*/])*\\*+/")
+set(documented "/\\*\\*([^*]|\\*+[^*/])*\\*+/[ \t\n]*[^;{}]*;")
+foreach(header IN LISTS headers)
+  file(READ "${header}" content)
+  if(NOT content MATCHES "/\\*\\*")
+    message(FATAL_ERROR "Public header has no Doxygen contract: ${header}")
+  endif()
+  # This check covers the project's ordinary C function declarations.
+  # Type/family ownership documentation and source definitions are reviewed
+  # under the public API contract; this is not a general C parser.
+  string(REGEX MATCHALL "${documented}" comments "${content}")
+  string(REGEX REPLACE "${comment}" "" bare "${content}")
+  string(REGEX REPLACE "(^|\n)[ \t]*#[^\n]*" "\n" bare "${bare}")
+  string(REGEX MATCHALL "[A-Za-z_][A-Za-z0-9_* \t\n]*[ *]cpkt_[A-Za-z0-9_]+[ \t\n]*\\([^;{}]*;" declarations "${bare}")
+  string(REGEX REPLACE "${comment}" "" comments "${comments}")
+  foreach(declaration IN LISTS declarations)
+    if(declaration MATCHES "(cpkt_[A-Za-z0-9_]+)[ \t\n]*\\(")
+      set(name "${CMAKE_MATCH_1}")
+      if(NOT comments MATCHES "${name}[ \t\n]*\\(")
+        message(FATAL_ERROR "Public function lacks an adjacent Doxygen contract: ${header}: ${name}")
+      endif()
+    endif()
+  endforeach()
+endforeach()

@@ -4,7 +4,7 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/lifecycle-common.sh"
 source_parent=${1:-$cpkt_root}
 source_selected=${CPKT_PRESET:-${PRESET:-debug}}
 source_configuration=Release
-case "$source_selected" in debug) source_configuration=Debug ;; valgrind) source_configuration=Valgrind ;; fuzz|opcua-fuzz) source_configuration=Fuzz ;; esac
+case "$source_selected" in debug) source_configuration=Debug ;; valgrind) source_configuration=Valgrind ;; fuzz) source_configuration=Fuzz ;; esac
 source_cache="$source_parent/build/x86_64-linux-gnu/$cpkt_owner/$source_configuration/CMakeCache.txt"
 source_limit=$(cpkt_cache_value CPKT_DEPENDENCY_BUILD_JOBS "$source_cache") || source_limit=8
 [[ "$source_limit" =~ ^[1-9][0-9]*$ ]] && [ "$source_limit" -le 8 ] || cpkt_fail 'invalid configured reconstruction job limit'

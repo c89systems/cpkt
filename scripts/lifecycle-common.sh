@@ -25,8 +25,8 @@ cpkt_info() {
 }
 
 cpkt_owner=$(cpkt_info owner)
-case "$cpkt_owner" in core|db|misc) ;; *) cpkt_fail 'invalid repository owner' ;; esac
-case "$cpkt_owner" in core) cpkt_provider=cpkt ;; db) cpkt_provider=cpktdb ;; misc) cpkt_provider=cpktmisc ;; esac
+[ "$cpkt_owner" = core ] || cpkt_fail 'this repository owns the core SDK'
+cpkt_provider=cpkt
 
 cpkt_check_group() {
   case "$1" in all|"$cpkt_owner") ;; *) cpkt_fail "GROUP=$1 is not owned by this repository ($cpkt_owner)" ;; esac
@@ -61,7 +61,7 @@ cpkt_preset() {
     debug) cpkt_target=x86_64-linux-gnu; cpkt_configuration=Debug ;;
     release) cpkt_target=x86_64-linux-gnu ;;
     valgrind) cpkt_target=x86_64-linux-gnu; cpkt_configuration=Valgrind ;;
-    fuzz|opcua-fuzz) cpkt_target=x86_64-linux-gnu; cpkt_configuration=Fuzz ;;
+    fuzz) cpkt_target=x86_64-linux-gnu; cpkt_configuration=Fuzz ;;
     arm64-apple-darwin-native) cpkt_target=arm64-apple-darwin ;;
     arm64-apple-darwin-debug) cpkt_target=arm64-apple-darwin; cpkt_configuration=Debug ;;
     *-release) cpkt_target=${preset%-release} ;;
@@ -81,11 +81,4 @@ cpkt_jobs() {
   [[ "$jobs" =~ ^[1-9][0-9]*$ ]] || cpkt_fail 'job limit must be a positive integer'
   [ "$jobs" -le "$limit" ] || cpkt_fail "job limit exceeds configured host maximum $limit"
   printf '%s\n' "$jobs"
-}
-
-cpkt_locked() {
-  if [ -z "${CPKT_OPERATION_FD:-}" ]; then
-    exec bash "$cpkt_scripts/operation.sh" --root "$cpkt_root" --group "${GROUP:-all}" -- bash "$0" "$@"
-  fi
-  bash "$cpkt_scripts/operation.sh" --root "$cpkt_root" --group "${GROUP:-all}" --check
 }

@@ -55,12 +55,10 @@
         "cmake/CpktTestInventory.cmake",
         "scripts/lifecycle.sh",
         "scripts/build.sh",
-        "scripts/operation.sh",
         "cmake/producer-cache.cmake",
         "cmake/CpktLuaInventoryTest.cmake",
         "cmake/CpktLuaExportsTest.cmake",
-        "scripts/archive.sh",
-        "scripts/package-command.sh"
+        "scripts/archive.sh"
       ],
       "core_components": [],
       "profiles": {
@@ -111,7 +109,9 @@
         "cmake/CpktDependencyContract.cmake",
         "cmake/CpktDependencyArchiveCache.cmake",
         "cmake/patch_openssl_buildinfo.cmake",
-        "cmake/patch_darwin_generated_install_names.cmake"
+        "cmake/patch_darwin_generated_install_names.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/openssl.cmake"
       ],
       "variants": [
         "static",
@@ -327,7 +327,8 @@
           "lib/libcpkt_openssl.*": "$ORIGIN"
         },
         "version_variable": "CPKT_OPENSSL_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/openssl.cmake"
     },
     "zlib": {
       "group": "core",
@@ -339,7 +340,9 @@
       "recipe_inputs": [
         "cmake/CpktDependencyContract.cmake",
         "cmake/CpktDependencyArchiveCache.cmake",
-        "cmake/patch_zlib_single_pass.cmake"
+        "cmake/patch_zlib_single_pass.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/zlib.cmake"
       ],
       "variants": [
         "static",
@@ -395,7 +398,8 @@
           "lib/pkgconfig/zlib.pc"
         ],
         "version_variable": "CPKT_ZLIB_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/zlib.cmake"
     },
     "nghttp2": {
       "group": "core",
@@ -406,7 +410,9 @@
       ],
       "recipe_inputs": [
         "cmake/CpktDependencyContract.cmake",
-        "cmake/CpktDependencyArchiveCache.cmake"
+        "cmake/CpktDependencyArchiveCache.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/nghttp2.cmake"
       ],
       "variants": [
         "static",
@@ -471,7 +477,8 @@
           "lib/libcpkt_nghttp2.*": "$ORIGIN"
         },
         "version_variable": "CPKT_NGHTTP2_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/nghttp2.cmake"
     },
     "libssh2": {
       "group": "core",
@@ -487,7 +494,9 @@
         "cmake/CpktDependencyContract.cmake",
         "cmake/CpktDependencyArchiveCache.cmake",
         "cmake/patch_libssh2_single_pass.cmake",
-        "cmake/patch_libssh2_poll_elapsed.cmake"
+        "cmake/patch_libssh2_poll_elapsed.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/libssh2.cmake"
       ],
       "variants": [
         "static",
@@ -562,7 +571,8 @@
           "lib/libcpkt_libssh2.*": "$ORIGIN"
         },
         "version_variable": "CPKT_LIBSSH2_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/libssh2.cmake"
     },
     "curl": {
       "group": "core",
@@ -580,7 +590,9 @@
       ],
       "recipe_inputs": [
         "cmake/CpktDependencyContract.cmake",
-        "cmake/CpktDependencyArchiveCache.cmake"
+        "cmake/CpktDependencyArchiveCache.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/curl.cmake"
       ],
       "variants": [
         "static",
@@ -671,7 +683,8 @@
           "lib/libcurl.*": "$ORIGIN"
         },
         "version_variable": "CPKT_CURL_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/curl.cmake"
     },
     "libxml2": {
       "group": "core",
@@ -684,7 +697,9 @@
       ],
       "recipe_inputs": [
         "cmake/CpktDependencyContract.cmake",
-        "cmake/CpktDependencyArchiveCache.cmake"
+        "cmake/CpktDependencyArchiveCache.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/libxml2.cmake"
       ],
       "variants": [
         "static",
@@ -786,7 +801,8 @@
           "lib/libxml2.*": "$ORIGIN"
         },
         "version_variable": "CPKT_LIBXML2_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/libxml2.cmake"
     },
     "lua": {
       "group": "core",
@@ -800,7 +816,9 @@
         "cmake/CpktDependencyArchiveCache.cmake",
         "cmake/install_lua.cmake",
         "cmake/patch_lua_runtime_hooks.cmake",
-        "src/lua_runtime_hook_policy.h"
+        "src/lua_runtime_hook_policy.h",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/lua.cmake"
       ],
       "variants": [
         "static",
@@ -891,7 +909,8 @@
           "lib/libcpkt_lua_runtime.*": "$ORIGIN"
         },
         "version_variable": "CPKT_LUA_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/lua.cmake"
     },
     "mqttc": {
       "group": "core",
@@ -902,7 +921,9 @@
       ],
       "recipe_inputs": [
         "cmake/CpktDependencyContract.cmake",
-        "cmake/CpktDependencyArchiveCache.cmake"
+        "cmake/CpktDependencyArchiveCache.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/mqttc.cmake"
       ],
       "variants": [
         "static",
@@ -970,7 +991,8 @@
           "lib/libcpkt_mqttc.*": "$ORIGIN"
         },
         "version_variable": "CPKT_MQTTC_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/mqttc.cmake"
     },
     "krb5": {
       "group": "core",
@@ -989,7 +1011,9 @@
         "cmake/patches/krb5_const_correctness.patch",
         "cmake/patches/krb5_tls_bundle.patch",
         "cmake/patches/krb5_error_va_list.patch",
-        "cmake/patches/krb5_gss_trace_callback.patch"
+        "cmake/patches/krb5_gss_trace_callback.patch",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/krb5.cmake"
       ],
       "variants": [
         "static",
@@ -1113,7 +1137,8 @@
           "lib/krb5/plugins/tls/*.so",
           "lib/krb5/plugins/tls/*.dylib"
         ]
-      }
+      },
+      "recipe_file": "cmake/dependencies/krb5.cmake"
     },
     "cyrus-sasl": {
       "group": "core",
@@ -1135,7 +1160,9 @@
         "cmake/apply_patch_series.cmake",
         "cmake/assert_cyrus_sasl_gssapi.cmake",
         "cmake/enable_cyrus_sasl_static_gs2.cmake",
-        "cmake/assert_cyrus_sasl_plugins.cmake"
+        "cmake/assert_cyrus_sasl_plugins.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/cyrus-sasl.cmake"
       ],
       "variants": [
         "static",
@@ -1212,7 +1239,8 @@
           "lib/sasl2/*.so",
           "lib/sasl2/*.dylib"
         ]
-      }
+      },
+      "recipe_file": "cmake/dependencies/cyrus-sasl.cmake"
     },
     "openldap": {
       "group": "core",
@@ -1234,7 +1262,9 @@
         "cmake/patches/openldap.series",
         "cmake/patches/openldap_client_const.patch",
         "cmake/patches/openldap_sasl_logging.patch",
-        "cmake/patches/openldap_c89_log_setter.patch"
+        "cmake/patches/openldap_c89_log_setter.patch",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/openldap.cmake"
       ],
       "variants": [
         "static",
@@ -1294,7 +1324,8 @@
           "lib/liblutil.a"
         ],
         "version_variable": "CPKT_OPENLDAP_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/openldap.cmake"
     },
     "cmocka": {
       "group": "core",
@@ -1306,7 +1337,9 @@
       "recipe_inputs": [
         "cmake/CpktDependencyContract.cmake",
         "cmake/CpktDependencyArchiveCache.cmake",
-        "cmake/cmocka_metadata.cmake"
+        "cmake/cmocka_metadata.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/cmocka.cmake"
       ],
       "variants": [
         "static",
@@ -1382,7 +1415,8 @@
           "include/cpkt/cmocka.h"
         ],
         "version_variable": "CPKT_CMOCKA_VERSION"
-      }
+      },
+      "recipe_file": "cmake/dependencies/cmocka.cmake"
     }
   },
   "targets": {
@@ -2370,6 +2404,15 @@
       "source_inputs": [
         "tests/sasl_plugin_roundtrip_test.c"
       ]
+    },
+    "cpkt_auth_facade_contract": {
+      "group": "core"
+    },
+    "cpkt_auth_gssapi_contract": {
+      "group": "core"
+    },
+    "cpkt_auth_sasl_contract": {
+      "group": "core"
     }
   },
   "tests": {
@@ -2378,8 +2421,6 @@
       "command_inputs": [
         "tests/local_executable_runtime_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "local_executable_runtime_policy",
@@ -2394,8 +2435,6 @@
     "bootlin_runtime_process_boundary": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "bootlin_runtime_process_boundary",
@@ -2411,8 +2450,6 @@
       "command_inputs": [
         "tests/local_executable_runtime_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "local_runtime_rejects_wrong_loader",
@@ -2426,8 +2463,6 @@
     "lua_runtime_mock_unit": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "lua_runtime_mock_unit",
@@ -2441,7 +2476,6 @@
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -2451,10 +2485,9 @@
     "auth_package_discovery": {
       "group": "core",
       "command_inputs": [
-        "tests/auth_package_discovery_test.py"
+        "tests/auth_package_discovery_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "auth_package_discovery",
@@ -2465,30 +2498,12 @@
       ],
       "target_sensitive": true
     },
-    "selected_test_executables": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/selected_test_executables_test.py"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "selected_test_executables",
-          "conditions": [
-            "CPKT_BUILD_TESTS"
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
     "krb5_trace_prototypes": {
       "group": "core",
       "command_inputs": [
-        "tests/krb5_trace_prototypes_test.py"
+        "tests/krb5_trace_prototypes_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "krb5_trace_prototypes",
@@ -2498,16 +2513,6 @@
         }
       ],
       "target_sensitive": true,
-      "preflight": true,
-      "helper_environment": [
-        "PATH",
-        "CPKT_GNU_TAR",
-        "CPKT_TOOLCHAIN_ROOT",
-        "CPKT_TOOLCHAIN_TARGET",
-        "CPKT_DEPENDENCY_CACHE",
-        "CPKT_GNU_MAKE",
-        "CPKT_OSXCROSS_HOST"
-      ],
       "helper_inputs": [
         "cmake/patches/krb5_gss_trace_callback.patch"
       ]
@@ -2515,8 +2520,6 @@
     "openssl_${_cpkt_record_case}_${_cpkt_record_linkage}": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "openssl_inquiry_results_static",
@@ -2636,10 +2639,8 @@
     "darwin_bio_runtime_paths": {
       "group": "core",
       "command_inputs": [
-        "tests/darwin_test_runtime_paths_test.py"
+        "tests/darwin_runtime_paths_test.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "darwin_bio_runtime_paths",
@@ -2654,8 +2655,6 @@
     "openldap_${_cpkt_ldap_linkage}": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "openldap_static",
@@ -2677,8 +2676,6 @@
     "openldap_sasl_logging_${_cpkt_ldap_linkage}": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "openldap_sasl_logging_static",
@@ -2700,8 +2697,6 @@
     "openldap_sasl_${_cpkt_ldap_sink}_sink": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "openldap_sasl_default_sink",
@@ -2722,29 +2717,9 @@
       ],
       "target_sensitive": false
     },
-    "curl_server_bind": {
-      "group": "core",
-      "command_inputs": [
-        "tests/curl_async_dns_server_test.py"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "curl_server_bind",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
     "curl_async_dns_${_cpkt_curl_linkage}": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "curl_async_dns_static",
@@ -2766,10 +2741,9 @@
     "curl_multi_socket_${_cpkt_curl_linkage}": {
       "group": "core",
       "command_inputs": [
+        "tests/curl_async_dns_test.sh",
         "tests/curl_async_dns_server.py"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "curl_multi_socket_static",
@@ -2793,8 +2767,6 @@
       "command_inputs": [
         "tests/patch_series_portability_test.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "patch_series_portability",
@@ -2805,13 +2777,6 @@
         }
       ],
       "target_sensitive": false,
-      "preflight": true,
-      "helper_environment": [
-        "PATH",
-        "CPKT_GNU_TAR",
-        "CPKT_DEPENDENCY_CACHE",
-        "CPKT_GNU_MAKE"
-      ],
       "helper_inputs": [
         "cmake/apply_patch_series.cmake"
       ]
@@ -2821,8 +2786,6 @@
       "command_inputs": [
         "tests/static_archive_member_cleanup_test.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "static_archive_member_cleanup",
@@ -2833,16 +2796,6 @@
         }
       ],
       "target_sensitive": true,
-      "preflight": true,
-      "helper_environment": [
-        "PATH",
-        "CPKT_GNU_TAR",
-        "CPKT_TOOLCHAIN_ROOT",
-        "CPKT_TOOLCHAIN_TARGET",
-        "CPKT_DEPENDENCY_CACHE",
-        "CPKT_GNU_MAKE",
-        "CPKT_OSXCROSS_HOST"
-      ],
       "helper_inputs": [
         "cmake/remove_static_archive_member.cmake",
         "tests/local_executable_runtime_policy_test.sh"
@@ -2851,8 +2804,6 @@
     "lua_facade_unit": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "lua_facade_unit",
@@ -2867,8 +2818,6 @@
     "openssl_bio_lifecycle_${_cpkt_bio_linkage}": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "openssl_bio_lifecycle_static",
@@ -2890,8 +2839,6 @@
     "lua_runtime_c89_example": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "lua_runtime_c89_example",
@@ -2906,8 +2853,6 @@
     "mqttc_example_shared": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "mqttc_example_shared",
@@ -2922,8 +2867,6 @@
     "mqttc_example_static": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "mqttc_example_static",
@@ -2940,8 +2883,6 @@
       "command_inputs": [
         "tests/static_archive_pic_link_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "static_archive_pic_link",
@@ -2957,8 +2898,6 @@
     "lua_runtime_unit": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "lua_runtime_unit",
@@ -2973,15 +2912,12 @@
     "openssl_facade": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "openssl_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -2991,15 +2927,12 @@
     "nghttp2_facade": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "nghttp2_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3009,15 +2942,12 @@
     "libssh2_header_facade": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "libssh2_header_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3027,15 +2957,12 @@
     "libssh2_facade": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "libssh2_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3045,15 +2972,12 @@
     "libssh2_sftp_attributes": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "libssh2_sftp_attributes",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3063,15 +2987,12 @@
     "libssh2_poll_elapsed": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "libssh2_poll_elapsed",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3081,15 +3002,12 @@
     "mqttc_header_facade": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "mqttc_header_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3099,15 +3017,12 @@
     "mqttc_facade": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "mqttc_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3117,17 +3032,15 @@
     "openssl_builddata": {
       "group": "core",
       "command_inputs": [
-        "tests/openssl_builddata_test.py"
+        "tests/openssl_builddata_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "openssl_builddata",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3139,15 +3052,12 @@
       "command_inputs": [
         "tests/clean_source_test_scratch_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "clean_source_test_scratch",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3157,15 +3067,12 @@
     "gssapi_facade": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "gssapi_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3175,15 +3082,12 @@
     "gssapi_logging": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "gssapi_logging",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3193,15 +3097,12 @@
     "gssapi_extended": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "gssapi_extended",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3211,15 +3112,12 @@
     "gssapi_lucid_conversion": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "gssapi_lucid_conversion",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3229,15 +3127,12 @@
     "gssapi_iov_native_peer": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "gssapi_iov_native_peer",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3247,15 +3142,12 @@
     "gssapi_oid_native_parity": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "gssapi_oid_native_parity",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3268,15 +3160,12 @@
         "cmake/exports/cpkt_gssapi.txt",
         "tests/auth_export_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "gssapi_export_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3289,76 +3178,12 @@
         "cmake/exports/cpkt_sasl.txt",
         "tests/auth_export_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_export_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": true
-    },
-    "contracts_out_of_source": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/contracts_out_of_source_test.py"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "contracts_out_of_source",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": true
-    },
-    "auth_native_api_contract": {
-      "group": "core",
-      "command_inputs": [
-        "scripts/auth_api_contract.py"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "auth_native_api_contract",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": true
-    },
-    "auth_facade_binding_contract": {
-      "group": "core",
-      "command_inputs": [
-        "scripts/auth_facade_bindings.py"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "auth_facade_binding_contract",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3368,17 +3193,15 @@
     "auth_facade_signature_contract": {
       "group": "core",
       "command_inputs": [
-        "scripts/auth_facade_signatures.py"
+        "cmake/CpktAuthContracts.cmake",
+        "tests/contracts/auth_facade_signatures.json"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "auth_facade_signature_contract",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3388,58 +3211,60 @@
     "auth_sasl_property_contract": {
       "group": "core",
       "command_inputs": [
-        "scripts/auth_sasl_property_contract.py"
+        "tests/auth_sasl_property_test.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "auth_sasl_property_contract",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
-      "target_sensitive": true
+      "target_sensitive": true,
+      "helper_inputs": [
+        "${CPKT_DEPENDENCY_BUILD_ROOT}/cyrus-sasl/src/lib/common.c"
+      ]
     },
     "auth_contract_mutations": {
-      "group": "core",
+      "group": "tooling",
       "command_inputs": [
-        "tests/auth_contract_mutation_test.py"
+        "tests/auth_contract_mutation_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "auth_contract_mutations",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
-      "target_sensitive": false
+      "target_sensitive": false,
+      "helper_inputs": [
+        "include/cpkt/gssapi.h",
+        "include/cpkt/sasl.h",
+        "include/cpkt/sasl_plugin.h",
+        "cmake/CpktAuthContracts.cmake"
+      ]
     },
     "export_catalog_dependency_${_cpkt_catalog_generator}": {
       "group": "tooling",
       "command_inputs": [
-        "tests/export_catalog_dependency_test.py"
+        "tests/export_catalog_dependency_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "export_catalog_dependency_Ninja",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
@@ -3449,26 +3274,26 @@
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
-      "target_sensitive": false
+      "target_sensitive": false,
+      "helper_inputs": [
+        "cmake/CpktExports.cmake",
+        "cmake/CpktMutationPaths.cmake"
+      ]
     },
     "krb5_error_format": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "krb5_error_format",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3478,15 +3303,12 @@
     "sasl_facade": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3496,15 +3318,12 @@
     "sasl_plugin_facade": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_plugin_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3514,15 +3333,12 @@
     "sasl_property_lifetime": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_property_lifetime",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3532,15 +3348,12 @@
     "sasl_property_coherence": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_property_coherence",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3550,15 +3363,12 @@
     "sasl_connection_property": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_connection_property",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3568,15 +3378,12 @@
     "sasl_idle_registration": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_idle_registration",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3586,15 +3393,12 @@
     "sasl_registration_failure": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_registration_failure",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3604,15 +3408,12 @@
     "sasl_utility_allocation_failure": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_utility_allocation_failure",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3622,15 +3423,12 @@
     "sasl_privileged_plugin_path": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_privileged_plugin_path",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3640,15 +3438,12 @@
     "sasl_ordinary_plugin_path": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_ordinary_plugin_path",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3658,15 +3453,12 @@
     "sasl_callback_retry": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_callback_retry",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3678,35 +3470,32 @@
       "command_inputs": [
         "tests/static_dependency_pic_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "static_dependency_pic_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
-      "target_sensitive": false
+      "target_sensitive": false,
+      "helper_inputs": [
+        "cmake/dependencies/nghttp2.cmake"
+      ]
     },
     "linux_toolchain_sysroot_policy": {
       "group": "tooling",
       "command_inputs": [
         "tests/linux_toolchain_sysroot_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "linux_toolchain_sysroot_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3718,15 +3507,12 @@
       "command_inputs": [
         "tests/osxcross_linker_cache_refresh_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "osxcross_linker_cache_refresh",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3736,37 +3522,17 @@
     "repo_dependency_cache_policy": {
       "group": "tooling",
       "command_inputs": [
-        "tests/repo_dependency_cache_policy_test.sh"
+        "tests/repo_dependency_cache_policy_test.sh",
+        "tests/dependency_inputs_test.cmake",
+        "cmake/CpktDependencyContract.cmake",
+        "cmake/CpktMutationPaths.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "repo_dependency_cache_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "repo_dependency_stale_root": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/repo_dependency_stale_root_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "repo_dependency_stale_root",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3778,15 +3544,12 @@
       "command_inputs": [
         "tests/curl_system_truststore_test.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "curl_system_truststore",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3801,15 +3564,12 @@
       "command_inputs": [
         "tests/external_project_toolchain_env_test.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "external_project_toolchain_environment",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3819,81 +3579,17 @@
         "tests/external_project_toolchain_env_fixture/CMakeLists.txt"
       ]
     },
-    "pinned_toolchain_resolvers": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/toolchain_resolver_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "pinned_toolchain_resolvers",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "lifecycle_toolchain_resolvers": {
-      "group": "tooling",
-      "command_inputs": [
-        "skills/pkt-systems-cmake-lifecycle/scripts/cpkt-toolchains.sh",
-        "tests/toolchain_resolver_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "lifecycle_toolchain_resolvers",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "aflpp_resolver_cleanup": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/aflpp_resolver_cleanup_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "aflpp_resolver_cleanup",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
     "dependency_archive_cache": {
       "group": "tooling",
       "command_inputs": [
         "tests/dependency_archive_cache_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "dependency_archive_cache",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3906,17 +3602,16 @@
     "dependency_cache_network_hits": {
       "group": "tooling",
       "command_inputs": [
-        "tests/dependency_cache_network_hits_test.py"
+        "tests/dependency_cache_network_hits_test.sh",
+        "tests/dependency_cache_network_hits_test.cmake",
+        "tests/archive_origin.py"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "dependency_cache_network_hits",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3932,15 +3627,12 @@
         "build/dependency-cache-disabled-build",
         "build/dependency-cache-disabled-external"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "dependency_cache_disabled",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3952,15 +3644,12 @@
       "command_inputs": [
         "tests/darwin_install_name_normalization_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "darwin_install_name_normalization",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -3972,15 +3661,12 @@
       "command_inputs": [
         "tests/krb5_tls_module_smoke.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "krb5_tls_module_smoke",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
@@ -3988,91 +3674,35 @@
       ],
       "target_sensitive": true
     },
-    "dependency_reuse_configure": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/dependency_reuse_configure_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "dependency_reuse_configure",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
     "privacy_scan_failure": {
       "group": "tooling",
       "command_inputs": [
         "tests/privacy_scan_failure_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "privacy_scan_failure",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
       "target_sensitive": false
     },
-    "source_archive_verify_failure": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/source_archive_verify_failure_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "source_archive_verify_failure",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false,
-      "preflight": true,
-      "helper_environment": [
-        "PATH",
-        "CPKT_GNU_TAR",
-        "CPKT_DEPENDENCY_CACHE",
-        "CPKT_GNU_MAKE"
-      ],
-      "helper_inputs": [
-        "scripts/source-archive-verify.sh"
-      ]
-    },
     "dependency_install_order_${_cpkt_install_generator}": {
       "group": "tooling",
       "command_inputs": [
-        "tests/dependency_install_order_test.py"
+        "tests/dependency_install_order_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "dependency_install_order_Ninja",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         },
@@ -4081,52 +3711,33 @@
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
       "target_sensitive": false,
-      "preflight": true,
-      "helper_environment": [
-        "PATH",
-        "CPKT_GNU_TAR",
-        "CPKT_DEPENDENCY_CACHE",
-        "CPKT_GNU_MAKE"
-      ],
       "helper_inputs": [
-        "cmake/CpktDependencies.cmake"
+        "cmake/CpktDependencies.cmake",
+        "tests/install-order"
       ]
     },
     "zlib_feature_namespace": {
       "group": "core",
       "command_inputs": [
-        "tests/zlib_feature_namespace_test.py"
+        "tests/zlib_feature_namespace_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "zlib_feature_namespace",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
       "target_sensitive": true,
-      "preflight": true,
-      "helper_environment": [
-        "PATH",
-        "CPKT_GNU_TAR",
-        "CPKT_TOOLCHAIN_ROOT",
-        "CPKT_TOOLCHAIN_TARGET",
-        "CPKT_DEPENDENCY_CACHE",
-        "CPKT_GNU_MAKE",
-        "CPKT_OSXCROSS_HOST"
-      ],
       "helper_inputs": [
         "cmake/patch_zlib_single_pass.cmake"
       ]
@@ -4134,38 +3745,37 @@
     "dependency_component_targets": {
       "group": "tooling",
       "command_inputs": [
-        "tests/dependency_component_targets_test.sh",
-        "tests/package_recipe_graph_test.py"
+        "tests/recipe_graph_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "dependency_component_targets",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
-      "target_sensitive": false
+      "target_sensitive": false,
+      "helper_inputs": [
+        "cmake/dependencies",
+        "cmake/CpktDependencies.cmake",
+        "CMakeLists.txt"
+      ]
     },
     "krb5_feature_contract": {
       "group": "core",
       "command_inputs": [
         "tests/krb5_feature_contract_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "krb5_feature_contract",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4177,135 +3787,12 @@
       "command_inputs": [
         "tests/package_assertions_elf_runpath_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "package_assertions_elf_runpath",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "package_assertions_cleanup": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/package_assertions_cleanup_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "package_assertions_cleanup",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "package_failure_diagnostics": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/package_failure_diagnostics_test.py"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "package_failure_diagnostics",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "operation_signal_cleanup": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/operation_signal_cleanup_test.py",
-        "scripts/operation.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "operation_signal_cleanup",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "package_consumer_execution": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/package_consumer_execution_test.py"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "package_consumer_execution",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "package_archive_layout": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/package_archive_layout_test.py"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "package_archive_layout",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "package_verify_toolchain_tools": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/package_verify_toolchain_tools_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "package_verify_toolchain_tools",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4317,15 +3804,12 @@
       "command_inputs": [
         "tests/native_hardening_host_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "native_hardening_host",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4337,15 +3821,12 @@
       "command_inputs": [
         "tests/run_afl_fuzz_crash_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "afl_crash_gate",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4358,8 +3839,6 @@
         "tests/aflpp_bootlin_runtime_test.sh",
         "scripts/cpkt-afl-runtime.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "aflpp_bootlin_runtime",
@@ -4374,100 +3853,37 @@
       ],
       "target_sensitive": true
     },
-    "fuzz_toolchain_policy": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/fuzz_toolchain_policy_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "fuzz_toolchain_policy",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "lifecycle_surface": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/lifecycle_surface_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "lifecycle_surface",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "package_install_smoke_args": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/package_install_smoke_args_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "package_install_smoke_args",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
     "mqttc_linker_flags": {
       "group": "core",
       "command_inputs": [
         "tests/mqttc_linker_flags_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "mqttc_linker_flags",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
-      "target_sensitive": false
+      "target_sensitive": false,
+      "helper_inputs": [
+        "cmake/dependencies/mqttc.cmake"
+      ]
     },
     "facade_c89_target_policy": {
       "group": "tooling",
       "command_inputs": [
         "tests/facade_c89_target_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "facade_c89_target_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4477,38 +3893,38 @@
     "lua_symbol_test_registration": {
       "group": "core",
       "command_inputs": [
-        "tests/lua_symbol_test_registration_test.sh",
-        "tests/lua_symbol_test_registration_fixture.py"
+        "tests/lua_symbol_test_registration_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "lua_symbol_test_registration",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
-      "target_sensitive": false
+      "target_sensitive": false,
+      "helper_inputs": [
+        "cmake/CpktLuaInventoryTest.cmake",
+        "cmake/CpktLuaExportsTest.cmake",
+        "cmake/CpktAPIInventories.cmake",
+        "cmake/CpktGroups.cmake"
+      ]
     },
     "openssl_api_catalog": {
       "group": "core",
       "command_inputs": [
         "tests/openssl_api_catalog_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "openssl_api_catalog",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4519,17 +3935,16 @@
       "group": "core",
       "command_inputs": [
         "include/cpkt/openssl.h",
-        "tools/generate_openssl_api_inventory.py"
+        "tools/generate_openssl_api_inventory.py",
+        "tests/api_inventory_test.cmake",
+        "cmake/CpktAPIInventories.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "openssl_api_inventory",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
@@ -4540,17 +3955,16 @@
     "nghttp2_api_inventory": {
       "group": "core",
       "command_inputs": [
-        "tools/generate_nghttp2_api_inventory.py"
+        "tools/generate_nghttp2_api_inventory.py",
+        "tests/api_inventory_test.cmake",
+        "cmake/CpktAPIInventories.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "nghttp2_api_inventory",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
@@ -4561,17 +3975,16 @@
     "libssh2_api_inventory": {
       "group": "core",
       "command_inputs": [
-        "tools/generate_libssh2_api_inventory.py"
+        "tools/generate_libssh2_api_inventory.py",
+        "tests/api_inventory_test.cmake",
+        "cmake/CpktAPIInventories.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "libssh2_api_inventory",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
@@ -4584,15 +3997,12 @@
       "command_inputs": [
         "tests/openssl_header_facade_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "openssl_header_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4605,15 +4015,12 @@
         "cmake/exports/cpkt_openssl.txt",
         "tests/openssl_export_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "openssl_export_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4625,15 +4032,12 @@
       "command_inputs": [
         "tests/nghttp2_header_facade_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "nghttp2_header_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4646,15 +4050,12 @@
         "cmake/exports/cpkt_nghttp2.txt",
         "tests/nghttp2_export_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "nghttp2_export_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4667,15 +4068,12 @@
         "cmake/exports/cpkt_libssh2.txt",
         "tests/libssh2_export_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "libssh2_export_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4685,17 +4083,16 @@
     "mqttc_api_inventory": {
       "group": "core",
       "command_inputs": [
-        "tools/generate_mqttc_api_inventory.py"
+        "tools/generate_mqttc_api_inventory.py",
+        "tests/api_inventory_test.cmake",
+        "cmake/CpktAPIInventories.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "mqttc_api_inventory",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4708,15 +4105,12 @@
         "cmake/exports/cpkt_mqttc.txt",
         "tests/mqttc_export_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "mqttc_export_policy",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4728,15 +4122,12 @@
       "command_inputs": [
         "tests/gssapi_header_facade_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "gssapi_header_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4748,37 +4139,12 @@
       "command_inputs": [
         "tests/sasl_header_facade_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_header_facade",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "clangd_comment_gate": {
-      "group": "tooling",
-      "command_inputs": [
-        "scripts/verify-clangd-surface.sh",
-        "tests/clangd_comment_gate_test.sh"
-      ],
-      "execution": "helper",
-      "requires": [],
-      "registrations": [
-        {
-          "name": "clangd_comment_gate",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
-            "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
@@ -4790,29 +4156,26 @@
       "command_inputs": [
         "scripts/verify-clangd-surface.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "clangd_surface",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CPKT_BUILD_TESTS",
             "CPKT_TARGET_ID STREQUAL \"x86_64-linux-gnu\"",
             "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
           ]
         }
       ],
-      "target_sensitive": false
+      "target_sensitive": true
     },
     "lua_api_inventory": {
       "group": "core",
       "command_inputs": [
-        "tools/generate_lua_api_inventory.py"
+        "tools/generate_lua_api_inventory.py",
+        "tests/api_inventory_test.cmake",
+        "cmake/CpktAPIInventories.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "lua_api_inventory",
@@ -4828,8 +4191,6 @@
       "command_inputs": [
         "tests/lua_gc_facade_generation_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "lua_gc_facade_generation",
@@ -4846,8 +4207,6 @@
         "cmake/exports/cpkt_lua.txt",
         "tests/lua_export_policy_test.sh"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "lua_export_policy",
@@ -4859,40 +4218,10 @@
       ],
       "target_sensitive": true
     },
-    "cmocka_c89_compile_${_variant}": {
-      "group": "core",
-      "execution": "helper",
-      "command_inputs": [
-        "tests/cmocka_downstream_behavior.c",
-        "tests/cmocka_downstream_compile.py"
-      ],
-      "requires": [
-        "cmocka"
-      ],
-      "registrations": [
-        {
-          "name": "cmocka_c89_compile_static",
-          "conditions": [
-            "CPKT_BUILD_TESTS"
-          ]
-        },
-        {
-          "name": "cmocka_c89_compile_shared",
-          "conditions": [
-            "CPKT_BUILD_TESTS"
-          ]
-        }
-      ],
-      "target_sensitive": true
-    },
     "cmocka_behavior_${_variant}": {
       "group": "core",
-      "execution": "runtime",
       "command_inputs": [
         "tests/cmocka_downstream_behavior.c"
-      ],
-      "requires": [
-        "cmocka"
       ],
       "registrations": [
         {
@@ -4914,13 +4243,9 @@
     },
     "cmocka_failure_${_variant}": {
       "group": "core",
-      "execution": "runtime",
       "command_inputs": [
         "tests/cmocka_downstream_behavior.c",
-        "tests/cmocka_downstream_failure.py"
-      ],
-      "requires": [
-        "cmocka"
+        "tests/cmocka_failure_test.cmake"
       ],
       "registrations": [
         {
@@ -4940,48 +4265,10 @@
       ],
       "target_sensitive": false
     },
-    "package_isolation_build": {
-      "group": "tooling",
-      "execution": "helper",
-      "command_inputs": [
-        "tests/package_isolation_build_test.py"
-      ],
-      "requires": [],
-      "registrations": [
-        {
-          "name": "package_isolation_build",
-          "conditions": [
-            "CPKT_BUILD_TESTS"
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
-    "package_producer_reuse": {
-      "group": "tooling",
-      "execution": "helper",
-      "command_inputs": [
-        "tests/package_producer_reuse_test.py"
-      ],
-      "requires": [],
-      "registrations": [
-        {
-          "name": "package_producer_reuse",
-          "conditions": [
-            "CPKT_BUILD_TESTS"
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
     "cmocka_surface_${_variant}": {
       "group": "core",
-      "execution": "runtime",
       "command_inputs": [
         "tests/cmocka_c89_surface.c"
-      ],
-      "requires": [
-        "cmocka"
       ],
       "registrations": [
         {
@@ -5001,58 +4288,11 @@
       ],
       "target_sensitive": false
     },
-    "cmocka_surface_compile_${_variant}": {
-      "group": "core",
-      "execution": "helper",
-      "command_inputs": [
-        "tests/cmocka_c89_surface.c",
-        "tests/cmocka_downstream_compile.py"
-      ],
-      "requires": [
-        "cmocka"
-      ],
-      "registrations": [
-        {
-          "name": "cmocka_surface_compile_static",
-          "conditions": [
-            "CPKT_BUILD_TESTS"
-          ]
-        },
-        {
-          "name": "cmocka_surface_compile_shared",
-          "conditions": [
-            "CPKT_BUILD_TESTS"
-          ]
-        }
-      ],
-      "target_sensitive": true
-    },
-    "package_integration_contracts": {
-      "group": "tooling",
-      "execution": "helper",
-      "command_inputs": [
-        "tests/package_integration_contract_test.py"
-      ],
-      "requires": [],
-      "registrations": [
-        {
-          "name": "package_integration_contracts",
-          "conditions": [
-            "CPKT_BUILD_TESTS",
-            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
-            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
-          ]
-        }
-      ],
-      "target_sensitive": false
-    },
     "github_actions_contracts": {
       "group": "tooling",
-      "execution": "helper",
       "command_inputs": [
-        "tests/github_actions_contract_test.py"
+        "tests/github_actions_contract_test.cmake"
       ],
-      "requires": [],
       "registrations": [
         {
           "name": "github_actions_contracts",
@@ -5063,16 +4303,15 @@
           ]
         }
       ],
-      "target_sensitive": false
+      "target_sensitive": false,
+      "helper_inputs": [
+        ".github/workflows/darwin-bundle.yml"
+      ]
     },
     "release_smoke_static": {
       "group": "core",
-      "execution": "runtime",
       "source_inputs": [
         "tests/release_smoke.c"
-      ],
-      "requires": [
-        "openssl"
       ],
       "registrations": [
         {
@@ -5087,12 +4326,8 @@
     },
     "release_smoke_shared": {
       "group": "core",
-      "execution": "runtime",
       "source_inputs": [
         "tests/release_smoke.c"
-      ],
-      "requires": [
-        "openssl"
       ],
       "registrations": [
         {
@@ -5105,31 +4340,10 @@
         }
       ]
     },
-    "repository_boundary": {
-      "group": "tooling",
-      "command_inputs": [
-        "tests/repository_boundary_test.py",
-        "tests/generated_output_ancestry_test.py",
-        "scripts/generated_output_paths.py"
-      ],
-      "requires": [],
-      "registrations": [
-        {
-          "name": "repository_boundary",
-          "conditions": [
-            "CPKT_BUILD_TESTS"
-          ]
-        }
-      ]
-    },
     "lua_runtime_contract_${_cpkt_lua_policy_linkage}_${_cpkt_lua_policy_case}": {
       "group": "core",
-      "execution": "runtime",
       "command_inputs": [
         "tests/lua_runtime_contract_test.c"
-      ],
-      "requires": [
-        "lua"
       ],
       "registrations": [
         {
@@ -5684,8 +4898,6 @@
     "sasl_plugin_roundtrip_static_canonicalization_lengths": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_plugin_roundtrip_static_canonicalization_lengths",
@@ -5700,8 +4912,6 @@
     "sasl_plugin_roundtrip_static_global_options": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_plugin_roundtrip_static_global_options",
@@ -5716,8 +4926,6 @@
     "sasl_plugin_roundtrip_static_interaction_terminator": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_plugin_roundtrip_static_interaction_terminator",
@@ -5732,8 +4940,6 @@
     "sasl_plugin_roundtrip_static_security_callbacks": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_plugin_roundtrip_static_security_callbacks",
@@ -5748,8 +4954,6 @@
     "sasl_plugin_roundtrip_shared_canonicalization_lengths": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_plugin_roundtrip_shared_canonicalization_lengths",
@@ -5764,8 +4968,6 @@
     "sasl_plugin_roundtrip_shared_global_options": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_plugin_roundtrip_shared_global_options",
@@ -5780,8 +4982,6 @@
     "sasl_plugin_roundtrip_shared_interaction_terminator": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_plugin_roundtrip_shared_interaction_terminator",
@@ -5796,8 +4996,6 @@
     "sasl_plugin_roundtrip_shared_security_callbacks": {
       "group": "core",
       "command_inputs": [],
-      "execution": "runtime",
-      "requires": [],
       "registrations": [
         {
           "name": "sasl_plugin_roundtrip_shared_security_callbacks",
@@ -5812,10 +5010,9 @@
     "sdk_runtime_loader": {
       "group": "tooling",
       "command_inputs": [
-        "tests/sdk_runtime_loader_test.py"
+        "tests/sdk_runtime_loader_test.cmake",
+        "tests/test-command.cmake"
       ],
-      "execution": "helper",
-      "requires": [],
       "registrations": [
         {
           "name": "sdk_runtime_loader",
@@ -5826,45 +5023,134 @@
         }
       ],
       "target_sensitive": true,
-      "preflight": true,
-      "helper_environment": [
-        "PATH",
-        "CPKT_TOOLCHAIN_CACHE",
-        "CPKT_TOOLCHAIN_ROOT",
-        "CPKT_TOOLCHAIN_TARGET",
-        "CPKT_QEMU_AARCH64",
-        "CPKT_QEMU_ARM"
+      "helper_inputs": []
+    },
+    "cmocka_c89_headers": {
+      "group": "core",
+      "command_inputs": [
+        "tests/cmocka_headers_test.cmake"
       ],
       "helper_inputs": [
-        "scripts/cpkt_sdk_consumer.py",
-        "scripts/cpkt_packages.py",
-        "scripts/package-command.sh",
-        "scripts/cpkt_inventory.py",
-        "scripts/cpkt_lock.py",
-        "scripts/cpkt_receipts.py",
-        "scripts/validate-sdk.py"
+        "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka.h",
+        "${CPKT_CMOCKA_FACADE_INCLUDE_DIR}/cpkt/cmocka_types.h"
       ]
-    }
-  },
-  "tooling": {
-    "group": "tooling",
-    "shipped": false,
-    "dependencies": [
-      "libpslog-test-only"
-    ]
-  },
-  "coverage_profiles": {
-    "native-linux": {
-      "runtime": "required"
     },
-    "linux-runner": {
-      "runtime": "required"
+    "auth_native_declarations_${provider}": {
+      "group": "core",
+      "command_inputs": [
+        "cmake/CpktAuthContracts.cmake",
+        "tests/contracts/auth_native_api.json",
+        "tests/contracts/auth_bindings.json",
+        "tests/contracts/auth_record_bindings.json",
+        "tests/contracts/auth_constant_bindings.json"
+      ],
+      "helper_inputs": [
+        "tests/contracts/auth_variable_bindings.json"
+      ]
     },
-    "native-darwin": {
-      "runtime": "required"
+    "auth_native_macros_${provider}": {
+      "group": "core",
+      "command_inputs": [
+        "tests/auth_native_macros_test.cmake",
+        "tests/contracts/auth_native_api.json"
+      ]
     },
-    "osxcross": {
-      "runtime": "deferred-required-release"
+    "host_bash": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/host_bash_test.sh",
+        "scripts/require-host-bash.sh"
+      ],
+      "registrations": [
+        {
+          "name": "host_bash",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "lifecycle_dispatch": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/lifecycle_dispatch_test.sh",
+        "scripts/lifecycle.sh",
+        "Makefile"
+      ],
+      "registrations": [
+        {
+          "name": "lifecycle_dispatch",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "verification_scopes": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/verification_scopes_test.cmake",
+        "cmake/CpktVerification.cmake",
+        "tests/test-command.cmake"
+      ],
+      "registrations": [
+        {
+          "name": "verification_scopes",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\"",
+            "CMAKE_HOST_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "sdk_native_validation": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/sdk_native_validation_test.cmake",
+        "cmake/CpktSDKValidate.cmake",
+        "tests/test-command.cmake"
+      ],
+      "registrations": [
+        {
+          "name": "sdk_native_validation",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "release_identity": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/release_identity_test.sh",
+        "scripts/release-version.sh",
+        "scripts/version-contract.sh",
+        "scripts/lifecycle-common.sh",
+        "scripts/mutation-paths.sh"
+      ],
+      "registrations": [
+        {
+          "name": "release_identity",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
     }
   },
   "hover": {
@@ -5885,8 +5171,7 @@
         "static_archive_member_cleanup",
         "dependency_install_order_Ninja",
         "dependency_install_order_Makefiles",
-        "zlib_feature_namespace",
-        "source_archive_verify_failure"
+        "zlib_feature_namespace"
       ]
     },
     "linux-runner": {
@@ -5897,8 +5182,7 @@
         "static_archive_member_cleanup",
         "dependency_install_order_Ninja",
         "dependency_install_order_Makefiles",
-        "zlib_feature_namespace",
-        "source_archive_verify_failure"
+        "zlib_feature_namespace"
       ]
     },
     "osxcross": {

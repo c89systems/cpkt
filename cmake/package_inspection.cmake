@@ -92,7 +92,7 @@ endfunction()
 function(cpkt_extract_archive_for_assertions out_var)
   if(NOT DEFINED CPKT_ASSERTION_WORK_ROOT OR "${CPKT_ASSERTION_WORK_ROOT}" STREQUAL "")
     message(FATAL_ERROR
-      "CPKT_ASSERTION_WORK_ROOT is required; invoke package assertions through scripts/run-package-assertions.sh")
+      "CPKT_ASSERTION_WORK_ROOT must name an owned test workspace")
   endif()
   string(RANDOM LENGTH 12 ALPHABET 0123456789abcdef _extract_suffix)
   set(_extract_root
@@ -209,7 +209,7 @@ function(cpkt_assert_static_archive_lacks_lto archive_path description)
   endif()
   if(NOT DEFINED CPKT_ASSERTION_WORK_ROOT OR "${CPKT_ASSERTION_WORK_ROOT}" STREQUAL "")
     message(FATAL_ERROR
-      "CPKT_ASSERTION_WORK_ROOT is required; invoke package assertions through scripts/run-package-assertions.sh")
+      "CPKT_ASSERTION_WORK_ROOT must name an owned test workspace")
   endif()
   string(RANDOM LENGTH 12 ALPHABET 0123456789abcdef _archive_extract_suffix)
   set(_archive_extract_dir

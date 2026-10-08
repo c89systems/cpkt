@@ -77,7 +77,7 @@ EOF
 CPKT_TOOLCHAIN_CACHE="$cache_root" cmake -P "$cmake_script"
 
 if rg -n -S '/usr/bin/(cc|c\+\+)|CPKT_.*_MUSL_PREFIX|CPKT_AUTO_TOOLCHAINS|ensure-toolchain\.sh' \
-    "$source_dir/cmake/toolchains" "$source_dir/scripts/package-install-smoke.sh" >/dev/null; then
+    "$source_dir/cmake/toolchains" "$source_dir/scripts/package-consumers.sh" >/dev/null; then
   printf 'Linux toolchain lifecycle still contains a host or ad-hoc compiler fallback\n' >&2
   exit 1
 fi

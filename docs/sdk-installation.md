@@ -11,21 +11,20 @@ An optional package requires the exact core version, target and package ID
 recorded in its `share/cpkt/packages/<group>.json` manifest.
 
 Extract each selected archive into the same fresh prefix with its one root
-component stripped. Validate all selected groups before CMake or pkg-config:
+component stripped:
 
 ```sh
 mkdir sdk
 # ARCHIVE paths must refer to previously checksum-verified release bytes.
 tar -xzf "$CORE_ARCHIVE" --strip-components=1 -C sdk
 # If selected, extract the verified matching optional archive into sdk too.
-python3 sdk/share/cpkt/validate-sdk.py --prefix sdk --groups core
-# For core plus database use --groups core,db; for misc use core,misc.
 ```
 
-CMake package discovery performs the same content and prerequisite validation.
+CMake package discovery performs native content and prerequisite validation.
 Use the SDK prefix explicitly, keep all selected packages together, and avoid
 mixing host libraries into imported SDK targets. pkg-config cannot validate
-payload identities, so run the validator explicitly first. Static and shared
+payload identities; the supplied pkg-config example uses CMake to validate the
+prefix before linking. Static and shared
 facade APIs keep their existing library names and `<cpkt/...>` headers.
 
 Each repository ships its own upstream notices under
@@ -34,8 +33,7 @@ tests and is never an implicit production-facade dependency.
 
 Installed examples live under `share/doc/cpkt/<group>/examples/`. Their
 `build-pkg-config.sh` scripts accept an output path followed by individual link
-flags. The Lua example script requires Python 3 to parse quoted pkg-config
-flags as arguments without shell evaluation. Set `CC` to the selected target
+flags. The Lua example uses CMake's pkg-config module to parse flags. Set `CC` to the selected target
 compiler and `CPKT_SDK_PREFIX` to the validated SDK prefix. For Darwin, pass the SDK library runtime path as one
 argument, for example `"-Wl,-rpath,$CPKT_SDK_PREFIX/lib"`; CMake's automatic build
 RPATH does not apply to these direct compiler links. These are local example

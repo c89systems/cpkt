@@ -44,7 +44,7 @@ if [ "$scope_explicit" = yes ] && [ -n "$expected_scope" ] && [ "$scope" != "$ex
 fi
 if [ -n "$expected_scope" ]; then scope="$expected_scope"; fi
 case "$action" in
-  debug|test-debug|test-host|build-debug|build-host|clangd-surface|finalize-slice|valgrind|fuzz|fuzz-smoke|fuzz-long|examples|e2e-postgres|test-e2e)
+  debug|test-debug|test-host|build-debug|build-host|clangd-surface|finalize-slice|valgrind|fuzz|fuzz-smoke|fuzz-long|examples)
     case "$preset" in debug|arm64-apple-darwin-debug) ;; *) cpkt_fail "$action requires native Debug PRESET" ;; esac ;;
 esac
 case "$action" in
@@ -58,13 +58,9 @@ case "$action" in
     fi ;;
   format|format-check) [ -z "$scope" ] || cpkt_fail 'formatting does not accept SCOPE' ;;
   deps) [ -n "$dependency" ] || cpkt_fail 'deps requires DEPENDENCY=<name>' ;;
-  e2e-postgres|test-e2e|dev-*) [ "$cpkt_owner" = db ] || cpkt_fail 'database operations require cpktdb' ;;
-  fuzz*) [ "$cpkt_owner" != db ] || cpkt_fail 'db fuzz is unsupported' ;;
-  example-*|e2e-sus|e2e-cpktxscribe|cpktxscribe) [ "$cpkt_owner" = misc ] || cpkt_fail 'audio/speech operations require cpktmisc' ;;
 esac
 export GROUP="$group" PRESET="$preset" SCOPE="$scope"
-cpkt_locked "$action" --group "$group" --preset "$preset" --preset-explicit "$preset_explicit" \
-  --scope "$scope" --scope-explicit "$scope_explicit" --dependency "$dependency"
+
 
 run_build() { bash "$cpkt_scripts/build.sh" "$@" --group "$group" --preset "$preset"; }
 run_action() { bash "$cpkt_scripts/lifecycle.sh" "$1" --group "$group" --preset "$preset" --preset-explicit no; }
@@ -116,16 +112,12 @@ case "$action" in
     bash "$cpkt_scripts/source-archive-verify.sh" "$cpkt_root/dist/$cpkt_provider-$version.tar.gz" "$version" ;;
   release|release-pipeline|release-matrix|release-final-matrix|prerelease|prerelease-hardening|test-all)
     bash "$cpkt_scripts/release.sh" "$action" ;;
-  valgrind) bash "$cpkt_scripts/build.sh" memcheck --group "$group" --preset valgrind ;;
+  valgrind) bash "$cpkt_scripts/memcheck.sh" --group "$group" --preset valgrind ;;
   fuzz) bash "$cpkt_scripts/fuzz.sh" standard ;;
   fuzz-smoke|fuzz-long) bash "$cpkt_scripts/fuzz.sh" "${action#fuzz-}" ;;
   lifecycle-version-contract) bash "$cpkt_scripts/version-contract.sh" check ;;
-  deps-core) bash "$cpkt_scripts/core-dependency.sh" "$cpkt_target" ;;
+
   test-darwin-native|test-darwin-sdk) bash "$cpkt_scripts/darwin.sh" "$action" ;;
-  test-github-actions-contracts) python3 "$cpkt_root/tests/github_actions_contract_test.py" ;;
-  e2e-postgres|test-e2e)
-    run_build build --target cpkt_postgres_integration_test
-    bash "$cpkt_scripts/test-e2e.sh" "$cpkt_binary/cpkt_postgres_integration_test" ;;
-  dev-*) bash "$cpkt_scripts/devenv.sh" "${action#dev-}" ;;
-  *) bash "$cpkt_scripts/misc-workflow.sh" "$action" --preset "$preset" --preset-explicit "$preset_explicit" ;;
+  test-github-actions-contracts) run_build test --regex github_actions_contracts ;;
+  *) cpkt_fail "unknown lifecycle action: $action" ;;
 esac

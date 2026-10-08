@@ -13,7 +13,6 @@ cpkt_preset "$preset"
 binary="$cpkt_root/build/control/preflight/$cpkt_target/native"
 cpkt_owned_path "$binary"
 export GROUP="$group"
-cpkt_locked --group "$group" --preset "$preset"
 libc=${cpkt_target##*-}
 profile=linux-runner
 arguments=()

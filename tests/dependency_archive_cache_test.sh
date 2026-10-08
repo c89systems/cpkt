@@ -61,10 +61,6 @@ mkdir -p "$clean_fixture/scripts" "$clean_fixture/build" "$clean_fixture/.cache"
 cp -a "$source_dir/scripts" "$clean_fixture/"
 cp -a "$source_dir/cmake" "$clean_fixture/"
 cp "$source_dir/CMakePresets.json" "$clean_fixture/"
-for fd_name in CPKT_OPERATION_FD CPKT_OPERATION_CAP_FD; do
-  if [[ -n ${!fd_name:-} ]]; then eval "exec ${!fd_name}>&-"; fi
-done
-for key in ${!CPKT_OPERATION_@}; do unset "$key"; done
 unset GROUP
 : > "$shared_cache/verified-archive"
 CPKT_DEPENDENCY_CACHE="$shared_cache" "$clean_fixture/scripts/clean.sh"

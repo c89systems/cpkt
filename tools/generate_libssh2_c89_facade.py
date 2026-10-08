@@ -53,7 +53,6 @@ SPECIAL_FUNCTIONS = {
 }
 
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
 from generated_output_paths import validate_output_paths, write_generated_text
 
 

@@ -3,11 +3,7 @@ set -eu
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 repo_root=$(CDPATH= cd -- "$script_dir/.." && pwd)
-case ${GROUP:-all} in all|all) ;; *) printf 'this operation requires GROUP=all|all\n' >&2; exit 2 ;; esac
-if [[ -z ${CPKT_OPERATION_FD:-} ]]; then
-  exec bash "$repo_root/scripts/operation.sh" --group all -- bash "$0" "$@"
-fi
-bash "$repo_root/scripts/operation.sh" --group all --check
+case ${GROUP:-all} in all) ;; *) printf 'this operation requires GROUP=all\n' >&2; exit 2 ;; esac
 
 bundle_version=$(bash "$repo_root/scripts/release-version.sh" "$repo_root")
 if [ -z "$bundle_version" ]; then
@@ -19,7 +15,6 @@ archive_stem="cpkt-$bundle_version"
 archive_name="$archive_stem.tar.gz"
 dist_dir="$repo_root/dist"
 archive_path="$dist_dir/$archive_name"
-checksums_path="$dist_dir/cpkt-$bundle_version-CHECKSUMS"
 source "$repo_root/scripts/lifecycle-common.sh"
 cpkt_owned_path "$archive_path"
 cpkt_owned_path "$archive_path.tmp"
@@ -67,7 +62,6 @@ manifest_with_generated="$stage_parent/source-files-with-generated.txt"
 # Public generated source files/directories have stable modes; cp -p preserves inputs.
 umask 022
 mkdir -p "$stage_root" "$dist_dir"
-python3 "$repo_root/scripts/cpkt_source_proof.py" --invalidate "$bundle_version"
 
 git_top_level=
 if git_top_level=$(git -C "$repo_root" rev-parse --show-toplevel 2>/dev/null); then

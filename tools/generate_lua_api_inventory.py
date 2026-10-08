@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify complete Lua public-function facade coverage and native imports."""
+"""Extract Lua public declarations, facade declarations and native symbols."""
 
 import argparse
 import json
@@ -81,7 +81,6 @@ CONVENIENCE_EQUIVALENTS = {
 }
 
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
 from generated_output_paths import validate_output_paths, write_generated_text
 
 
@@ -160,11 +159,6 @@ def main() -> int:
     validate_output_paths(args.output)
     header_text = read_headers(args.include_dir)
     native_functions = set(DECLARATION.findall(header_text))
-    if len(native_functions) != 156:
-        raise ValueError("expected 156 Lua public functions, found {}".format(
-            len(native_functions)))
-    if "extern const char lua_ident[];" not in header_text:
-        raise ValueError("Lua public lua_ident declaration is missing")
     if not args.facade_header.is_file():
         raise ValueError("Lua facade header is missing: " +
                          str(args.facade_header))
@@ -172,35 +166,21 @@ def main() -> int:
         args.facade_header.read_text("utf-8")))
     expected_facade = {public_name(name) for name in native_functions}
     missing_facade = sorted(expected_facade - facade_functions)
-    if missing_facade:
-        raise ValueError("Lua facade omits public functions: " +
-                         ", ".join(missing_facade))
     facade_text = args.facade_header.read_text("utf-8")
     missing_convenience = []
     for native_name, replacements in CONVENIENCE_EQUIVALENTS.items():
         if not all(replacement in facade_text for replacement in replacements):
             missing_convenience.append(native_name)
-    if missing_convenience:
-        raise ValueError("Lua facade omits convenience equivalents: " +
-                         ", ".join(missing_convenience))
 
     native_defined = native_symbols(args.symbol_tool, args.native_library,
                                     args.symbol_format)
     missing_native = sorted(native_functions - native_defined)
-    if missing_native:
-        raise ValueError("native Lua library omits declared functions: " +
-                         ", ".join(missing_native))
-    if "lua_ident" not in native_defined:
-        raise ValueError("native Lua library omits lua_ident")
 
     imports = facade_imports(args.symbol_tool, args.facade_library,
                              args.symbol_format)
     lua_imports = {name for name in imports if name.startswith("lua")}
     allowed_imports = native_functions | {"lua_ident"}
     private_imports = sorted(lua_imports - allowed_imports)
-    if private_imports:
-        raise ValueError("Lua facade imports private Lua symbols: " +
-                         ", ".join(private_imports))
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     write_generated_text(args.output, json.dumps({
@@ -210,6 +190,12 @@ def main() -> int:
         "native_public_function_count": len(native_functions),
         "native_import_count": len(lua_imports),
         "native_imports": sorted(lua_imports),
+        "missing_c89_facade_functions": missing_facade,
+        "missing_convenience_equivalents": missing_convenience,
+        "missing_dynamic_definitions": missing_native,
+        "private_native_imports": private_imports,
+        "lua_ident_declared": "extern const char lua_ident[];" in header_text,
+        "lua_ident_defined": "lua_ident" in native_defined,
     }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 

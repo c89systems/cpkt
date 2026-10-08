@@ -12,7 +12,6 @@ while [ "$#" -gt 0 ]; do
 done
 cpkt_check_group "$group"
 export GROUP="$group"
-cpkt_locked "$action" --group "$group" --path "$path"
 
 remove_generated() {
   local path=$1 parent
@@ -31,11 +30,6 @@ remove_generated() {
   rm -rf -- "$path"
 }
 case "$action" in
-  imported-core)
-    [ "$cpkt_owner" != core ] || cpkt_fail 'core cannot clean an imported SDK'
-    case "$path" in "$cpkt_root/.cache/cpkt/"*/install) ;; *) cpkt_fail 'unexpected core prerequisite prefix' ;; esac
-    remove_generated "$path"
-    exit 0 ;;
   graph|stage)
     case "$path" in "$cpkt_root/build/"*) ;; *) cpkt_fail 'graph/stage cleanup must remain under build/' ;; esac
     remove_generated "$path"
@@ -47,27 +41,9 @@ case "$action" in
   clean) ;;
   *) cpkt_fail "unsupported cleanup operation: $action" ;;
 esac
-# Stop database services before deleting any state, and preserve all state if
-# teardown fails. This also applies to selected database cleanup.
-if [ "$cpkt_owner" = db ] && [ -d "$cpkt_root/build/devenv" ]; then
-  bash "$cpkt_scripts/devenv.sh" down
-  remove_generated "$cpkt_root/build/devenv"
-fi
 if [ "$group" = all ]; then
   for entry in "$cpkt_root/build/"*; do
-    [ "$entry" != "$cpkt_root/build/control" ] || continue
     remove_generated "$entry"
-  done
-  for entry in "$cpkt_root/build/control/"* "$cpkt_root/build/control/".*; do
-    case "$(basename -- "$entry")" in
-      .|..|operation.lock|reserved-tag.json|.operation.sock) continue ;;
-      tmp)
-        for temporary in "$entry/"*; do
-          [ "$temporary" != "$entry/${CPKT_OPERATION_RUN:?}" ] || continue
-          remove_generated "$temporary"
-        done ;;
-      *) remove_generated "$entry" ;;
-    esac
   done
   remove_generated "$cpkt_root/.cache"
   remove_generated "$cpkt_root/dist"
@@ -89,6 +65,9 @@ else
     directory=$("$cpkt_cmake" "-DCPKT_REPO_ROOT=$cpkt_root" -DCPKT_INFO=component-directory "-DCPKT_DEPENDENCY=$component" -P "$cpkt_root/cmake/lifecycle-info.cmake")
     for target in "$cpkt_root/.cache/deps/"*; do remove_generated "$target/$directory"; done
     for target in "$cpkt_root/.cache/deps-build/"*; do remove_generated "$target/$directory"; done
-    for target in "$cpkt_root/.cache/dependency-contracts/"*; do remove_generated "$target/$component.txt"; done
+    for target in "$cpkt_root/.cache/dependency-contracts/"*; do
+      remove_generated "$target/$component.inputs"
+      remove_generated "$target/$component.complete"
+    done
   done < <(cpkt_info components)
 fi

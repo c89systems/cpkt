@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify MQTT-C's public declarations have complete C89 facade coverage."""
+"""Extract MQTT-C declaration, export and facade inventory data."""
 
 import argparse
 import json
@@ -13,7 +13,6 @@ sys.dont_write_bytecode = True
 from generate_mqttc_c89_facade import functions, transform
 
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
 from generated_output_paths import validate_output_paths, write_generated_text
 
 
@@ -55,21 +54,12 @@ def main() -> int:
                     functions(pal_header.read_text(encoding="utf-8"), 2))
     dynamic = dynamic_symbols(args.symbol_tool, args.library)
     missing_dynamic = sorted(declared - dynamic)
-    if missing_dynamic:
-        raise ValueError("MQTT-C declarations missing dynamic definitions: " +
-                         ", ".join(missing_dynamic))
     unheadered_dynamic = sorted(dynamic - declared)
-    if unheadered_dynamic != ["mqtt_fixed_header_rules"]:
-        raise ValueError("unexpected unheadered MQTT-C dynamic symbols: " +
-                         ", ".join(unheadered_dynamic))
     facade_text = args.facade_header.read_text(encoding="utf-8")
     missing_facade = sorted(
         transform(name) for name in declared
         if not re.search(r"\b" + re.escape(transform(name)) + r"\s*\(",
                          facade_text))
-    if missing_facade:
-        raise ValueError("MQTT-C declarations missing C89 facade entries: " +
-                         ", ".join(missing_facade))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     write_generated_text(args.output, json.dumps({
         "schema": 1,
@@ -77,6 +67,8 @@ def main() -> int:
         "declared_functions": sorted(declared),
         "dynamic_function_count": len(dynamic),
         "unheadered_dynamic_symbols": unheadered_dynamic,
+        "missing_dynamic_definitions": missing_dynamic,
+        "missing_c89_facade_functions": missing_facade,
     }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0
 

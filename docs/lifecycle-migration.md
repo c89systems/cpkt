@@ -1,19 +1,19 @@
-# cpkt independent lifecycle
+# Lifecycle cutover
 
-## Preserved
+Ordinary build and test commands now select native Debug. Release matrices are
+explicit. The core repository owns its twelve declared components; dependency
+producers are shared by matching consumers.
 
-- Public C namespace, facade symbols and ABI majors.
-- Owned upstream pins, patches, generators, facade behavior, tests and examples.
-- Seven-target build matrix, strict warnings, C89 checks, static/shared package consumers, privacy/relocation gates and source reconstruction.
-- Shared checksum cache policy and configured concurrency.
+The implementation uses native CMake, ExternalProject and CTest dependencies.
+The former operation brokers, evidence receipts, preset adapters, Python test
+drivers and their controller fixtures are removed. Tests use compiled C programs
+or small CMake/Bash cases. Python remains for actual source/data generation and
+small local response-data fixtures.
 
-## Changed
+Verification must follow the developer's current execution envelope. During the
+implementation-only cutover, builds and tests are deferred; `make format` is the
+required exception. Earlier test results do not certify the revised repository.
+After cutover, prove failures in isolation before one affected broader rerun.
 
-- One repository owns one payload and release version. `GROUP=all` means this repository only.
-- Archives and checksums use the repository name.
-- GitHub workflow and publication use `c89systems/cpkt`.
-- Core alone owns and installs both lifecycle skills.
-
-## Verification
-
-Initial migration validates source ownership, inventory/helper closure, Python/shell syntax, Make dispatch and workflow identities before any build. Build/test verification follows only after all three repositories are separated. Core 0.1.0 is the first release; optional provider pins are completed from its verified published assets.
+The shared lifecycle skill is authoritative for scope and simplicity.
+See [build lifecycle](build-lifecycle.md) for the supported commands.

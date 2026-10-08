@@ -31,8 +31,6 @@ jobs:
           hash -r
           bash scripts/require-host-bash.sh
           printf '%s\n' "$host_bash_bin" >> "$GITHUB_PATH"
-      - name: Host Bash regression
-        run: python3 tests/host_bash_prerequisite_test.py
       - name: Native source and runtime contract
         run: |
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
@@ -43,10 +41,8 @@ jobs:
         with:
           name: cpkt-native-arm64-apple-darwin
           path: |
-            dist/*-arm64-apple-darwin*.tar.gz
-            dist/*-arm64-apple-darwin-smoke-test.zip
-            build/darwin-source-evidence.json
-            build/arm64-apple-darwin/*/Release/cpkt-test-results.xml
+            build/package-stage/arm64-apple-darwin/core/archives/*.tar.gz
+            build/arm64-apple-darwin/*/Debug/Testing/Temporary/LastTest.log
             build/arm64-apple-darwin/*/Release/Testing/Temporary/LastTest.log
-            build/control/events.jsonl
+            build/package-verify/**/Testing/Temporary/LastTest.log
           if-no-files-found: error

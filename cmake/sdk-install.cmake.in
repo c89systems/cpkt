@@ -167,7 +167,6 @@ endif()
 if(_owner STREQUAL "core")
   cpkt_sdk_copy("${CPKT_SOURCE_DIR}/LICENSE" "${_stage_root}/share/doc/cpkt/LICENSE")
   cpkt_sdk_copy("${CPKT_SOURCE_DIR}/docs/sdk-installation.md" "${_stage_root}/share/doc/cpkt/README.md")
-  cpkt_sdk_copy("${CPKT_SOURCE_DIR}/scripts/validate-sdk.py" "${_stage_root}/share/cpkt/validate-sdk.py")
   cpkt_sdk_copy("${CPKT_SOURCE_DIR}/cmake/payload-ownership.json" "${_stage_root}/share/cpkt/payload-ownership.json")
   cpkt_sdk_copy("${CPKT_SOURCE_DIR}/cmake/CpktSDKValidate.cmake" "${_stage_root}/lib/cmake/CpktSDK/Validate.cmake")
   cpkt_sdk_copy_tree("${CPKT_EXTERNAL_ROOT}/mqtt-c/install/share/cpkt/mqtt-c" "${_stage_root}/share/cpkt/mqtt-c")
@@ -182,3 +181,20 @@ list(REMOVE_DUPLICATES CPKT_METADATA_CMAKE)
 list(REMOVE_DUPLICATES CPKT_METADATA_PC)
 include("${CPKT_SOURCE_DIR}/cmake/package_metadata.cmake")
 include("${CPKT_SOURCE_DIR}/cmake/sdk-discovery.cmake")
+
+# Declared install generator: data and ABI encoding only; no lifecycle dispatch.
+if(CPKT_TARGET_ID MATCHES "darwin$")
+  set(_manifest_tool "${CMAKE_OTOOL}")
+else()
+  set(_manifest_tool "${CMAKE_READELF}")
+endif()
+execute_process(COMMAND "${CPKT_HOST_PYTHON_EXECUTABLE}"
+  "${CPKT_SOURCE_DIR}/tools/generate_sdk_manifest.py" --prefix "${_stage_root}"
+  --components "${CPKT_BINARY_DIR}/cpkt-package-components.json"
+  --inventory "${CPKT_SOURCE_DIR}/cmake/components.json"
+  --version "${CPKT_BUNDLE_VERSION}" --target "${CPKT_TARGET_ID}"
+  --tool "${_manifest_tool}" --floor "${CPKT_MACOS_DEPLOYMENT_TARGET}"
+  RESULT_VARIABLE _manifest_status)
+if(NOT _manifest_status EQUAL 0)
+  message(FATAL_ERROR "SDK metadata generation failed")
+endif()

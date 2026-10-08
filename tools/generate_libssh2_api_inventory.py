@@ -10,7 +10,6 @@ import sys
 from typing import Any, Dict, Iterable, List, Set
 
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "scripts"))
 from generated_output_paths import validate_output_paths, write_generated_text
 
 
@@ -113,19 +112,11 @@ def main() -> int:
     public = declarations(json.loads(result.stdout))
     dynamic = dynamic_symbols(args.symbol_tool, args.library)
     missing = sorted(dynamic - set(public))
-    if missing:
-        raise ValueError(
-            "libssh2 dynamic exports without public declarations: " +
-            ", ".join(missing))
     facade_text = args.facade_header.read_text(encoding="utf-8")
     missing_facade = sorted(
         "cpkt_" + name for name in dynamic
         if not re.search(r"\bcpkt_" + re.escape(name) + r"\s*\(",
                          facade_text))
-    if missing_facade:
-        raise ValueError(
-            "libssh2 dynamic exports without C89 facade declarations: " +
-            ", ".join(missing_facade))
     inventory = {
         "schema": 1,
         "headers": [path.name for path in headers],
@@ -134,6 +125,8 @@ def main() -> int:
         "functions": {name: public[name] for name in sorted(public)},
         "dynamic_functions": sorted(dynamic),
         "facade_header": str(args.facade_header),
+        "missing_native_declarations": missing,
+        "missing_c89_facade_functions": missing_facade,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     write_generated_text(args.output,

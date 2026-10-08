@@ -15,12 +15,5 @@ set(CPKT_C89_FORBIDDEN_TOKENS
     "long long"
     "inline")
 if(CPKT_ARCHIVE)
-  find_program(_python NAMES python3 REQUIRED)
-  execute_process(COMMAND "${_python}" "${CMAKE_CURRENT_LIST_DIR}/../scripts/cpkt_archive_assert.py"
-    "-DCPKT_ARCHIVE=${CPKT_ARCHIVE}" "-DCPKT_TARGET_ID=${CPKT_TARGET_ID}"
-    "-DCPKT_BUNDLE_VERSION=${CPKT_BUNDLE_VERSION}" "-DCPKT_GROUP=${CPKT_GROUP}"
-    RESULT_VARIABLE result)
-  if(NOT result EQUAL 0)
-    message(FATAL_ERROR "selected archive assertions failed")
-  endif()
+  message(FATAL_ERROR "Use scripts/package-verify.sh for final archive validation")
 endif()
