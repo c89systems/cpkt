@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 file(READ "${LINK_FILE}" link)
 foreach(expected IN LISTS CONTAINS)
   string(FIND "${link}" "${expected}" position)

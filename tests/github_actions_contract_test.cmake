@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 file(READ "${CPKT_REPO}/.github/workflows/darwin-bundle.yml" workflow)
 foreach(required "contents: read" "persist-credentials: false" "ref: \${{ github.sha }}"
     "make test-darwin-native" "test \"$(git rev-parse HEAD)\" = \"\${GITHUB_SHA}\""

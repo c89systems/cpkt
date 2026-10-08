@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 # The smoke ZIP is flat and contains regular files only. Validate types and
 # exact names before native extraction; it is not a general archive interface.
 include("${CPKT_SOURCE}/cmake/package_inspection.cmake")

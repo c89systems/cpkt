@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 file(READ "${CPKT_SOURCE}" source)
 string(FIND "${source}" "int sasl_getprop(" get_start)
 string(FIND "${source}" "int sasl_setprop(" set_start)

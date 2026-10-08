@@ -3525,7 +3525,8 @@
         "tests/repo_dependency_cache_policy_test.sh",
         "tests/dependency_inputs_test.cmake",
         "cmake/CpktDependencyContract.cmake",
-        "cmake/CpktMutationPaths.cmake"
+        "cmake/CpktMutationPaths.cmake",
+        "cmake/CpktComponentInventory.cmake"
       ],
       "registrations": [
         {
@@ -5143,6 +5144,26 @@
       "registrations": [
         {
           "name": "release_identity",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "archive_reuse": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/archive_reuse_test.cmake",
+        "tests/test-command.cmake",
+        "scripts/archive.sh",
+        "scripts/require-host-bash.sh"
+      ],
+      "registrations": [
+        {
+          "name": "archive_reuse",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",

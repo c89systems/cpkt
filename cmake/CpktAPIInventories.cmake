@@ -25,9 +25,10 @@ function(cpkt_add_api_inventory)
     list(APPEND inputs "${CMAKE_SOURCE_DIR}/tools/generate_mqttc_c89_facade.py")
   endif()
   # Test assertion edits invalidate CTest, not the inventory producer.
+  file(CONFIGURE OUTPUT "${inventory_OUTPUT}.inputs" CONTENT "${inventory_COMMAND}\n" @ONLY)
   cpkt_register_generated_outputs("${inventory_OUTPUT}")
   add_custom_command(OUTPUT "${inventory_OUTPUT}" COMMAND ${inventory_COMMAND}
-    DEPENDS ${inputs} VERBATIM)
+    DEPENDS "${inventory_OUTPUT}.inputs" ${inputs} VERBATIM)
   add_custom_target(cpkt_data_${inventory_NAME} ALL DEPENDS "${inventory_OUTPUT}")
   cpkt_group_add_test(NAME "${inventory_NAME}" COMMAND "${CMAKE_COMMAND}"
     "-DCPKT_INPUT=${inventory_OUTPUT}" "-DCPKT_KIND=${inventory_KIND}"

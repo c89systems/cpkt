@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 include("${CPKT_REPO}/cmake/CpktDependencyArchiveCache.cmake")
 file(SHA256 "${CPKT_WORK}/fixture.tar.gz" digest)
 file(READ "${CPKT_WORK}/port" port)

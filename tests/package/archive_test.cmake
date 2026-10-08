@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 include("${CPKT_SOURCE}/cmake/extract-release-archive.cmake")
 include("${CPKT_SOURCE}/cmake/CpktSDKValidate.cmake")
 include("${CPKT_SOURCE}/cmake/package_inspection.cmake")

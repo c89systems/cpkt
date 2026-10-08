@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 if(NOT CPKT_SCRATCH)
   set(CPKT_SCRATCH "${CMAKE_CURRENT_BINARY_DIR}")
 endif()
@@ -8,7 +9,13 @@ file(WRITE "${work}/source/CMakeLists.txt" [=[
 cmake_minimum_required(VERSION 3.21)
 project(dependency_inputs NONE)
 include("${CPKT_ROOT}/cmake/CpktDependencyContract.cmake")
-set(CPKT_ACTIVE_COMPONENTS sample)
+include("${CPKT_ROOT}/cmake/CpktComponentInventory.cmake")
+set(CPKT_GROUP core)
+set(CPKT_INVENTORY [==[{"components":{"base":{"group":"core","dependencies":[]},"sample":{"group":"core","dependencies":["base"]},"unrelated":{"group":"core","dependencies":[]}}}]==])
+cpkt_select_components(CPKT_ACTIVE_COMPONENTS)
+if(CPKT_DEPENDENCY_PRODUCER AND NOT CPKT_ACTIVE_COMPONENTS STREQUAL "base;sample")
+  message(FATAL_ERROR "Selected preparation includes unrelated components")
+endif()
 set(CPKT_TARGET_ID fixture)
 set(CPKT_DEPENDENCY_CONTRACT_ROOT "${CMAKE_SOURCE_DIR}/.cache/inputs")
 set(CPKT_EXTERNAL_ROOT_LIFECYCLE_OWNED ON)
@@ -21,6 +28,7 @@ cpkt_prepare_dependency_component(NAME sample
 function(configure producer version expected)
   execute_process(COMMAND "${CMAKE_COMMAND}" -S "${work}/source" -B "${work}/graph"
     "-DCPKT_ROOT=${CPKT_ROOT}" "-DCPKT_DEPENDENCY_PRODUCER=${producer}"
+    -DCPKT_DEPENDENCY=sample
     "-DSAMPLE_VERSION=${version}" RESULT_VARIABLE status OUTPUT_VARIABLE out ERROR_VARIABLE err)
   if(expected STREQUAL "pass" AND NOT status EQUAL 0)
     message(FATAL_ERROR "Configure failed: ${out}${err}")

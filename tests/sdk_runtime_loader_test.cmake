@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 include("${CPKT_REPO}/tests/test-command.cmake")
 if(CPKT_TARGET STREQUAL "x86_64-linux-gnu")
   set(name ld-linux-x86-64.so.2)

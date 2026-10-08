@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 file(READ "${CPKT_INPUT}" inventory)
 set(fields missing_c89_facade_functions)
 if(CPKT_KIND STREQUAL "openssl")

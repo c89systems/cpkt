@@ -3,6 +3,8 @@ project(cpkt_package_checks NONE)
 enable_testing()
 include("${CPKT_SOURCE}/cmake/CpktMutationPaths.cmake")
 cpkt_validate_mutation_paths("${CMAKE_BINARY_DIR}/sdk" "${CMAKE_BINARY_DIR}/archive.passed")
+file(CONFIGURE OUTPUT "${CMAKE_BINARY_DIR}/package.inputs"
+  CONTENT "${CPKT_ARCHIVE}\n${CPKT_TARGET}\n${CPKT_VERSION}\n${CPKT_TOOL}\n" @ONLY)
 add_test(NAME package_archive
   COMMAND "${CMAKE_COMMAND}" "-DCPKT_SOURCE=${CPKT_SOURCE}" "-DCPKT_ARCHIVE=${CPKT_ARCHIVE}"
     "-DCPKT_PREFIX=${CMAKE_BINARY_DIR}/sdk" "-DCPKT_TARGET=${CPKT_TARGET}"
@@ -14,7 +16,7 @@ add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/archive.passed"
   COMMAND "${CMAKE_CTEST_COMMAND}" --test-dir "${CMAKE_BINARY_DIR}"
     -R "^package_archive$" --output-on-failure --no-tests=error
   COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_BINARY_DIR}/archive.passed"
-  DEPENDS "${CPKT_ARCHIVE}" "${CMAKE_CURRENT_SOURCE_DIR}/archive_test.cmake"
+  DEPENDS "${CPKT_ARCHIVE}" "${CMAKE_BINARY_DIR}/package.inputs" "${CMAKE_CURRENT_SOURCE_DIR}/archive_test.cmake"
     "${CPKT_SOURCE}/cmake/extract-release-archive.cmake" "${CPKT_SOURCE}/cmake/gnu_tar.cmake"
     "${CPKT_SOURCE}/cmake/CpktSDKValidate.cmake" "${CPKT_SOURCE}/cmake/package_inspection.cmake"
     "${CPKT_SOURCE}/tests/privacy_scan.cmake" VERBATIM)
@@ -33,6 +35,7 @@ add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/consumers.passed"
     "${CPKT_SOURCE}/cmake/toolchains/arm64-apple-darwin.cmake" VERBATIM)
 add_custom_target(verify_package DEPENDS "${CMAKE_BINARY_DIR}/consumers.passed")
 if(CPKT_SMOKE_ARCHIVE)
+  file(CONFIGURE OUTPUT "${CMAKE_BINARY_DIR}/smoke.inputs" CONTENT "${CPKT_SMOKE_ARCHIVE}\n" @ONLY)
   if(NOT CPKT_TARGET STREQUAL "arm64-apple-darwin")
     message(FATAL_ERROR "Smoke ZIP verification requires the Darwin SDK")
   endif()
@@ -46,7 +49,7 @@ if(CPKT_SMOKE_ARCHIVE)
     COMMAND "${CMAKE_CTEST_COMMAND}" --test-dir "${CMAKE_BINARY_DIR}"
       -R "^darwin_smoke_zip$" --output-on-failure --no-tests=error
     COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_BINARY_DIR}/smoke.passed"
-    DEPENDS "${CPKT_SMOKE_ARCHIVE}" "${CMAKE_BINARY_DIR}/archive.passed"
+    DEPENDS "${CPKT_SMOKE_ARCHIVE}" "${CMAKE_BINARY_DIR}/smoke.inputs" "${CMAKE_BINARY_DIR}/archive.passed"
       "${CMAKE_CURRENT_SOURCE_DIR}/smoke_test.cmake" "${CPKT_SOURCE}/tests/test-command.cmake"
       "${CPKT_SOURCE}/cmake/package_inspection.cmake" "${CPKT_SOURCE}/tests/privacy_scan.cmake"
     VERBATIM)

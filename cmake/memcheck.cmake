@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 set(CTEST_SOURCE_DIRECTORY "${CPKT_SOURCE}")
 set(CTEST_BINARY_DIRECTORY "${CPKT_BINARY}")
 set(CTEST_SITE local)

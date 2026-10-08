@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 include("${CPKT_REPO}/tests/test-command.cmake")
 file(READ "${CPKT_REPO}/tests/contracts/auth_native_api.json" snapshot)
 string(JSON macros GET "${snapshot}" "${CPKT_TARGET}" "${CPKT_PROVIDER}" macros)

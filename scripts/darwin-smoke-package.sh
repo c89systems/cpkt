@@ -25,4 +25,8 @@ done
 chmod 0755 "$workspace/darwin-smoke-test" "$workspace/darwin-smoke-test/bin" "$workspace/darwin-smoke-test/lib" "$workspace/darwin-smoke-test/bin/"*
 chmod 0644 "$workspace/darwin-smoke-test/lib/"* "$workspace/darwin-smoke-test/packages.json"
 (cd "$workspace"; "$cpkt_cmake" -E tar cf "$archive.tmp" --format=zip --mtime=1980-01-01 -- darwin-smoke-test)
-mv -- "$archive.tmp" "$archive"
+if [ -f "$archive" ] && cmp -s -- "$archive.tmp" "$archive"; then
+  rm -f -- "$archive.tmp"
+else
+  mv -- "$archive.tmp" "$archive"
+fi

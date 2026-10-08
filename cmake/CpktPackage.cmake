@@ -24,6 +24,10 @@ function(cpkt_register_package_archive)
       "${CMAKE_BINARY_DIR}/cpkt-package-components.json"
       "${CMAKE_BINARY_DIR}/verification/runtime.passed"
       "${CMAKE_SOURCE_DIR}/tools/generate_sdk_manifest.py"
+      "${CMAKE_SOURCE_DIR}/cmake/package_metadata.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/sdk-discovery.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/CpktSDKValidate.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/payload-ownership.json" "${CMAKE_SOURCE_DIR}/LICENSE"
       "${CMAKE_SOURCE_DIR}/scripts/package-stage.sh"
       "${CMAKE_SOURCE_DIR}/scripts/archive.sh" VERBATIM)
   add_custom_target(package-bundle DEPENDS "${_archive}")
@@ -32,7 +36,7 @@ function(cpkt_register_package_archive)
     cpkt_validate_mutation_paths("${zip}")
     add_custom_command(OUTPUT "${zip}"
       COMMAND bash "${CMAKE_SOURCE_DIR}/scripts/darwin-smoke-package.sh" "${CPKT_BUNDLE_VERSION}"
-      DEPENDS "${_archive}" cpkt_abi_smoke_static cpkt_abi_smoke_shared
+      DEPENDS "${_archive}" "$<TARGET_FILE:cpkt_abi_smoke_static>" "$<TARGET_FILE:cpkt_abi_smoke_shared>"
         "${CMAKE_SOURCE_DIR}/scripts/darwin-smoke-package.sh" "${CMAKE_SOURCE_DIR}/cmake/smoke-metadata.cmake"
       VERBATIM)
     add_custom_target(package-darwin-smoke DEPENDS "${zip}")

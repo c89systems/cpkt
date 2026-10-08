@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 file(GLOB headers "${CPKT_SOURCE}/include/cpkt/*.h")
 list(APPEND headers "${CPKT_BUILD}/generated/lua/include/cpkt/lua.h"
   "${CPKT_BUILD}/generated/cmocka/include/cpkt/cmocka.h"

@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 include("${CPKT_SOURCE}/cmake/extract-release-archive.cmake")
 cpkt_extract_release_archive("${CPKT_ARCHIVE}" "${CPKT_PREFIX}" "cpkt-${CPKT_VERSION}" FALSE)
 file(READ "${CPKT_PREFIX}/VERSION" version)

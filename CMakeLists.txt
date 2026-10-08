@@ -1527,6 +1527,8 @@ if(CPKT_BUILD_TESTS)
               COMMAND "${CMAKE_COMMAND}" "-DCPKT_REPO=${CMAKE_SOURCE_DIR}"
                 -P "${CMAKE_SOURCE_DIR}/tests/github_actions_contract_test.cmake")
       cpkt_group_add_test(NAME host_bash COMMAND bash "${CMAKE_SOURCE_DIR}/tests/host_bash_test.sh" "${CMAKE_SOURCE_DIR}")
+      cpkt_group_add_test(NAME archive_reuse COMMAND "${CMAKE_COMMAND}" "-DCPKT_ROOT=${CMAKE_SOURCE_DIR}"
+        "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}" -P "${CMAKE_SOURCE_DIR}/tests/archive_reuse_test.cmake")
       cpkt_group_add_test(NAME lifecycle_dispatch COMMAND bash "${CMAKE_SOURCE_DIR}/tests/lifecycle_dispatch_test.sh"
         "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}")
       cpkt_group_add_test(NAME sdk_native_validation COMMAND "${CMAKE_COMMAND}"

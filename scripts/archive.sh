@@ -22,4 +22,8 @@ temporary="$archive.tmp"
 trap 'rm -f -- "$temporary"' EXIT
 "$tar_tool" --create --format=gnu --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner \
   -C "$(dirname -- "$prefix")" "$(basename -- "$prefix")" | gzip -n -6 > "$temporary"
-mv -- "$temporary" "$archive"
+if [ -f "$archive" ] && cmp -s -- "$temporary" "$archive"; then
+  rm -f -- "$temporary"
+else
+  mv -- "$temporary" "$archive"
+fi

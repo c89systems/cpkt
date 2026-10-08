@@ -118,6 +118,7 @@ prepare_dependencies() {
   "$cpkt_cmake" --preset "$preset" -B "$producer" -DCPKT_DEPENDENCY_PRODUCER=ON \
     -DCPKT_BUILD_DEPENDENCIES=ON -DCMAKE_BUILD_TYPE=Release -DCPKT_BUILD_TESTS=OFF \
     -DCPKT_FACADE_ONLY=OFF -DCPKT_ENABLE_FUZZING=OFF -DCPKT_GROUP="$cpkt_owner" \
+    "-DCPKT_DEPENDENCY=$dependency" \
     "${native_arguments[@]}" "${producer_job_arguments[@]}"
   if [ -n "$dependency" ]; then requested="cpkt_deps_$dependency"; fi
   "$cpkt_cmake" --build "$producer" --parallel "$(cpkt_jobs "$producer")" --target "$requested"
@@ -134,6 +135,7 @@ esac
 if [ "$action" = deps ]; then exit 0; fi
 "$cpkt_cmake" --preset "$preset" -B "$cpkt_binary" -DCPKT_DEPENDENCY_PRODUCER=OFF \
   -DCPKT_BUILD_DEPENDENCIES=OFF -DCPKT_GROUP="$cpkt_owner" \
+  -DCPKT_DEPENDENCY= \
   "${native_arguments[@]}" "${consumer_job_arguments[@]}"
 [ "$action" != configure ] || exit 0
 arguments=(--build "$cpkt_binary" --parallel "$(cpkt_jobs "$cpkt_binary")")

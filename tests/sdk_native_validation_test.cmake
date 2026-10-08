@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 include("${CPKT_ROOT}/tests/test-command.cmake")
 set(work "${CPKT_SCRATCH}/sdk-validation")
 file(REMOVE_RECURSE "${work}")

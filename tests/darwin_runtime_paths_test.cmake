@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 include("${CPKT_REPO}/tests/test-command.cmake")
 if(EXISTS "${CPKT_BINARY}/build.ninja")
   cpkt_test_command("${CPKT_MAKE_PROGRAM}" -C "${CPKT_BINARY}" -t commands "${CPKT_EXECUTABLE}")

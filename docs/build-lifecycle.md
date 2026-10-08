@@ -13,6 +13,8 @@ by Debug, Release and native hardening consumers. Recipes live in
 `cmake/dependencies/`; their declared settings, patches and native ExternalProject
 stamps determine when work changes. A borrowed stale or missing prerequisite fails
 with its preparation requirement.
+`make deps DEPENDENCY=<name>` prepares only that component and its prerequisite
+closure; the next ordinary build restores the complete producer graph.
 
 Whole host and runtime CTest scopes have native CMake output stamps. An unchanged
 scope is reused. To investigate a failure, run the affected test directly:
@@ -62,6 +64,8 @@ before cleanup, packages the tracked source, and builds the final matrix in one
 fresh extracted workspace. Each required configuration is built once within
 that run. The source reconstruction shares those same producers and checks.
 Preparation reuses a passed reconstruction of an unchanged source archive.
+Publishing identical archive or checksum bytes preserves the existing file and
+timestamp, so an unchanged artifact does not invalidate downstream native checks.
 A failed release stops for a separately authorized repair; it does not retag,
 retry the release or publish.
 

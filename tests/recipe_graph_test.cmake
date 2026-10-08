@@ -1,3 +1,4 @@
+cmake_minimum_required(VERSION 3.21)
 include("${CPKT_REPO}/tests/test-command.cmake")
 set(work "${CPKT_BINARY}/recipe-graph")
 file(REMOVE_RECURSE "${work}")

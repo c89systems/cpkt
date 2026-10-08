@@ -67,7 +67,11 @@ case "$action" in
     (cd "$base"; for name in "${files[@]}"; do
       if command -v sha256sum >/dev/null; then sha256sum "$name"; else shasum -a 256 "$name"; fi
     done) > "$temporary"
-    mv -- "$temporary" "$manifest"
+    if [ -f "$manifest" ] && cmp -s -- "$temporary" "$manifest"; then
+      rm -f -- "$temporary"
+    else
+      mv -- "$temporary" "$manifest"
+    fi
     ;;
   *)
     [ -f "$manifest" ] || cpkt_fail 'generate the complete scoped checksum inventory first'
