@@ -47,14 +47,16 @@ collection_id() {
 root() { local id=$1; printf '%s/roots/aflplusplus-%s-x86_64-linux-gnu-%s-r%s\n' "$(cache)" "$version" "$id" "$revision"; }
 value() { sed -n "s/^$1=//p" <<<"$2" | tail -1; }
 ready() {
-  local r=$1 id=$2
-  [[ -x "$r/bin/afl-fuzz" && -x "$r/bin/afl-showmap" &&
-     -x "$r/bin/cpkt-afl-gcc" && -x "$r/bin/cpkt-afl-g++" &&
-     -x "$r/bin/afl-cc" && -x "$r/bin/afl-gcc-fast" && -x "$r/bin/afl-g++-fast" &&
-     -x "$r/bin/bootlin-gcc" && -x "$r/bin/bootlin-g++" &&
-     -x "$r/libexec/bootlin-runtime/cc1" && -x "$r/libexec/bootlin-runtime/cc1plus" &&
-     -f "$r/lib/afl/afl-gcc-pass.so" && -f "$r/lib/afl/afl-compiler-rt.o" &&
-     -f "$r/.cpkt-aflpp-revision-$revision-$id" ]]
+  local r=$1 id=$2 path
+  [[ -d "$r" ]] || return 1
+  r=$(CDPATH= cd -- "$r" && pwd -P) || return 1
+  for path in bin/{afl-fuzz,afl-showmap,cpkt-afl-gcc,cpkt-afl-g++,afl-cc,afl-gcc-fast,afl-g++-fast,bootlin-gcc,bootlin-g++} \
+      libexec/bootlin-runtime/{cc1,cc1plus}; do
+    [[ -x "$r/$path" ]] && cpkt_afl_owned_file "$r" "$r/$path" || return 1
+  done
+  for path in lib/afl/{afl-gcc-pass.so,afl-compiler-rt.o} ".cpkt-aflpp-revision-$revision-$id"; do
+    cpkt_afl_owned_file "$r" "$r/$path" || return 1
+  done
 }
 
 bootlin_description() {

@@ -16,7 +16,6 @@ grep -Fq 'with_cache_lock "$c/locks/aflplusplus-${version}-x86_64-linux-gnu.lock
 grep -Fq 'collection_id()' "$resolver" || fail 'resolver does not key AFL++ caches by Bootlin collection identity'
 grep -Fq '.cpkt-aflpp-revision-$revision-$id' "$resolver" || fail 'resolver readiness marker is not tied to the Bootlin collection identity'
 grep -Fq 'ready "$r" "$id" && return' "$resolver" || fail 'resolver does not recheck collection-specific AFL++ readiness under the lock'
-grep -Fq -- '-x "$r/bin/afl-showmap"' "$resolver" || fail 'resolver readiness does not require afl-showmap'
 grep -Fq '"-DAFL_PATH=\"$helper\""' "$resolver" || fail 'resolver does not preserve AFL++ cache paths as one compiler argument'
 grep -Fq 'export PATH=%q' "$resolver" || fail 'resolver env output does not prepend the pinned AFL++ bin directory'
 
@@ -143,6 +142,22 @@ for tool in afl-showmap afl-gcc-fast afl-g++-fast afl-cc bootlin-gcc bootlin-g++
   [[ ! -e "$prepared/bin/$tool" ]] || fail "$mode repaired missing $tool"
   mv "$prepared/bin/$tool.missing" "$prepared/bin/$tool"
 done
+for path in bin/{afl-fuzz,afl-showmap,cpkt-afl-gcc,cpkt-afl-g++,afl-cc,afl-gcc-fast,afl-g++-fast,bootlin-gcc,bootlin-g++} \
+    libexec/bootlin-runtime/{cc1,cc1plus} lib/afl/{afl-gcc-pass.so,afl-compiler-rt.o} .cpkt-aflpp-revision-2-bootlin; do
+  mv "$prepared/$path" "$prepared/$path.saved"
+  ln -s "$signal_bin/cc" "$prepared/$path"
+  for mode in discover env; do
+    if CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-aflpp.sh" "$mode" \
+        > "$signal_root/$mode.out" 2> "$signal_root/$mode.err"; then
+      fail "$mode accepted an escaping prepared file: $path"
+    fi
+    [[ ! -s "$signal_root/$mode.out" ]] || fail "$mode published invalid settings"
+    grep -Fq 'cpkt-aflpp.sh ensure' "$signal_root/$mode.err" || fail 'invalid root omitted preparation diagnostic'
+  done
+  [[ -L "$prepared/$path" ]] || fail 'discovery repaired an escaping file'
+  rm "$prepared/$path"
+  mv "$prepared/$path.saved" "$prepared/$path"
+done
 mv "$prepared/.cpkt-aflpp-revision-2-bootlin" "$prepared/.cpkt-aflpp-revision-2-other"
 for mode in discover env; do
   if CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-aflpp.sh" "$mode" > /dev/null 2>&1; then
@@ -164,5 +179,58 @@ grep -Fqx signalled "$CPKT_TEST_DOWNLOADER_MARKER" || fail 'interruption fixture
 [[ -d "$signal_cache/archives" ]] || fail 'interruption fixture did not create its archive directory'
 leftovers=$(find "$signal_cache/archives" -maxdepth 1 -name 'AFLplusplus-5.02c.tar.gz.tmp.*' -print) || fail 'unable to inspect interrupted download cleanup'
 [[ -z "$leftovers" ]] || fail 'interrupted AFL++ download left a temporary archive in the shared cache'
+
+# Exercise runtime wrapper generation without compiling or using a real cache.
+source "$skill_dir/scripts/cpkt-afl-runtime.sh"
+die() { fail "$*"; }
+runtime_root="$signal_root/runtime collection"
+runtime_sysroot="$runtime_root/sysroot"
+runtime_stage="$signal_root/runtime-stage"
+mkdir -p "$runtime_root/bin" "$runtime_root/lib" "$runtime_sysroot/lib" "$runtime_sysroot/usr/lib"
+touch "$runtime_root/lib/libstdc++.so.6"
+for tool in cc1 cc1plus; do
+  printf '#!/bin/sh\nexit 0\n' > "$runtime_root/bin/$tool"
+  chmod +x "$runtime_root/bin/$tool"
+done
+cat > "$runtime_root/bin/compiler" <<'COMPILER'
+#!/bin/sh
+case "$1" in
+  -print-file-name=libstdc++.so.6) printf '%s/lib/libstdc++.so.6\n' "$CPKT_TEST_RUNTIME_ROOT";;
+  -print-prog-name=cc1) printf '%s/bin/cc1\n' "$CPKT_TEST_RUNTIME_ROOT";;
+  -print-prog-name=cc1plus) printf '%s/bin/cc1plus\n' "$CPKT_TEST_RUNTIME_ROOT";;
+  *) printf '%s\n' "$@" > "$CPKT_TEST_RUNTIME_CALLS";;
+esac
+COMPILER
+cat > "$runtime_sysroot/lib/loader.real" <<'LOADER'
+#!/bin/sh
+[ "$1" = --library-path ] || exit 1
+shift 2
+exec "$@"
+LOADER
+chmod +x "$runtime_root/bin/compiler" "$runtime_sysroot/lib/loader.real"
+ln -s loader.real "$runtime_sysroot/lib/ld-linux-x86-64.so.2"
+export CPKT_TEST_RUNTIME_ROOT="$runtime_root"
+export CPKT_TEST_RUNTIME_CALLS="$signal_root/runtime-calls"
+prepare_runtime() {
+  cpkt_afl_prepare_runtime "$runtime_stage" "$runtime_root/bin/compiler" "$runtime_root/bin/compiler" \
+    "$runtime_sysroot" "$runtime_root"
+}
+prepare_runtime
+[[ "$cpkt_afl_runtime_loader" = "$runtime_sysroot/lib/ld-linux-x86-64.so.2" ]] || fail 'valid loader pathname changed'
+"$cpkt_afl_runtime_cc" 'probe with spaces'
+grep -Fxq 'probe with spaces' "$CPKT_TEST_RUNTIME_CALLS" || fail 'generated wrapper lost argv boundaries'
+mv "$runtime_stage" "$runtime_stage.saved"
+rm "$runtime_sysroot/lib/ld-linux-x86-64.so.2"
+ln -s "$signal_bin/cc" "$runtime_sysroot/lib/ld-linux-x86-64.so.2"
+if (prepare_runtime) > "$signal_root/runtime.err" 2>&1; then fail 'runtime accepted an escaping loader'; fi
+grep -Fq 'outside the selected sysroot' "$signal_root/runtime.err" || fail 'loader refusal was not exercised'
+[[ ! -e "$runtime_stage" ]] || fail 'invalid loader produced wrappers'
+rm "$runtime_sysroot/lib/ld-linux-x86-64.so.2"
+ln -s loader.real "$runtime_sysroot/lib/ld-linux-x86-64.so.2"
+mv "$runtime_sysroot/usr/lib" "$runtime_sysroot/usr/lib.saved"
+ln -s "$signal_bin" "$runtime_sysroot/usr/lib"
+if (prepare_runtime) > "$signal_root/runtime.err" 2>&1; then fail 'runtime accepted an escaping search directory'; fi
+grep -Fq 'runtime directory is outside' "$signal_root/runtime.err" || fail 'search-directory refusal was not exercised'
+[[ ! -e "$runtime_stage" ]] || fail 'invalid search directory produced wrappers'
 
 printf 'AFL++ resolver tests passed\n'

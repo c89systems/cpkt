@@ -108,7 +108,7 @@ Recommended source split:
 
 Dependency boundaries:
 
-- When the project declares `lonejson`, it owns JSON parsing, serialization, validation, streaming, framing, escaping, and fixture normalization; do not write bespoke JSON logic in that consuming project. Do not infer or introduce a lonejson dependency merely from this rule. Adding it or migrating unrelated code to it requires task authority.
+- When the project declares `lonejson`, it owns the product's JSON parsing, serialization, validation, streaming, framing and escaping; do not implement a competing product parser or serializer. Native CMake JSON and standard libraries in permitted generators/fixtures remain available under [product and fixture boundaries](dependencies.md). Do not infer or introduce a lonejson dependency merely from this rule. Adding it or migrating unrelated code to it requires task authority.
 - Logging belongs behind the project logging adapter and the selected logging dependency. Public APIs should not force downstream users to accept hidden logging side effects.
 - Transport dependencies, SDK bundle roots, and host dependency probes stay below the public API. Public C headers must not expose dependency cache paths or private build details.
 - If a host dependency mode exists, probe ABI-sensitive dependencies and fail with actionable diagnostics on missing or wrong-ABI libraries. Auto modes must fall back conservatively rather than accepting partial host installs.
