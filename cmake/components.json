@@ -83,7 +83,8 @@
           "examples/lua-runtime-c89/CMakeLists.txt",
           "examples/lua-runtime-c89/build-pkg-config.sh",
           "examples/lua-runtime-c89/host_module.c",
-          "examples/lua-runtime-c89/main.c"
+          "examples/lua-runtime-c89/main.c",
+          "examples/lua-runtime-c89/pkg-config/CMakeLists.txt"
         ],
         "extra_notices": [],
         "files": []
@@ -5159,6 +5160,25 @@
       "registrations": [
         {
           "name": "release_identity",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "checksum_scope": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/checksum_scope_test.cmake",
+        "tests/test-command.cmake",
+        "cmake/verify-checksums.cmake"
+      ],
+      "registrations": [
+        {
+          "name": "checksum_scope",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",

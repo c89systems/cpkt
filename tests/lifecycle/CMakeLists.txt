@@ -15,6 +15,9 @@ set_tests_properties(dependency_inputs PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 add_test(NAME archive_reuse COMMAND "${CMAKE_COMMAND}" "-DCPKT_ROOT=${CPKT_ROOT}"
   "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}" -P "${CPKT_ROOT}/tests/archive_reuse_test.cmake")
 set_tests_properties(archive_reuse PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+add_test(NAME checksum_scope COMMAND "${CMAKE_COMMAND}" "-DCPKT_ROOT=${CPKT_ROOT}"
+  "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}" -P "${CPKT_ROOT}/tests/checksum_scope_test.cmake")
+set_tests_properties(checksum_scope PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64)$")
   add_test(NAME verification_scopes
     COMMAND "${CMAKE_COMMAND}" "-DCPKT_ROOT=${CPKT_ROOT}" "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}"

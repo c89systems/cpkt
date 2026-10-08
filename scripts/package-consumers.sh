@@ -6,6 +6,7 @@ target=${2:?target required}
 workspace=${3:?consumer workspace required}
 cpkt_owned_path "$workspace"
 cpkt_preset "$target-release"
+unset SASL_PATH
 arguments=(-G 'Unix Makefiles' "-DCPKT_SOURCE=$cpkt_root" "-DCPKT_TARGET_ID=$target")
 can_run=ON
 case "$target" in

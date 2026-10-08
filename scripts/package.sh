@@ -76,6 +76,7 @@ case "$action" in
   *)
     [ -f "$manifest" ] || cpkt_fail 'generate the complete scoped checksum inventory first'
     "$cpkt_cmake" "-DCPKT_BASE=$base" "-DCPKT_MANIFEST=$manifest" "-DCPKT_FILES=$(IFS=';'; printf '%s' "${files[*]}")" \
+      "-DCPKT_SCOPE=$scope" "-DCPKT_VERSION=$version" \
       -P "$cpkt_root/cmake/verify-checksums.cmake"
     for target in "${targets[@]}"; do
       smoke=
