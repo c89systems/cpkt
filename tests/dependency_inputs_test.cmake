@@ -13,23 +13,32 @@ include("${CPKT_ROOT}/cmake/CpktComponentInventory.cmake")
 set(CPKT_GROUP core)
 set(CPKT_INVENTORY [==[{"components":{"base":{"group":"core","dependencies":[]},"sample":{"group":"core","dependencies":["base"]},"unrelated":{"group":"core","dependencies":[]}}}]==])
 cpkt_select_components(CPKT_ACTIVE_COMPONENTS)
-if(CPKT_DEPENDENCY_PRODUCER AND NOT CPKT_ACTIVE_COMPONENTS STREQUAL "base;sample")
+if(CPKT_DEPENDENCY STREQUAL "base")
+  set(expected_components base)
+else()
+  set(expected_components "base;sample")
+endif()
+if(CPKT_DEPENDENCY_PRODUCER AND NOT CPKT_ACTIVE_COMPONENTS STREQUAL expected_components)
   message(FATAL_ERROR "Selected preparation includes unrelated components")
 endif()
 set(CPKT_TARGET_ID fixture)
 set(CPKT_DEPENDENCY_CONTRACT_ROOT "${CMAKE_SOURCE_DIR}/.cache/inputs")
 set(CPKT_EXTERNAL_ROOT_LIFECYCLE_OWNED ON)
 set(CPKT_DEPENDENCY_BUILD_ROOT_LIFECYCLE_OWNED ON)
+cpkt_prepare_dependency_component(NAME base
+  BUILD_ROOT "${CMAKE_SOURCE_DIR}/.cache/deps-build/fixture/base"
+  INSTALL_ROOT "${CMAKE_SOURCE_DIR}/.cache/deps/fixture/base/install"
+  VARIABLES BASE_VERSION)
 cpkt_prepare_dependency_component(NAME sample
   BUILD_ROOT "${CMAKE_SOURCE_DIR}/.cache/deps-build/fixture/sample"
   INSTALL_ROOT "${CMAKE_SOURCE_DIR}/.cache/deps/fixture/sample/install"
-  VARIABLES SAMPLE_VERSION)
+  VARIABLES SAMPLE_VERSION DEPENDS base)
 ]=])
 function(configure producer version expected)
   execute_process(COMMAND "${CMAKE_COMMAND}" -S "${work}/source" -B "${work}/graph"
     "-DCPKT_ROOT=${CPKT_ROOT}" "-DCPKT_DEPENDENCY_PRODUCER=${producer}"
     -DCPKT_DEPENDENCY=sample
-    "-DSAMPLE_VERSION=${version}" RESULT_VARIABLE status OUTPUT_VARIABLE out ERROR_VARIABLE err)
+    "-DSAMPLE_VERSION=${version}" ${ARGN} RESULT_VARIABLE status OUTPUT_VARIABLE out ERROR_VARIABLE err)
   if(expected STREQUAL "pass" AND NOT status EQUAL 0)
     message(FATAL_ERROR "Configure failed: ${out}${err}")
   elseif(expected STREQUAL "fail" AND status EQUAL 0)
@@ -38,6 +47,8 @@ function(configure producer version expected)
 endfunction()
 configure(OFF 1 fail)
 configure(ON 1 pass)
+set(base_complete "${work}/source/.cache/inputs/fixture/base.complete")
+file(WRITE "${base_complete}" "")
 set(inputs "${work}/source/.cache/inputs/fixture/sample.inputs")
 set(complete "${work}/source/.cache/inputs/fixture/sample.complete")
 set(install "${work}/source/.cache/deps/fixture/sample/install")
@@ -61,6 +72,23 @@ configure(ON 2 pass)
 if(EXISTS "${install}" OR EXISTS "${build}" OR EXISTS "${complete}" OR
     NOT EXISTS "${work}/source/.cache/deps/fixture/other/artifact")
   message(FATAL_ERROR "Input invalidation removed the wrong scope")
+endif()
+# Preparing just the prerequisite must invalidate dependents on the next call.
+file(WRITE "${install}/artifact" "fixture installation")
+file(WRITE "${build}/artifact" "fixture build")
+file(WRITE "${complete}" "")
+execute_process(COMMAND "${CMAKE_COMMAND}" -E sleep 0.05)
+configure(ON 2 pass -DCPKT_DEPENDENCY=base -DBASE_VERSION=2)
+file(WRITE "${base_complete}" "")
+configure(OFF 2 fail)
+if(NOT EXISTS "${install}/artifact" OR NOT EXISTS "${complete}")
+  message(FATAL_ERROR "Stale dependent consumer modified borrowed output")
+endif()
+configure(ON 2 pass)
+if(EXISTS "${install}" OR EXISTS "${build}" OR EXISTS "${complete}" OR
+    NOT EXISTS "${base_complete}" OR
+    NOT EXISTS "${work}/source/.cache/deps/fixture/other/artifact")
+  message(FATAL_ERROR "Selected prerequisite change invalidated the wrong scope")
 endif()
 file(WRITE "${work}/borrowed/artifact" "borrowed")
 file(MAKE_DIRECTORY "${work}/source/.cache/deps/fixture/sample")

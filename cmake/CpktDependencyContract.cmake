@@ -39,6 +39,12 @@ function(cpkt_prepare_dependency_component)
       ${component_VARIABLES})
     string(APPEND _configuration "${_variable}=${${_variable}}\n")
   endforeach()
+  # Selected preparation may update a prerequisite in an earlier invocation.
+  # Its existing input record changes only when that prerequisite is invalidated.
+  foreach(_dependency IN LISTS component_DEPENDS)
+    file(TIMESTAMP "${_directory}/${_dependency}.inputs" _updated "%s.%f" UTC)
+    string(APPEND _configuration "dependency.${_dependency}=${_updated}\n")
+  endforeach()
   set(_changed OFF)
   if(EXISTS "${_settings}")
     file(READ "${_settings}" _previous)
