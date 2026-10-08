@@ -550,18 +550,23 @@ and instrumentation builds. Apply this to existing targets; do not create a
 second test CLI. Native CTest, e2e scripts, and Make example targets execute
 these binaries directly. Their project-built children select the same runtime
 from their own ELF metadata. Fully static executables need no dynamic loader.
-Foreign targets retain QEMU and the matching sysroot; do not apply a native
-loader path to foreign executables. Never apply ELF flags to Darwin targets.
+Foreign targets use their matching sysroot and declared runner when execution
+is selected; do not apply a native loader path to foreign executables. Never
+apply ELF flags to Darwin targets.
 
-Probe installed-consumer runtime resolution with a tiny dynamically linked
-program during each Linux target's standalone preflight, before dependency
-builds. Use the same selected-loader inspection and execution as SDK verification.
+Build and inspect a tiny dynamically linked consumer during each Linux target's
+standalone preflight, before dependency builds. Execute it for native targets
+and cross targets with declared runtime coverage, using the same selected-loader
+checks as SDK verification. Cross execution follows the
+[runner contract](local-ci.md#cross-target-runner-contract): without that opt-in,
+configure/build/link/inspect and report deferred runtime proof; do not require
+QEMU. Once selected, missing runner/sysroot/configuration fails clearly.
 For musl, its `libc.so` self-alias may report the guest ELF interpreter
 path. Accept that alias only when it resolves inside the selected sysroot to the
-exact loader already invoked; reject missing or escaping files, foreign runtimes,
+exact selected loader; reject missing or escaping files, foreign runtimes,
 and delivered libraries resolved outside the SDK prefix. Test both ARM widths
-and native musl, and execute the probe with the actual selected toolchain and
-QEMU where required.
+and native musl within the declared coverage, executing through QEMU only when
+that runtime coverage is selected.
 
 Keep these settings private to executable targets. Account for indirect
 runtime dependencies: ELF DT_RUNPATH alone does not propagate to grandchildren;

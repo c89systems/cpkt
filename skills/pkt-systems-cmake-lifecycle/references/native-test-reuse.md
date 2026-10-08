@@ -22,7 +22,8 @@ add_test(NAME contract COMMAND "${CMAKE_COMMAND}"
 set(suite_inputs "${CMAKE_CURRENT_SOURCE_DIR}/input.txt"
   "${CMAKE_CURRENT_SOURCE_DIR}/Fixture.cmake"
   "${CMAKE_CURRENT_SOURCE_DIR}/RunSuite.cmake"
-  "${CMAKE_CURRENT_BINARY_DIR}/CTestTestfile.cmake" "${CMAKE_CTEST_COMMAND}")
+  "${CMAKE_CURRENT_BINARY_DIR}/CTestTestfile.cmake"
+  "${CMAKE_COMMAND}" "${CMAKE_CTEST_COMMAND}")
 add_custom_target(check
   COMMAND "${CMAKE_COMMAND}" "-DTEST_DIR=${CMAKE_CURRENT_BINARY_DIR}"
     "-DCTEST_TOOL=${CMAKE_CTEST_COMMAND}" "-DINPUTS=${suite_inputs}"
@@ -135,3 +136,6 @@ the requests and skill without the expected answers.
 | A tiny follow-up fix after that failure | Run affected focused checks, not another entire suite/matrix; preserve unrelated valid work. |
 | Failure occurs during release | Stop release; focused remediation belongs to a separately authorized fix iteration. |
 | A declared input changes while tests run | Reject the run without publishing success, even if CTest reports a pass. |
+| A test runner changes at the same path | Invalidate its passed checks; a stable pathname is not a stable tool. |
+| Cross target without selected runtime coverage | Configure/build/link/inspect and report deferred execution; do not require QEMU. |
+| Selected cross-runtime coverage has no runner | Fail clearly; do not silently replace required runtime proof with build proof. |

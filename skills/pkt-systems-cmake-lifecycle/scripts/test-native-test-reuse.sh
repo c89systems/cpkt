@@ -139,4 +139,32 @@ check
 expect_runs 19
 check
 expect_runs 19
+real_cmake=$(command -v cmake)
+test_runner="$work/cmake-runner"
+printf '#!/usr/bin/env bash\nexec %q "$@"\n' "$real_cmake" > "$work/forward-runner"
+cp "$work/forward-runner" "$test_runner"
+chmod +x "$test_runner"
+# Select a fixture-owned runner while preserving the documented example's graph.
+awk '{print} /^project\(/ {print "set(CMAKE_COMMAND \"${FIXTURE_CMAKE_RUNNER}\")"}' \
+  "$work/with-case" > "$source_dir/CMakeLists.txt"
+configure "-DFIXTURE_CMAKE_RUNNER=$test_runner"
+check
+expect_runs 20
+check
+expect_runs 20
+cat > "$test_runner" <<'RUNNER'
+#!/usr/bin/env bash
+for argument in "$@"; do
+  case "$argument" in */Fixture.cmake) printf 'changed runner rejects fixture\n' >&2; exit 1;; esac
+done
+RUNNER
+printf 'exec %q "$@"\n' "$real_cmake" >> "$test_runner"
+expect_failure
+grep -q 'changed runner rejects fixture' "$work/log" || fail 'changed runner was not executed'
+expect_runs 20
+cp "$work/forward-runner" "$test_runner"
+check
+expect_runs 21
+check
+expect_runs 21
 printf 'native CMake/CTest reuse, result integrity and input stability fixture passed\n'

@@ -8,9 +8,10 @@ find_program(HOST_BASH bash REQUIRED)
 add_test(NAME native_test_reuse
   COMMAND "${HOST_BASH}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test-native-test-reuse.sh"
     "${SKILL_WORKSPACE_ROOT}")
-add_test(NAME release_policy_wording
-  COMMAND "${HOST_BASH}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test-release-tag-contract.sh")
+add_test(NAME release_tag_contract
+  COMMAND "${HOST_BASH}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test-release-tag-contract.sh"
+    "${SKILL_WORKSPACE_ROOT}")
 add_test(NAME source_root_context
   COMMAND "${HOST_BASH}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test-source-root-context.sh"
     "${SKILL_WORKSPACE_ROOT}")
-set_tests_properties(native_test_reuse release_policy_wording source_root_context PROPERTIES TIMEOUT 60)
+set_tests_properties(native_test_reuse release_tag_contract source_root_context PROPERTIES TIMEOUT 60)

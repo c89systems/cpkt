@@ -6,9 +6,8 @@ release_ref="$skill_dir/references/release.md"
 local_ci_ref="$skill_dir/references/local-ci.md"
 operability_ref="$skill_dir/references/operability.md"
 
-# Validate canonical policy and reference routing without mutating Git refs.
-# These are wording guards, not proof of agent decisions. Also review the decision
-# cases and execute the isolated native example in references/native-test-reuse.md.
+# Wording guards validate policy routing. The fixture below tests the documented
+# ref-creation command in an isolated repository; current-checkout refs stay intact.
 
 fail() {
   printf 'test-release-tag-contract: %s\n' "$*" >&2
@@ -35,7 +34,7 @@ require_text "$release_ref" \
 require_text "$release_ref" '## Temporary test-tag ownership' 'canonical ownership section'
 require_text "$release_ref" 'the current `HEAD`' 'active-checkout version discovery'
 require_text "$release_ref" 'this focused tag test does not configure CMake.' 'focused pre-clean scope'
-require_text "$release_ref" 'git -c tag.gpgSign=false tag v99.99.99' 'unsigned lightweight test tag'
+require_text "$release_ref" 'git update-ref --create-reflog' 'lightweight test tag with explicit reflog'
 require_text "$release_ref" 'reject annotated or signed tag objects.' 'lightweight-only version tags'
 require_text "$release_ref" 'skip temporary-tag creation.' 'already-tagged HEAD behavior'
 require_text "$release_ref" 'nonce-bearing intent before exclusive creation' 'interrupted-creation recovery'
@@ -53,4 +52,51 @@ for reference in "$local_ci_ref" "$operability_ref"; do
     'routing to canonical ownership policy'
 done
 
-printf 'release tag policy wording guards passed\n'
+repo_root=${1:?pass the repository root for fixture scratch}
+[ "$#" -eq 1 ] && [ -f "$repo_root/CMakeLists.txt" ] || exit 2
+[ ! -L "$repo_root/build" ] || exit 2
+grep -Fxq '/build/' "$repo_root/.gitignore" || exit 2
+mkdir -p "$repo_root/build"
+work=$(mktemp -d "$repo_root/build/skill-test-tag.XXXXXXXX")
+trap 'rm -rf -- "$work"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+awk '
+  $0 == "## Temporary test-tag ownership" {wanted=1; next}
+  wanted && $0 == "```bash" {code=1; next}
+  code && $0 == "```" {exit}
+  code {print}
+' "$release_ref" > "$work/create.sh"
+[ -s "$work/create.sh" ] || fail 'missing documented ref-creation example'
+git -c init.defaultBranch=fixture init -q "$work/repo"
+cd "$work/repo"
+git config user.name fixture
+git config user.email fixture@example.invalid
+git config core.hooksPath /dev/null
+git config commit.gpgSign false
+git config tag.gpgSign true
+git config core.logAllRefUpdates false
+git commit -qm 'test(lifecycle-skill): create isolated tag fixture' --allow-empty
+test_tag_ref=refs/tags/v99.99.99
+test_tag_object=$(git rev-parse HEAD)
+nonce="${work##*/}"
+export test_tag_ref test_tag_object nonce
+printf '%s %s %s\n' "$test_tag_ref" "$test_tag_object" "$nonce" > "$work/intent"
+bash "$work/create.sh"
+[ "$(git cat-file -t "$test_tag_ref")" = commit ] || fail 'created tag is not lightweight'
+log=".git/logs/$test_tag_ref"
+grep -Eq "^0+ $test_tag_object " "$log" || fail 'missing zero-to-object reflog creation'
+grep -Fq $'\t'"lifecycle-version-contract:$nonce" "$log" || fail 'nonce absent from creation reflog'
+if bash "$work/create.sh" > "$work/log" 2>&1; then fail 'create-only command replaced an existing ref'; fi
+[ "$(git rev-parse "$test_tag_ref")" = "$test_tag_object" ] || fail 'existing ref changed'
+[ "$(wc -l < "$log")" -eq 1 ] || fail 'failed creation changed reflog'
+git commit -qm 'test(lifecycle-skill): simulate changed tag ownership' --allow-empty
+other=$(git rev-parse HEAD)
+git update-ref "$test_tag_ref" "$other" "$test_tag_object"
+if git update-ref -d "$test_tag_ref" "$test_tag_object" > "$work/log" 2>&1; then
+  fail 'cleanup deleted a changed ref'
+fi
+[ "$(git rev-parse "$test_tag_ref")" = "$other" ] || fail 'changed ref was not preserved'
+git update-ref -d "$test_tag_ref" "$other"
+printf 'release tag policy, exclusive creation and reflog ownership fixture passed\n'

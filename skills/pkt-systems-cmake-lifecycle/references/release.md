@@ -271,9 +271,12 @@ than another checkout, worktree, copied repository or source-archive fixture.
 CMake version propagation remains part of the normal build/package checks;
 this focused tag test does not configure CMake.
 
-- Create a lightweight tag with signing disabled, for example
-  `git -c tag.gpgSign=false tag v99.99.99`. Assert that accepted version tags
-  resolve directly to a `commit`; reject annotated or signed tag objects.
+- Create the reserved lightweight tag ref directly at the recorded `HEAD` commit
+  with create-only `git update-ref --create-reflog` and the recorded nonce in its
+  reflog message. This creates neither an annotated nor a signed tag, regardless
+  of signing defaults. Ordinary `git tag` does not guarantee a tag reflog.
+  Assert that accepted version tags resolve directly to a `commit`;
+  reject annotated or signed tag objects.
 - When `HEAD` already has an exact non-reserved lightweight release tag, verify
   its precedence and skip temporary-tag creation.
 - Record ownership under ignored `build/`. A nonce-bearing intent before exclusive creation
@@ -286,6 +289,18 @@ this focused tag test does not configure CMake.
   a later invocation recovers an interrupted test using the same ownership checks.
 - Verify the reserved tag selects its version through the release script and
   Make surfaces, and cleanup restores the original version.
+
+After persisting intent, use the validated reserved `test_tag_ref`, recorded
+`test_tag_object` commit and `nonce`. The empty expected old value requires the
+ref to be absent; creation and nonce-bearing reflog publication are one Git update:
+
+```bash
+git update-ref --create-reflog -m "lifecycle-version-contract:$nonce" \
+  "$test_tag_ref" "$test_tag_object" ""
+```
+
+The [skill fixture](../scripts/test-release-tag-contract.sh) tests these mechanics
+in isolation; it does not replace the active-checkout version-contract gate.
 
 Automatic cleanup applies only to the owned temporary test tag. Actual release
 tag removal and branch rewind follow [failed local release recovery](#failed-local-release-recovery).
