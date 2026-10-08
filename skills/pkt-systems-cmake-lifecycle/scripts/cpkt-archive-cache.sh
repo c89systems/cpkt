@@ -3,34 +3,8 @@ case ${BASH_SOURCE[0]} in
   */*) source "${BASH_SOURCE[0]%/*}/require-host-bash.sh" ;;
   *) source ./require-host-bash.sh ;;
 esac || exit $?
-# Shared provisioning supervision and local-byte lookup for toolchain archives.
-
-cpkt_provision_with_signals() {
-  # Nested ensure calls stay in the existing owned group. This is internal
-  # operation state, not a public environment override.
-  [[ ${CPKT_PROVISIONING_WORKER:-} != 1 ]] || return 0
-  local worker='' cancelled=0 status attempt
-  trap 'cancelled=129; [[ -z $worker ]] || kill -TERM -- "-$worker" 2>/dev/null || :' HUP
-  trap 'cancelled=130; [[ -z $worker ]] || kill -TERM -- "-$worker" 2>/dev/null || :' INT
-  trap 'cancelled=143; [[ -z $worker ]] || kill -TERM -- "-$worker" 2>/dev/null || :' TERM
-  set -m
-  CPKT_PROVISIONING_WORKER=1 "$BASH" +m "$0" "$@" &
-  worker=$!
-  set +m
-  (( cancelled == 0 )) || kill -TERM -- "-$worker" 2>/dev/null || :
-  if wait "$worker"; then status=0; else status=$?; fi
-  if (( cancelled != 0 )); then
-    for attempt in {1..20}; do
-      kill -0 -- "-$worker" 2>/dev/null || break
-      sleep 0.1 || :
-    done
-    kill -KILL -- "-$worker" 2>/dev/null || :
-    wait "$worker" 2>/dev/null || :
-    status=$cancelled
-  fi
-  trap - HUP INT TERM
-  exit "$status"
-}
+# Foreground helpers inherit the caller's job group. The caller cancels the whole
+# job, not one wrapper PID; process supervision is outside this helper's contract.
 
 # Call archive lookup under the resolver's cache lock; the caller owns extraction.
 

@@ -306,8 +306,10 @@ report_target() { require_target "$1"; if is_linux_target "$1"; then print_bootl
 ensure_target() { require_target "$1"; if is_linux_target "$1"; then install_bootlin "$1"; else osxcross_candidate >/dev/null || die 'arm64-apple-darwin requires a complete local osxcross SDK toolchain'; install_host_mig; fi; report_target "$1"; }
 
 print_env() {
-  local target=$1 description key value
-  description=$(report_target "$target"); [[ "$description" == *$'status=ready'* ]] || die "target is missing; run: $0 ensure $target"
+  local target=$1 description status key value
+  description=$(report_target "$target")
+  status=$(printf '%s\n' "$description" | sed -n 's/^status=//p')
+  [[ "$status" == ready ]] || die "target is missing; run: $0 ensure $target"
   for key in source root prefix sysroot cc cxx ld ar ranlib strip nm objcopy objdump addr2line gdb readelf libstdcxx_a libgcc_a otool; do
     value=$(printf '%s\n' "$description" | sed -n "s/^${key}=//p"); [[ -z "$value" ]] || printf 'export %s=%q\n' "CPKT_TOOLCHAIN_${key^^}" "$value"
   done
@@ -341,7 +343,6 @@ case "${1:-}" in
   ensure)
     [[ $# -eq 2 ]] || die 'usage: cpkt-toolchains.sh ensure <target|all>'
     [[ "$2" == all ]] || require_target "$2"
-    cpkt_provision_with_signals "$@"
     if [[ "$2" == all ]]; then
       while IFS= read -r target; do
         if is_linux_target "$target"; then ensure_target "$target"; else report_target "$target"; fi

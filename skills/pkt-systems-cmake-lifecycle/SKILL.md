@@ -1,107 +1,85 @@
 ---
 name: pkt-systems-cmake-lifecycle
 description: >-
-  Build, test, package and release any C/CMake pkt.systems or c89 systems
-  component that chooses this lifecycle, with or without cpkt as a dependency.
-  Keep Make, Bash and CMake/CTest simple; Python is limited to generators and
-  test fixtures. Use for ordinary engineering, bootstrap, migration and release.
+  Build, test, package and release C/CMake pkt.systems or c89 systems components
+  that choose this lifecycle, with or without cpkt. Use simple Make/Bash/CMake/CTest
+  workflows; Python is limited to generators and fixtures.
 metadata:
-  short-description: pkt.systems and c89 systems C/CMake lifecycle
+  short-description: Simple native C/CMake lifecycle
 ---
 
-# pkt.systems and c89 systems C/CMake lifecycle
+# Simple native C/CMake lifecycle
 
-Use this skill only for components that choose it. The owning project's spec
-sets its products, dependencies, supported targets, artifacts and required tests.
-Using this skill does not imply a cpkt dependency or an SDK delivery.
+The project spec chooses products, dependencies, supported targets and artifacts.
+This skill does not require cpkt, a public library, an SDK or optional services.
 
-## First rule: a simple native pipeline
+## Contract first
 
-This rule governs every reference and example in this skill.
+Work in a trusted developer checkout with declared inputs and prepared tools.
+One operation owns each mutable workspace. Keep sources, configuration and tool
+collections stable during a check. Native dependency tracking assumes ordinary
+edits update timestamps; restored/copied state needs explicit invalidation.
+Run commands serially with the project's configured build job limit.
 
-| Tool | Owns |
+The terminal or job runner owns the operation and cancels the whole job/process
+group. Helpers run in the foreground and clean owned temporary state on ordinary
+failure. Parent-PID-only signalling, hostile process environments and concurrent
+in-place mutation are not supported lifecycle interfaces. State a violated
+precondition and stop; do not build a supervisor or attestation system around it.
+
+These limits do not waive checks on downloads, declared prerequisites or shipped
+bytes. Reject missing required tools, wrong dependency identity, bad checksums,
+unsafe cleanup scope and incomplete release evidence.
+
+## Keep implementation small
+
+| Tool | Responsibility |
 | --- | --- |
-| Make | Public target names, simple prerequisites, short recipes. |
-| Bash | Readable sequencing, arguments, environment, cleanup and release actions. |
-| CMake | Configuration, targets, dependencies, generation, incremental builds and installation. |
-| CTest | Test registration, selection, execution and results, including fixtures and CMake script tests. |
+| Make | Public target names, prerequisites and short recipes. |
+| Bash | Arguments, environment and readable sequencing. |
+| CMake | Configure, dependencies, generation, build and install. |
+| CTest | Registered tests, selection, execution and results. |
 
-**Python must not control build, test, install, package, deploy or release pipelines.**
-Do not use it for configuration/rebuild decisions, test scheduling or reuse,
-lifecycle bookkeeping, dispatch, process management or release orchestration.
-The ban covers scripts, inline Python and indirect helpers; calling one a
-"validator" does not exempt it.
+Use native tool features before adding a script. No competing dependency graphs,
+custom schedulers, preset interpreters, receipt services or process brokers.
+A helper needs a concrete job that existing tools do not already perform.
+Prefer deletion, consolidation or a clearer contract to another mechanism.
 
-**Focused generators and test fixtures may use Python.** Generators transform
-source/schema inputs into component source or resource outputs, with inputs,
-outputs and dependencies declared in CMake. Fixtures run under CTest and may
-exercise tools in isolated test workspaces. Neither exception may become a
-production pipeline controller or a general evidence/receipt framework.
+Python may implement a CMake-declared generator or an isolated CTest fixture.
+It must not control configure/build/test/install/package/deploy/release decisions.
+Any other pipeline Python requires explicit developer permission before writing
+or extending it; existing Python and a generic refactor request are not permission.
+Porting a large controller into Bash or CMake does not satisfy this rule.
 
-Any other Python use in the pipeline requires explicit developer permission
-before writing or extending it. Explain the exact task and why native tools are
-insufficient. A generic refactor instruction, existing Python code, convenience
-or a JSON/XML file is not permission.
+## Feedback and delivery
 
-Do not translate an overgrown Python framework into an overgrown Bash or CMake
-framework. Use existing tool features, one dependency graph and direct commands.
-Add a script only for a concrete task the native tools do not already own.
-Keep it small, deterministic and independently understandable. Remove redundant
-wrappers, duplicate state and competing descriptions of the graph.
+Implement a coherent change, run affected CTest checks, then complete missing
+required coverage. After failure, reproduce and prove the specific repair in
+isolation before one affected broader rerun. Preserve unrelated valid work.
+Build each effective input/configuration once and reuse matching passed checks.
+A commit-message change is not a source change; a test edit need not rebuild a library.
 
-## Working loop
+Preparation is incremental. Final tagged release starts from clean local generated
+state, builds each required configuration once and verifies the final shipped bytes.
+Within that run, share equivalent prerequisites and checks. Release failures stop;
+repair belongs to a separately authorized iteration. Do not retag, rebuild or
+publish inside a failed release.
 
-1. Inspect branch, dirty state, project instructions and the requested outcome.
-   Resolve material spec gaps before coding; preserve unrelated work.
-2. Read only the references for affected surfaces. Ordinary work is not an
-   invitation to migrate the whole lifecycle.
-3. Implement a coherent batch. Run affected tests through CTest, then only missing
-   required coverage. Documentation-only work uses documentation validation.
-4. Inspect the diff, commit under project policy, and report changes, checks,
-   remaining state and limitations. Never claim unexecuted tests passed.
+Review changes under [the simplicity contract](references/review-contract.md).
+A clean review must respect that contract, not merely accumulate safeguards.
+Inspect/commit under project policy and report actual evidence and remaining state.
 
-When a larger gate finds an issue, stop broad reruns. Reproduce the specific
-failure in its relevant target/configuration, fix it, and prove the repair with
-focused regression checks before rerunning the affected larger gate. Do not use
-entire suites or cross-build matrices as the edit/debug loop. Preserve unrelated
-valid work; broaden only after focused evidence supports proceeding. Follow
-[the failure and fix posture](references/local-ci.md#failure-and-fix-posture).
-Release failures remain stop-only; remediation requires a separate authorized
-fix iteration.
+## Read only the relevant reference
 
-Use CMake dependencies and native incremental state to build each effective input
-set once. Reuse passed checks while relevant inputs remain unchanged. Host-only
-fixtures run once on the host; target/runtime checks keep their actual scope.
-Do not invent a scheduler or receipt service to obtain reuse. Candidate preparation
-is incremental; the final tagged `make release` starts clean. Within that clean
-run, share identical prerequisites and execute each required check once.
-
-## Boundaries
-
-- Commands, builds, tests and services run serially under configured job limits.
-- Keep scratch, logs and generated fixtures under ignored `build/`; final artifacts
-  belong in `dist/`. Preserve shared verified archive/toolchain caches.
-- Use the pinned lifecycle toolchains; no host compiler/binutils fallback for Linux.
-  Host Bash >= 4.4 and LLVM/Clang are development prerequisites. Valgrind is required
-  for the native x86_64 Linux memory gate, not for native macOS or cross execution.
-- Preserve product behavior, warning cleanliness, public ABI and declared support
-  commitments. Follow project maturity policy for non-ABI changes.
-- Released artifacts must be relocatable, complete and free of private/local paths.
-- Release gates stop on failure. Do not fix, retag, push or publish inside a failed
-  release flow. Native hosted checks are explicit opt-in; publication needs authority.
-
-## References: load only what the task needs
-
-| Surface | Reference |
+| Task | Reference |
 | --- | --- |
-| Commands, layout and scripting | [operability.md](references/operability.md) |
-| Tests, feedback and hardening | [local-ci.md](references/local-ci.md) |
-| Producer reuse and selected packages | [package-isolation-and-build-reuse.md](references/package-isolation-and-build-reuse.md) |
-| Toolchains and workstation setup | [toolchains.md](references/toolchains.md) |
-| Dependencies and inventory | [dependencies.md](references/dependencies.md), [dependency-reporting.md](references/dependency-reporting.md) |
-| API/ABI design | [api-design.md](references/api-design.md) |
-| Packaging and release | [packaging.md](references/packaging.md), [release.md](references/release.md) |
-| Bootstrap or migration | [bootstrap.md](references/bootstrap.md), [migration.md](references/migration.md) |
-| Optional surfaces | [lua.md](references/lua.md), [podman-kube-e2e.md](references/podman-kube-e2e.md), [github-actions.md](references/github-actions.md) |
-| cpkt provider contracts only | [cpkt-providers.md](references/cpkt-providers.md) |
-| Native reuse example and skill decision checks | [native-test-reuse.md](references/native-test-reuse.md) |
+| Commands and ownership | [operability](references/operability.md) |
+| Tests and reuse | [local CI](references/local-ci.md) |
+| Tool selection and pinned helpers | [toolchains](references/toolchains.md) |
+| Dependencies | [acquisition](references/dependencies.md), [reporting](references/dependency-reporting.md) |
+| Packaging and release | [packaging](references/packaging.md), [release](references/release.md) |
+| Selected/composable packages | [package ownership](references/package-isolation-and-build-reuse.md) |
+| Bootstrap/migration | [bootstrap](references/bootstrap.md), [migration](references/migration.md) |
+| Declared API/Lua/services | [API](references/api-design.md), [Lua](references/lua.md), [local services](references/podman-kube-e2e.md) |
+| Opted-in hosted checks | [GitHub Actions](references/github-actions.md) |
+| cpkt-family contracts only | [providers](references/cpkt-providers.md) |
