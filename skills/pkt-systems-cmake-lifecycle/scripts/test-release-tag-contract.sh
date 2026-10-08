@@ -6,8 +6,8 @@ release_ref="$skill_dir/references/release.md"
 local_ci_ref="$skill_dir/references/local-ci.md"
 operability_ref="$skill_dir/references/operability.md"
 
-# Wording guards validate policy routing. The fixture below tests the documented
-# ref-creation command in an isolated repository; current-checkout refs stay intact.
+# Wording guards validate policy routing. Isolated fixtures exercise the documented
+# ref and publication commands; current-checkout refs and remote state stay intact.
 
 fail() {
   printf 'test-release-tag-contract: %s\n' "$*" >&2
@@ -34,7 +34,7 @@ require_text "$release_ref" \
 require_text "$release_ref" '## Temporary test-tag ownership' 'canonical ownership section'
 require_text "$release_ref" 'the current `HEAD`' 'active-checkout version discovery'
 require_text "$release_ref" 'this focused tag test does not configure CMake.' 'focused pre-clean scope'
-require_text "$release_ref" 'git update-ref --create-reflog' 'lightweight test tag with explicit reflog'
+require_text "$release_ref" 'git update-ref --no-deref --create-reflog' 'direct lightweight test tag with explicit reflog'
 require_text "$release_ref" 'reject annotated or signed tag objects.' 'lightweight-only version tags'
 require_text "$release_ref" 'skip temporary-tag creation.' 'already-tagged HEAD behavior'
 require_text "$release_ref" 'nonce-bearing intent before exclusive creation' 'interrupted-creation recovery'
@@ -69,6 +69,13 @@ awk '
   code {print}
 ' "$release_ref" > "$work/create.sh"
 [ -s "$work/create.sh" ] || fail 'missing documented ref-creation example'
+awk '
+  $0 == "### Owned temporary-tag cleanup" {wanted=1; next}
+  wanted && $0 == "```bash" {code=1; next}
+  code && $0 == "```" {exit}
+  code {print}
+' "$release_ref" > "$work/cleanup.sh"
+[ -s "$work/cleanup.sh" ] || fail 'missing documented ref-cleanup example'
 git -c init.defaultBranch=fixture init -q "$work/repo"
 cd "$work/repo"
 git config user.name fixture
@@ -94,9 +101,51 @@ if bash "$work/create.sh" > "$work/log" 2>&1; then fail 'create-only command rep
 git commit -qm 'test(lifecycle-skill): simulate changed tag ownership' --allow-empty
 other=$(git rev-parse HEAD)
 git update-ref "$test_tag_ref" "$other" "$test_tag_object"
-if git update-ref -d "$test_tag_ref" "$test_tag_object" > "$work/log" 2>&1; then
+if bash "$work/cleanup.sh" > "$work/log" 2>&1; then
   fail 'cleanup deleted a changed ref'
 fi
 [ "$(git rev-parse "$test_tag_ref")" = "$other" ] || fail 'changed ref was not preserved'
-git update-ref -d "$test_tag_ref" "$other"
-printf 'release tag policy, exclusive creation and reflog ownership fixture passed\n'
+test_tag_object=$other bash "$work/cleanup.sh"
+for target in refs/heads/missing refs/heads/unowned; do
+  if [ "$target" = refs/heads/unowned ]; then git update-ref "$target" "$test_tag_object"; fi
+  git symbolic-ref "$test_tag_ref" "$target"
+  if bash "$work/create.sh" > "$work/log" 2>&1; then fail 'creation accepted a symbolic tag'; fi
+  if bash "$work/cleanup.sh" > "$work/log" 2>&1; then
+    fail 'cleanup accepted a symbolic tag'
+  fi
+  [ "$(git symbolic-ref "$test_tag_ref")" = "$target" ] || fail 'symbolic tag changed'
+  if [ "$target" = refs/heads/missing ]; then
+    if git show-ref --verify "$target" > "$work/log" 2>&1; then fail 'dangling tag created a branch'; fi
+  else
+    [ "$(git rev-parse "$target")" = "$test_tag_object" ] || fail 'symbolic tag mutated its branch'
+  fi
+  git symbolic-ref --delete "$test_tag_ref"
+done
+
+# Execute the documented publication argv against a local CLI fixture only.
+awk '
+  $0 == "## GitHub release destination" {wanted=1; next}
+  wanted && $0 == "```bash" {code=1; next}
+  code && $0 == "```" {exit}
+  code {print}
+' "$release_ref" > "$work/publish.sh"
+[ -s "$work/publish.sh" ] || fail 'missing documented publication example'
+release_repository=github.com/fixture/release
+release_tag=v1.2.3
+release_uploads=("$work/payload with spaces.tar.gz" "$work/CHECKSUMS")
+export GH_REPO=fixture/unrelated
+tag_available=1
+gh() {
+  [ "$#" -eq 8 ] && [ "$1" = release ] && [ "$2" = create ] &&
+    [ "$3" = "$release_tag" ] && [ "$4" = --repo ] &&
+    [ "$5" = "$release_repository" ] && [ "$6" = --verify-tag ] &&
+    [ "$7" = "${release_uploads[0]}" ] && [ "$8" = "${release_uploads[1]}" ] || return 2
+  [ "$tag_available" -eq 1 ] || return 1
+  printf 'published\n' >> "$work/publications"
+}
+source "$work/publish.sh"
+[ "$(wc -l < "$work/publications")" -eq 1 ] || fail 'publication fixture did not receive the verified destination'
+tag_available=0
+if source "$work/publish.sh"; then fail 'publication accepted a missing remote tag'; fi
+[ "$(wc -l < "$work/publications")" -eq 1 ] || fail 'missing-tag failure published'
+printf 'release ownership, symbolic-ref refusal and publication argv fixtures passed\n'

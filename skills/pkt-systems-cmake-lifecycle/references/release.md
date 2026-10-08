@@ -52,6 +52,7 @@ Executable lifecycle tests:
 Branch decision:
 
 - Release from the repository's release branch. Resolve both `<release-remote>` and `<release-branch>` before touching branch state. Prefer the configured remote default branch, whatever it is named, and remember the remote that owns it. If the remote default cannot be determined, fall back to the local branch that exists among `main`, `master`, and `trunk` and use its configured upstream remote when present, otherwise `origin`. Stop and ask if more than one plausible local release branch exists and the remote default is unclear.
+- Bind the [GitHub release destination](#github-release-destination) to that remote before mutation; keep that repository identity fixed through publication and retries.
 - Detect the current branch.
 - If already on the release branch, release from the current `HEAD` after confirming it contains the intended changes and the worktree is clean.
 - Establish the intended release base before candidate review/rehearsal. During preparation, fast-forward the local release base from the selected remote when needed, then record the local base commit, actual remote branch tip, candidate commit and candidate tree. A topic candidate must contain that release base as an ancestor. If it does not, stop for a separate integration/preparation iteration; do not merge new source after candidate proof. Keep these recorded identities fixed through squash, signing and final verification.
@@ -182,7 +183,7 @@ Tagged release artifact generation from the release branch:
 13. Verify the remote tag identifies the same commit as local `HEAD`.
 14. When project policy requires final hosted native source evidence, obtain success for the exact final commit and declared test inventory before publication; follow [github-actions.md](github-actions.md). Reuse an automatic run on the released branch when it supplies that proof. Run the native build and tests together; do not require a draft handoff, draft-read secret, or additional hosted archive lane. A failed/missing required source gate stops publication. Its native build outputs remain diagnostics and must never replace the verified local release artifacts.
 15. Confirm the dependency report describes the exact verified artifact set, target differences and external consumer requirements; keep test/build-only inputs separate. Use existing artifact evidence without rebuilding or changing final artifacts.
-16. Publish the GitHub release locally with `gh release create vX.Y.Z`, using the verified local checksum-listed artifacts plus the checksum manifest itself. If an explicitly requested optional archive-transport operation already created a draft for this tag, verify its complete asset set against the same immutable local upload set and publish that existing draft locally with `gh release edit vX.Y.Z --draft=false`; do not try to create it again. A draft is not required for the normal release. Never publish Actions-built artifacts or delegate release publication to Actions. Do not upload from a `dist/` glob. This step requires release authority independently of hosted-verification opt-in.
+16. Publish the GitHub release locally with `gh release create vX.Y.Z --repo "$release_repository" --verify-tag`, using the verified local checksum-listed artifacts plus the checksum manifest itself. If an explicitly requested optional archive-transport operation already created a draft for this tag, verify its complete asset set against the same immutable local upload set and publish that existing draft locally with `gh release edit vX.Y.Z --repo "$release_repository" --draft=false`; do not try to create it again. A draft is not required for the normal release. Never publish Actions-built artifacts or delegate release publication to Actions. Do not upload from a `dist/` glob. This step requires release authority independently of hosted-verification opt-in.
 17. Verify the actual remote asset set is exactly the checksum-listed payloads plus the verified checksum manifest, with matching sizes/digests through the declared remote-verification mechanism. Missing, extra or mismatched assets prevent a completion claim; follow the retry rules for transient missing-upload failures only. After this proof succeeds, include the released dependency inventory in the completion report alongside the tag/commit and release URL.
 
 For GitHub asset proof, resolve the release ID for the selected repository/tag
@@ -192,6 +193,35 @@ with the recorded local upload set, including the manifest. Missing digest
 evidence is an unverified delivery, not success. These are control-plane
 metadata requests, not permission to reacquire cached dependency archives.
 GitHub documents these fields in its [release asset API](https://docs.github.com/en/rest/releases/assets).
+
+## GitHub release destination
+
+Resolve `release_repository` as `[HOST/]OWNER/REPO` from the approved release
+remote's inspected fetch and push URLs. They must identify one repository;
+conflicting or multiple destinations stop before mutation. Record that identity
+in the release plan. Every `gh release` command, including create/edit/view/upload
+and retries, supplies `--repo "$release_repository"`; never rely on `GH_REPO`, CLI
+defaults or the caller's checkout. API queries use that repository's explicit
+hostname and owner/repository endpoint too; `gh api` does not take `--repo`.
+
+Immediately before create, draft publication or missing-asset upload, freshly
+verify the actual remote branch and lightweight tag against the recorded release
+commit, including after hosted waits. Missing, symbolic or mismatched refs stop
+without mutation. `--verify-tag` prevents implicit tag creation; it does not
+replace the commit-identity check. Apply this same boundary to retries.
+
+After those gates, `release_uploads` contains only the verified checksum-selected
+payloads plus the checksum manifest, with paths passed as separate array entries:
+
+```bash
+gh release create "$release_tag" --repo "$release_repository" --verify-tag \
+  "${release_uploads[@]}"
+```
+
+Existing-release operations retain that explicit repository, for example
+`gh release view "$release_tag" --repo "$release_repository"` and
+`gh release upload "$release_tag" --repo "$release_repository" "${missing_uploads[@]}"`.
+The missing upload array contains only verified missing members, never a glob.
 
 ## Source-root authority
 
@@ -256,7 +286,7 @@ Release retry protocol:
 - If pushing the release branch fails, stop before pushing the tag. Retry only after verifying the failure was external or operational, the actual remote branch is still the pinned baseline or already the exact release commit, the local release branch still points at the tagged commit, and no local content changed.
 - If pushing the tag fails after the release branch was pushed, retry only after verifying the failure was external or operational, the remote release branch points at the same commit as the local release branch, local `vX.Y.Z` points at `HEAD`, and no remote tag with a different object exists.
 - If `gh release create` fails after the release branch and the tag were pushed, do not rebuild artifacts and do not move the tag. Retry only after verifying the failure was external or operational, fresh actual remote branch/tag queries and local `HEAD`/`vX.Y.Z` all identify the same commit, and the complete checksum manifest still verifies the same checksum-listed artifacts.
-- If a GitHub release was partially created, inspect it with `gh release view vX.Y.Z`. For transient missing uploads, select only missing members of the complete verified upload set: checksum-listed payloads plus the checksum manifest itself. Verify payload checksums and the recorded manifest identity before upload, then recheck the entire remote set before reporting success. If it exists with wrong/extra assets, stop and ask before deleting or replacing anything.
+- If a GitHub release was partially created, inspect it with `gh release view vX.Y.Z --repo "$release_repository"`. For transient missing uploads, select only missing members of the complete verified upload set: checksum-listed payloads plus the checksum manifest itself. Verify payload checksums and the recorded manifest identity before upload, then recheck the entire remote set before reporting success. If it exists with wrong/extra assets, stop and ask before deleting or replacing anything.
 - Never force-push the release branch or retarget an already-pushed release tag without explicit engineer approval.
 - If the pushed tag is wrong, stop immediately. Do not publish or repair silently.
 
@@ -272,7 +302,7 @@ CMake version propagation remains part of the normal build/package checks;
 this focused tag test does not configure CMake.
 
 - Create the reserved lightweight tag ref directly at the recorded `HEAD` commit
-  with create-only `git update-ref --create-reflog` and the recorded nonce in its
+  with create-only `git update-ref --no-deref --create-reflog` and the recorded nonce in its
   reflog message. This creates neither an annotated nor a signed tag, regardless
   of signing defaults. Ordinary `git tag` does not guarantee a tag reflog.
   Assert that accepted version tags resolve directly to a `commit`;
@@ -287,6 +317,8 @@ this focused tag test does not configure CMake.
   Automatic recovery and trap cleanup use compare-and-delete against the recorded object,
   preserving changed or unowned refs. A catchable exit cleans the owned tag;
   a later invocation recovers an interrupted test using the same ownership checks.
+  Creation and deletion first reject symbolic tags, including dangling ones,
+  then use `--no-deref` to prevent following another ref.
 - Verify the reserved tag selects its version through the release script and
   Make surfaces, and cleanup restores the original version.
 
@@ -295,12 +327,31 @@ After persisting intent, use the validated reserved `test_tag_ref`, recorded
 ref to be absent; creation and nonce-bearing reflog publication are one Git update:
 
 ```bash
-git update-ref --create-reflog -m "lifecycle-version-contract:$nonce" \
+if git symbolic-ref --quiet "$test_tag_ref" >/dev/null; then
+  printf 'Refusing symbolic temporary tag creation\n' >&2
+  exit 1
+fi
+git update-ref --no-deref --create-reflog -m "lifecycle-version-contract:$nonce" \
   "$test_tag_ref" "$test_tag_object" ""
 ```
 
 The [skill fixture](../scripts/test-release-tag-contract.sh) tests these mechanics
 in isolation; it does not replace the active-checkout version-contract gate.
+
+### Owned temporary-tag cleanup
+
+After authenticating ownership, reject symbolic state before compare-and-delete.
+Keep the project's existing exclusive operation ownership through these checks
+and mutation. `--no-deref` alone protects the referent but may delete the symbolic
+ref itself; both must remain intact when ownership does not match.
+
+```bash
+if git symbolic-ref --quiet "$test_tag_ref" >/dev/null; then
+  printf 'Refusing symbolic temporary tag cleanup\n' >&2
+  exit 1
+fi
+git update-ref --no-deref -d "$test_tag_ref" "$test_tag_object"
+```
 
 Automatic cleanup applies only to the owned temporary test tag. Actual release
 tag removal and branch rewind follow [failed local release recovery](#failed-local-release-recovery).
