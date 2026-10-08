@@ -4,6 +4,9 @@ repo=${1:?repository required}
 work=${2:?scratch required}/dispatch
 rm -rf -- "$work"
 mkdir -p "$work/scripts"
+mkdir -p "$work/implicit"
+printf 'int fixture(void) { return 0; }\n' > "$work/implicit/fixture.c"
+printf 'all: fixture.o\n' > "$work/implicit/Makefile"
 cp -- "$repo/Makefile" "$work/Makefile"
 cp -- "$repo/scripts/lifecycle.sh" "$work/scripts/"
 cat > "$work/scripts/lifecycle-common.sh" <<'EOF'
@@ -20,6 +23,8 @@ EOF
 cat > "$work/scripts/build.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$(dirname "$0")/../calls"
+# Upstream dependencies may use Make's native implicit C compilation rules.
+make --no-print-directory -C "$(dirname "$0")/../implicit" fixture.o >/dev/null
 EOF
 unset GROUP PRESET SCOPE MAKEFLAGS MFLAGS MAKELEVEL
 expect() {

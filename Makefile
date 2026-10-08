@@ -3,7 +3,6 @@ SHELL := bash
 .DEFAULT_GOAL := help
 export PYTHONDONTWRITEBYTECODE := 1
 .NOTPARALLEL:
-MAKEFLAGS += --no-builtin-rules
 GROUP ?= all
 PRESET ?= $(if $(filter Darwin,$(shell uname -s)),arm64-apple-darwin-debug,debug)
 SCOPE ?=
