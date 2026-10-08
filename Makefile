@@ -5,7 +5,7 @@ export PYTHONDONTWRITEBYTECODE := 1
 .NOTPARALLEL:
 MAKEFLAGS += --no-builtin-rules
 GROUP ?= all
-PRESET ?= debug
+PRESET ?= $(if $(filter Darwin,$(shell uname -s)),arm64-apple-darwin-debug,debug)
 SCOPE ?=
 DEPENDENCY ?=
 PRESET_EXPLICIT := $(if $(filter command line environment environment override,$(origin PRESET)),yes,no)
@@ -21,14 +21,14 @@ help:
 	@printf '  %-30s %s\n' 'deps-debug' 'Configure the host debug dependency/build graph.'
 	@printf '  %-30s %s\n' 'deps-release' 'Configure all shipped Linux release dependency/build graphs.'
 	@printf '  %-30s %s\n' 'deps-cross' 'Configure cross release dependency/build graphs.'
-	@printf '  %-30s %s\n' 'build' 'Build this repository for six Linux Release targets; GROUP/PRESET selects one.'
+	@printf '  %-30s %s\n' 'build' 'Build native Debug (or the explicitly selected PRESET).'
 	@printf '  %-30s %s\n' 'build-debug' 'Build the host debug preset.'
 	@printf '  %-30s %s\n' 'build-release' 'Build this repository for six Linux Release targets (or explicit PRESET).'
 	@printf '  %-30s %s\n' 'build-host' 'Alias for build-debug.'
 	@printf '  %-30s %s\n' 'cross-build' 'Alias for build-release.'
 	@printf '  %-30s %s\n' 'debug' 'Build and test the host debug preset.'
 	@printf '\nTests:\n'
-	@printf '  %-30s %s\n' 'test' 'Build and test six Linux Release targets; GROUP/PRESET selects one.'
+	@printf '  %-30s %s\n' 'test' 'Build and test native Debug (or the explicitly selected PRESET).'
 	@printf '  %-30s %s\n' 'test-debug' 'Run the host debug tests.'
 	@printf '  %-30s %s\n' 'test-host' 'Alias for test-debug.'
 	@printf '  %-30s %s\n' 'test-cross' 'Run release preset tests for cross-capable targets.'

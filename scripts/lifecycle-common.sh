@@ -10,6 +10,10 @@ cpkt_root=$(CDPATH= cd -- "$cpkt_scripts/.." && pwd)
 cpkt_cmake=${CMAKE:-cmake}
 cpkt_ctest=${CTEST:-ctest}
 
+cpkt_default_preset() {
+  if [ "$(uname -s)" = Darwin ]; then printf 'arm64-apple-darwin-debug\n'; else printf 'debug\n'; fi
+}
+
 cpkt_fail() {
   printf 'cpkt: %s\n' "$*" >&2
   exit 2

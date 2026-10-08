@@ -6,7 +6,7 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/lifecycle-common.sh"
 action=$1
 shift
 group=${GROUP:-all}
-preset=${PRESET:-debug}
+preset=${PRESET:-$(cpkt_default_preset)}
 preset_explicit=no
 scope=${SCOPE:-}
 scope_explicit=no
@@ -70,7 +70,9 @@ run_build() { bash "$cpkt_scripts/build.sh" "$@" --group "$group" --preset "$pre
 run_action() { bash "$cpkt_scripts/lifecycle.sh" "$1" --group "$group" --preset "$preset" --preset-explicit no; }
 
 case "$action" in
-  build|build-release|test|test-cross|cross-build|cross-test)
+  build) run_build build ;;
+  test) run_build test ;;
+  build-release|test-cross|cross-build|cross-test)
     mode=build
     case "$action" in test|test-cross|cross-test) mode=test ;; esac
     if [ "$group" != all ] || [ "$preset_explicit" = yes ]; then
