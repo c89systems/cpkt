@@ -9,7 +9,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 fail() { printf 'toolchain fixture: %s\n' "$*" >&2; exit 1; }
 
-# Synthetic local inputs test discovery only; no real cache, network or compiler.
+# Synthetic local inputs; no real cache, network or compiler.
 collection="$work/cache/roots/x86-64--glibc--stable-2026.08-1"
 sysroot="$collection/x86_64-buildroot-linux-gnu/sysroot"
 mkdir -p "$collection/bin" "$collection/runtime" "$sysroot/usr/include" "$sysroot/usr/lib"
@@ -49,4 +49,22 @@ if CPKT_TOOLCHAIN_CACHE="$work/status=ready" "$resolver" env x86_64-linux-gnu > 
   fail 'cache pathname supplied readiness'
 fi
 [[ ! -s "$work/out" && ! -e "$work/status=ready" ]] || fail 'missing lookup generated state'
+
+# A missing cache selection must fail before reporting paths or doing any work.
+for mode in discover env ensure; do
+  if env -u HOME -u XDG_CACHE_HOME -u CPKT_TOOLCHAIN_CACHE "$resolver" "$mode" x86_64-linux-gnu > "$work/out" 2> "$work/err"; then
+    fail 'missing cache selection accepted'
+  fi
+  [[ ! -s "$work/out" ]] || fail 'missing cache selection reported paths'
+  grep -q 'HOME, XDG_CACHE_HOME, or CPKT_TOOLCHAIN_CACHE is required' "$work/err" || fail 'wrong cache diagnostic'
+done
+
+# Hash file content: filename escaping must neither invalidate nor delete a hit.
+source "$skill_dir/scripts/cpkt-archive-cache.sh"
+archive="$work/archive\\name"
+printf 'local archive fixture\n' > "$archive"
+digest=$(printf 'local archive fixture\n' | sha256sum | awk '{print $1}')
+[[ $(cpkt_cached_archive_sha256 "$archive") == "$digest" ]] || fail 'escaped filename changed digest'
+cpkt_restore_cached_archive "$archive" "$digest"
+[[ -f "$archive" ]] || fail 'valid escaped-path hit deleted'
 printf 'toolchain discovery contract passed\n'

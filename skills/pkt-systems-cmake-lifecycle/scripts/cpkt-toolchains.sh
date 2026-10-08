@@ -14,11 +14,7 @@ cache_root() {
   else die 'HOME, XDG_CACHE_HOME, or CPKT_TOOLCHAIN_CACHE is required'; fi
 }
 
-sha256_file() {
-  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | awk '{print $1}'
-  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | awk '{print $1}'
-  else die 'sha256sum or shasum is required'; fi
-}
+sha256_file() { cpkt_cached_archive_sha256 "$1"; }
 
 download_file() {
   local url=$1 destination=$2
@@ -87,7 +83,7 @@ bootlin_values() {
   local meta arch name sha256 prefix sysroot_rel
   meta=$(bootlin_meta "$1")
   IFS='|' read -r arch name sha256 prefix sysroot_rel <<<"$meta"
-  printf '%s|%s|%s|%s|%s|%s\n' "$arch" "$name" "$sha256" "$prefix" "$sysroot_rel" "$(cache_root)/roots/$name"
+  printf '%s|%s|%s|%s|%s|%s\n' "$arch" "$name" "$sha256" "$prefix" "$sysroot_rel" "${resolved_cache}/roots/$name"
 }
 
 compiler_file() { "$1" -print-file-name="$2"; }
@@ -163,7 +159,7 @@ host_mig_meta() {
 host_mig_values() {
   local revision sha256 root
   IFS='|' read -r revision sha256 <<<"$(host_mig_meta)"
-  root="$(cache_root)/roots/host-mig-puredarwin-${revision}-x86_64-linux-gnu"
+  root="${resolved_cache}/roots/host-mig-puredarwin-${revision}-x86_64-linux-gnu"
   printf '%s|%s|%s|%s\n' "$revision" "$sha256" "PureDarwin-${revision}.tar.gz" "$root"
 }
 
@@ -181,7 +177,7 @@ install_host_mig() {
   # MIG executes on this x86_64 Linux builder; it must not be compiled by
   # osxcross, which would produce an unusable Darwin executable.
   install_bootlin x86_64-linux-gnu
-  with_cache_lock "$(cache_root)/locks/host-mig-${revision}-x86_64-linux-gnu.lock" \
+  with_cache_lock "${resolved_cache}/locks/host-mig-${revision}-x86_64-linux-gnu.lock" \
     install_host_mig_locked "$revision" "$sha256" "$archive_name" "$root"
 }
 
@@ -196,8 +192,8 @@ install_host_mig_locked() {
   bootlin_cc="$bootlin_root/bin/$bootlin_prefix-gcc"
   [[ -x "$bootlin_cc" ]] || die "pinned Bootlin host compiler is missing: $bootlin_cc"
 
-  archive_dir="$(cache_root)/archives"; archive="$archive_dir/$archive_name"
-  mkdir -p "$archive_dir" "$(cache_root)/roots"
+  archive_dir="${resolved_cache}/archives"; archive="$archive_dir/$archive_name"
+  mkdir -p "$archive_dir" "${resolved_cache}/roots"
   cpkt_restore_cached_archive "$archive" "$sha256"
   if [[ ! -f "$archive" ]]; then
     tmp="$archive.tmp.$$"; install_cleanup_trap "$tmp" -f
@@ -206,7 +202,7 @@ install_host_mig_locked() {
     mv "$tmp" "$archive"; trap - EXIT HUP INT TERM
   fi
 
-  extract="$(cache_root)/roots/.extract-host-mig-${revision}.$$"
+  extract=$(mktemp -d "${resolved_cache}/roots/.extract-host-mig-${revision}.XXXXXXXX")
   install_cleanup_trap "$extract" -rf
   mkdir -p "$extract"; tar -C "$extract" -xf "$archive"
   source_root="$extract/PureDarwin-$revision"
@@ -243,7 +239,7 @@ install_bootlin() {
   values=$(bootlin_values "$target")
   IFS='|' read -r arch name sha256 prefix sysroot_rel root <<<"$values"
   if bootlin_ready "$root" "$prefix" "$root/$sysroot_rel"; then return; fi
-  with_cache_lock "$(cache_root)/locks/bootlin-$name.lock" install_bootlin_locked "$target"
+  with_cache_lock "${resolved_cache}/locks/bootlin-$name.lock" install_bootlin_locked "$target"
 }
 
 install_bootlin_locked() {
@@ -251,8 +247,8 @@ install_bootlin_locked() {
   values=$(bootlin_values "$target")
   IFS='|' read -r arch name sha256 prefix sysroot_rel root <<<"$values"
   if bootlin_ready "$root" "$prefix" "$root/$sysroot_rel"; then return; fi
-  archive_dir="$(cache_root)/archives"; archive="$archive_dir/$name.tar.xz"
-  mkdir -p "$archive_dir" "$(cache_root)/roots"
+  archive_dir="${resolved_cache}/archives"; archive="$archive_dir/$name.tar.xz"
+  mkdir -p "$archive_dir" "${resolved_cache}/roots"
   cpkt_restore_cached_archive "$archive" "$sha256"
   if [[ ! -f "$archive" ]]; then
     tmp="$archive.tmp.$$"; install_cleanup_trap "$tmp" -f
@@ -261,7 +257,7 @@ install_bootlin_locked() {
     [[ "$actual" == "$sha256" ]] || die "checksum mismatch for $name.tar.xz: expected $sha256, got $actual"
     mv "$tmp" "$archive"; trap - EXIT HUP INT TERM
   fi
-  extract="$(cache_root)/roots/.extract-$name.$$"; install_cleanup_trap "$extract" -rf
+  extract=$(mktemp -d "${resolved_cache}/roots/.extract-$name.XXXXXXXX"); install_cleanup_trap "$extract" -rf
   mkdir -p "$extract"; tar -C "$extract" -xf "$archive"
   [[ -d "$extract/$name/bin" ]] || die "unexpected archive layout for $name.tar.xz"
   rm -rf "$root"; mv "$extract/$name" "$root"; rm -rf "$extract"; trap - EXIT HUP INT TERM
@@ -271,7 +267,7 @@ install_bootlin_locked() {
 print_bootlin_target() {
   local target=$1 values arch name sha256 prefix sysroot_rel root cc cxx physical_root libstdcxx_a libgcc_a
   values=$(bootlin_values "$target"); IFS='|' read -r arch name sha256 prefix sysroot_rel root <<<"$values"
-  printf 'target=%s\ncache=%s\nsource=bootlin\narchive=%s.tar.xz\n' "$target" "$(cache_root)" "$name"
+  printf 'target=%s\ncache=%s\nsource=bootlin\narchive=%s.tar.xz\n' "$target" "${resolved_cache}" "$name"
   if ! bootlin_ready "$root" "$prefix" "$root/$sysroot_rel"; then
     printf 'status=missing\ndownloadable=yes\nurl=https://toolchains.bootlin.com/downloads/releases/toolchains/%s/tarballs/%s.tar.xz\n' "$arch" "$name"; return
   fi
@@ -287,7 +283,7 @@ print_bootlin_target() {
 
 print_darwin_target() {
   local candidate source root prefix values revision sha256 archive_name mig_root
-  printf 'target=arm64-apple-darwin\ncache=%s\nsource=osxcross+bootlin-host-mig\ndownloadable=partially\n' "$(cache_root)"
+  printf 'target=arm64-apple-darwin\ncache=%s\nsource=osxcross+bootlin-host-mig\ndownloadable=partially\n' "${resolved_cache}"
   if ! candidate=$(osxcross_candidate); then printf 'status=missing\nnote=Configure OSXCROSS_ROOT with a complete local osxcross SDK toolchain, then run: %s ensure arm64-apple-darwin\n' "$0"; return; fi
   IFS='|' read -r source root prefix <<<"$candidate"
   values=$(host_mig_values)
@@ -335,6 +331,11 @@ Darwin policy: discover a local osxcross collection; do not download Apple SDKs.
 using the x86_64 Bootlin collection; it is build machinery only, never shipped.
 USAGE
 }
+
+# Resolve once and check before any report, path construction or mutation.
+case "${1:-}" in
+  discover|ensure|env) resolved_cache=$(cache_root) || exit 1 ;;
+esac
 
 case "${1:-}" in
   -h|--help|'') usage ;;

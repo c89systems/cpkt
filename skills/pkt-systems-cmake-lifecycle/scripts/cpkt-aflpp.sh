@@ -54,7 +54,7 @@ ready() {
       libexec/bootlin-runtime/{cc1,cc1plus}; do
     [[ -x "$r/$path" ]] && cpkt_afl_owned_file "$r" "$r/$path" || return 1
   done
-  for path in lib/afl/{afl-gcc-pass.so,afl-compiler-rt.o} ".cpkt-aflpp-revision-$revision-$id"; do
+  for path in lib/afl/{afl-gcc-pass.so,afl-compiler-rt.o,dynamic_list.txt} ".cpkt-aflpp-revision-$revision-$id"; do
     cpkt_afl_owned_file "$r" "$r/$path" || return 1
   done
 }
@@ -116,7 +116,8 @@ ensure_locked() {
     mv "$dl" "$archive"
     trap - EXIT HUP INT TERM
   fi
-  tmp="$c/.aflplusplus.$$"; install_cleanup_trap -rf "$tmp"
+  tmp=$(mktemp -d "$c/.aflplusplus.XXXXXXXX")
+  install_cleanup_trap -rf "$tmp"
   mkdir -p "$tmp/extract" "$tmp/root/bin" "$tmp/root/lib/afl"
   tar -xzf "$archive" -C "$tmp/extract"; src="$tmp/extract/AFLplusplus-$version"
   [[ -d "$src" ]] || die "unexpected archive layout: $archive_name"

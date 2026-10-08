@@ -8,10 +8,8 @@ set(scratch "${SKILL_WORKSPACE_ROOT}/build/skill-fixtures")
 if(IS_SYMLINK "${SKILL_WORKSPACE_ROOT}/build" OR IS_SYMLINK "${scratch}")
   message(FATAL_ERROR "Fixture output must stay in the owned build directory")
 endif()
-file(READ "${SKILL_WORKSPACE_ROOT}/.gitignore" ignore)
-if(NOT ignore MATCHES "(^|[\r\n])/build/([\r\n]|$)")
-  message(FATAL_ERROR "Fixture output requires ignored /build/")
-endif()
+# The caller supplies an owned workspace with build/ ignored, as SKILL.md requires.
+# Ignore-rule spelling and Git policy are outside this test graph.
 file(MAKE_DIRECTORY "${scratch}")
 find_program(HOST_BASH bash REQUIRED)
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")

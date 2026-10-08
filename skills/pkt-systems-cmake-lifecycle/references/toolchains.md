@@ -3,8 +3,10 @@
 ## Contract
 
 Use pinned complete Bootlin collections for Linux compilers, binutils, sysroot and
-GNU C++ runtime. No host GCC/Clang/libc fallback. Select only the project's required
-targets; the supported resolver table is not a mandatory shipment matrix.
+GNU C++ runtime on a compatible Linux provisioning host. Native macOS uses the
+Apple tools below; it does not execute these Linux collections. No host GCC/Clang/libc
+fallback. Select only the project's required targets; the supported resolver table
+is not a mandatory shipment matrix.
 
 Native macOS uses selected Xcode/Apple tools via xcrun. Linux-host Darwin cross
 builds use developer-prepared pinned osxcross and the pinned Linux-host MIG helper.
@@ -163,7 +165,8 @@ paths out of the SDK.
 
 ## Verification
 
-Configure the skill's small CTest graph in owned build scratch and select resolver
+Configure the skill's small CTest graph in owned, ignored build scratch (the caller's
+precondition, not a Git-policy check in this graph) and select resolver
 tests after helper changes. Fixtures use synthetic local inputs and make no real
 downloads/builds. They verify supported behavior; they do not simulate a hostile
 workstation or add policy word-matching tests.
