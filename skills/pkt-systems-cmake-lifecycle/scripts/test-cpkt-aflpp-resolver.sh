@@ -20,7 +20,7 @@ grep -Fq -- '-x "$r/bin/afl-showmap"' "$resolver" || fail 'resolver readiness do
 grep -Fq '"-DAFL_PATH=\"$helper\""' "$resolver" || fail 'resolver does not preserve AFL++ cache paths as one compiler argument'
 grep -Fq 'export PATH=%q' "$resolver" || fail 'resolver env output does not prepend the pinned AFL++ bin directory'
 
-fake_bin=$(mktemp -d "${TMPDIR:-/tmp}/cpkt-aflpp-test.XXXXXX")
+fake_bin=$(mktemp -d "${TMPDIR:?CTest must set repository-local fixture scratch}/cpkt-aflpp-test.XXXXXX")
 trap 'rm -rf "$fake_bin"' EXIT HUP INT TERM
 printf '#!/bin/sh\nprintf "aarch64\\n"\n' > "$fake_bin/uname"
 chmod +x "$fake_bin/uname"
@@ -36,7 +36,7 @@ if "$resolver" ensure extra >/dev/null 2>&1; then
   fail 'resolver accepted an invalid command shape'
 fi
 
-signal_root=$(mktemp -d "${TMPDIR:-/tmp}/cpkt-aflpp-signal-test.XXXXXX")
+signal_root=$(mktemp -d "$TMPDIR/cpkt-aflpp-signal-test.XXXXXX")
 trap 'rm -rf "$fake_bin" "$signal_root"' EXIT HUP INT TERM
 signal_skill="$signal_root/skill"
 signal_bin="$signal_root/bin"

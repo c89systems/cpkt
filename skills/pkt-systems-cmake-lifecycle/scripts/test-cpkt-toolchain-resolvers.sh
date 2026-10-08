@@ -3,8 +3,11 @@ set -euo pipefail
 
 skill_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 bootlin_resolver="$skill_dir/scripts/cpkt-toolchains.sh"
-cache=$(mktemp -d "${TMPDIR:-/tmp}/cpkt-toolchain-test.XXXXXX")
-trap 'rm -rf "$cache"' EXIT HUP INT TERM
+cache=$(mktemp -d "${TMPDIR:?CTest must set repository-local fixture scratch}/cpkt-toolchain-test.XXXXXX")
+trap 'rm -rf -- "$cache" "$cache.alias"' EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 fail() {
   printf 'test-cpkt-toolchain-resolvers: %s\n' "$*" >&2
@@ -36,7 +39,7 @@ make_bootlin_collection() {
   for tool in gcc ld ar ranlib strip nm objcopy objdump addr2line gdb readelf; do
     make_executable "$root/bin/$prefix-$tool" '#!/bin/sh\nexit 0'
   done
-  make_executable "$root/bin/$prefix-g++" "#!/bin/sh\ncase \"\$1\" in\n  -print-file-name=libstdc++.a) printf '%s\\n' '$root/runtime/libstdc++.a' ;;\n  -print-file-name=libgcc.a) printf '%s\\n' '$root/runtime/libgcc.a' ;;\n  *) exit 1 ;;\nesac"
+  make_executable "$root/bin/$prefix-g++" "#!/bin/sh\nruntime_root=\${CPKT_TEST_RUNTIME_ROOT:-'$root/runtime'}\ncase \"\$1\" in\n  -print-file-name=libstdc++.a) printf '%s/libstdc++.a\\n' \"\$runtime_root\" ;;\n  -print-file-name=libgcc.a) printf '%s/libgcc.a\\n' \"\$runtime_root\" ;;\n  *) exit 1 ;;\nesac"
 }
 
 make_bootlin_collection \
@@ -54,5 +57,65 @@ bootlin_env=$(CPKT_TOOLCHAIN_CACHE="$cache" "$bootlin_resolver" env x86_64-linux
 printf '%s\n' "$bootlin_env" | grep -Fq "export CC=$cache/roots/x86-64--glibc--stable-2026.08-1/bin/x86_64-linux-gcc" || fail 'Bootlin env did not export the pinned compiler'
 printf '%s\n' "$bootlin_env" | grep -Fq "export LD=$cache/roots/x86-64--glibc--stable-2026.08-1/bin/x86_64-linux-ld" || fail 'Bootlin env did not export the pinned linker'
 printf '%s\n' "$bootlin_env" | grep -Fq "export NM=$cache/roots/x86-64--glibc--stable-2026.08-1/bin/x86_64-linux-nm" || fail 'Bootlin env did not export the pinned nm'
+
+expect_unready() {
+  local description
+  description=$(CPKT_TOOLCHAIN_CACHE="$cache" "$bootlin_resolver" discover x86_64-linux-gnu)
+  require_line 'status=missing' "$description"
+  if CPKT_TOOLCHAIN_CACHE="$cache" "$bootlin_resolver" env x86_64-linux-gnu > "$cache/env.out" 2> "$cache/env.err"; then
+    fail 'environment accepted an invalid collection'
+  fi
+  [[ ! -s "$cache/env.out" ]] || fail 'invalid collection exported tools'
+  grep -Fq 'ensure x86_64-linux-gnu' "$cache/env.err" || fail 'missing preparation diagnostic'
+}
+root="$cache/roots/x86-64--glibc--stable-2026.08-1"
+sysroot="$root/x86_64-buildroot-linux-gnu/sysroot"
+foreign="$root.foreign"
+mkdir -p "$foreign"
+touch "$foreign/libstdc++.a" "$foreign/libgcc.a" "$foreign/stdio.h" "$foreign/libc.so"
+export CPKT_TEST_FOREIGN_CALLS="$cache/foreign-calls"
+printf '#!/bin/sh\nprintf "executed\\n" >> "$CPKT_TEST_FOREIGN_CALLS"\n' > "$foreign/tool"
+tail -n +2 "$root/bin/x86_64-linux-g++" >> "$foreign/tool"
+chmod +x "$foreign/tool"
+CPKT_TEST_RUNTIME_ROOT="$foreign" expect_unready
+for tool in gcc g++ ld ar ranlib strip nm objcopy objdump addr2line gdb readelf; do
+  path="$root/bin/x86_64-linux-$tool"
+  mv "$path" "$path.saved"
+  ln -s "$foreign/tool" "$path"
+  expect_unready
+  [[ ! -e "$CPKT_TEST_FOREIGN_CALLS" ]] || fail 'discovery executed a foreign compiler'
+  rm "$path"
+  mv "$path.saved" "$path"
+done
+for name in libstdc++.a libgcc.a; do
+  path="$root/runtime/$name"
+  mv "$path" "$path.real"
+  ln -s "$foreign/$name" "$path"
+  expect_unready
+  rm "$path"
+  ln -s "$name.real" "$path"
+  description=$(CPKT_TOOLCHAIN_CACHE="$cache" "$bootlin_resolver" discover x86_64-linux-gnu)
+  require_line 'status=ready' "$description"
+  case "$name" in libstdc++.a) key=libstdcxx_a;; libgcc.a) key=libgcc_a;; esac
+  require_line "$key=$path.real" "$description"
+  rm "$path"
+  mv "$path.real" "$path"
+done
+for path in "$sysroot/usr/include/stdio.h" "$sysroot/usr/lib/libc.so"; do
+  mv "$path" "$path.saved"
+  ln -s "$foreign/${path##*/}" "$path"
+  expect_unready
+  rm "$path"
+  mv "$path.saved" "$path"
+done
+mv "$root/bin/x86_64-linux-gcc" "$root/bin/gcc.real"
+ln -s gcc.real "$root/bin/x86_64-linux-gcc"
+description=$(CPKT_TOOLCHAIN_CACHE="$cache" "$bootlin_resolver" discover x86_64-linux-gnu)
+require_line 'status=ready' "$description"
+ln -s "$cache" "$cache.alias"
+description=$(CPKT_TOOLCHAIN_CACHE="$cache.alias" "$bootlin_resolver" discover x86_64-linux-gnu)
+require_line 'status=ready' "$description"
+require_line "libstdcxx_a=$root/runtime/libstdc++.a" "$description"
+rm "$cache.alias"
 
 printf 'toolchain resolver tests passed\n'

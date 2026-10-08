@@ -521,20 +521,27 @@ For Darwin, do not apply the GNU runtime archive contract. osxcross/Apple Clang 
 
 Run these checks after changing either resolver or the toolchain policy:
 
-Set `project_root` to the validated current checkout root. Keep the supplied
-test helpers' temporary fixtures under its ignored `build/`, including when
-the helpers themselves come from the installed skill:
+Set `project_root` to the validated current checkout and `skill_tests_dir` to the
+activated skill's `tests/` directory. The CTest graph supplies repository-local
+scratch under ignored `build/`; fixtures must not default to `/tmp`.
+The resolver fixtures apply on Linux; AFL++ requires native x86_64 Linux.
+Vendored helper changes need equivalent CTest registration against that copy.
 
 ```sh
 bash -n "$lifecycle_scripts_dir/cpkt-toolchains.sh"
-test_work_root="$project_root/build/toolchain-checks"
-mkdir -p "$test_work_root"
-TMPDIR="$test_work_root" "$lifecycle_scripts_dir/test-cpkt-toolchain-resolvers.sh"
-TMPDIR="$test_work_root" "$lifecycle_scripts_dir/test-cpkt-aflpp-resolver.sh"
+cmake -S "$skill_tests_dir" -B "$project_root/build/skill-validation" \
+  -DSKILL_WORKSPACE_ROOT="$project_root"
+ctest --test-dir "$project_root/build/skill-validation" -L resolver \
+  --stop-on-failure --output-on-failure --no-tests=error
 "$lifecycle_scripts_dir/cpkt-toolchains.sh" discover
 ```
 
 For a changed pin, also run `ensure` and a configure/build using that target. For AFL++ changes, run `cpkt-aflpp.sh ensure`, compile a small target through the wrapper, and prove `afl-showmap` observes distinct execution paths.
+
+Readiness checks resolve tool and runtime symlinks and require files to remain
+inside the selected physical collection; headers/libc remain inside its sysroot.
+Test escaping paths and in-collection aliases through discovery and environment
+output. Invalid collections cannot report readiness or export compiler settings.
 
 ## Local execution with the selected libc
 

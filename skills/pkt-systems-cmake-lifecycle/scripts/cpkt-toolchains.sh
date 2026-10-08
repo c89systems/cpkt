@@ -92,26 +92,38 @@ bootlin_values() {
 
 compiler_file() { "$1" -print-file-name="$2"; }
 
+# The boundary is a physical directory; resolve the final file symlink too.
+collection_file() {
+  local root=$1 path
+  path=$(readlink -f -- "$2") || return 1
+  [[ -f "$path" && "$path" == "$root/"* ]] || return 1
+  printf '%s\n' "$path"
+}
+
 existing_compiler_file() {
-  local path dir
-  path=$(compiler_file "$1" "$2")
-  [[ "$path" != "$2" && -f "$path" ]] || return 1
-  dir=$(CDPATH= cd -- "$(dirname -- "$path")" && pwd -P)
-  printf '%s/%s\n' "$dir" "$(basename -- "$path")"
+  local path
+  path=$(compiler_file "$1" "$2") || return 1
+  [[ "$path" != "$2" ]] || return 1
+  collection_file "$3" "$path"
 }
 
 bootlin_ready() {
-  local root=$1 prefix=$2 sysroot=$3
-  [[ -x "$root/bin/$prefix-gcc" ]] && [[ -x "$root/bin/$prefix-g++" ]] &&
-    [[ -x "$root/bin/$prefix-ld" ]] && [[ -x "$root/bin/$prefix-ar" ]] &&
-    [[ -x "$root/bin/$prefix-ranlib" ]] && [[ -x "$root/bin/$prefix-strip" ]] &&
-    [[ -x "$root/bin/$prefix-nm" ]] && [[ -x "$root/bin/$prefix-objcopy" ]] &&
-    [[ -x "$root/bin/$prefix-objdump" ]] && [[ -x "$root/bin/$prefix-addr2line" ]] &&
-    [[ -x "$root/bin/$prefix-gdb" ]] && [[ -x "$root/bin/$prefix-readelf" ]] &&
-    { [[ -f "$sysroot/usr/include/stdio.h" ]] || [[ -f "$sysroot/include/stdio.h" ]]; } &&
-    { [[ -e "$sysroot/usr/lib/libc.so" ]] || [[ -e "$sysroot/lib/libc.so" ]] || [[ -e "$sysroot/lib/libc.so.6" ]]; } &&
-    existing_compiler_file "$root/bin/$prefix-g++" libstdc++.a >/dev/null &&
-    existing_compiler_file "$root/bin/$prefix-g++" libgcc.a >/dev/null
+  local root=$1 prefix=$2 sysroot=$3 tool
+  [[ -d "$root" && -d "$sysroot" ]] || return 1
+  root=$(CDPATH= cd -- "$root" && pwd -P) || return 1
+  sysroot=$(CDPATH= cd -- "$sysroot" && pwd -P) || return 1
+  [[ "$sysroot" == "$root/"* ]] || return 1
+  for tool in gcc g++ ld ar ranlib strip nm objcopy objdump addr2line gdb readelf; do
+    [[ -x "$root/bin/$prefix-$tool" ]] &&
+      collection_file "$root" "$root/bin/$prefix-$tool" >/dev/null || return 1
+  done
+  { collection_file "$sysroot" "$sysroot/usr/include/stdio.h" >/dev/null ||
+    collection_file "$sysroot" "$sysroot/include/stdio.h" >/dev/null; } &&
+  { collection_file "$sysroot" "$sysroot/usr/lib/libc.so" >/dev/null ||
+    collection_file "$sysroot" "$sysroot/lib/libc.so" >/dev/null ||
+    collection_file "$sysroot" "$sysroot/lib/libc.so.6" >/dev/null; } &&
+    existing_compiler_file "$root/bin/$prefix-g++" libstdc++.a "$root" >/dev/null &&
+    existing_compiler_file "$root/bin/$prefix-g++" libgcc.a "$root" >/dev/null
 }
 
 osxcross_candidate() {
@@ -257,17 +269,20 @@ install_bootlin_locked() {
 }
 
 print_bootlin_target() {
-  local target=$1 values arch name sha256 prefix sysroot_rel root cc cxx
+  local target=$1 values arch name sha256 prefix sysroot_rel root cc cxx physical_root libstdcxx_a libgcc_a
   values=$(bootlin_values "$target"); IFS='|' read -r arch name sha256 prefix sysroot_rel root <<<"$values"
   printf 'target=%s\ncache=%s\nsource=bootlin\narchive=%s.tar.xz\n' "$target" "$(cache_root)" "$name"
   if ! bootlin_ready "$root" "$prefix" "$root/$sysroot_rel"; then
     printf 'status=missing\ndownloadable=yes\nurl=https://toolchains.bootlin.com/downloads/releases/toolchains/%s/tarballs/%s.tar.xz\n' "$arch" "$name"; return
   fi
   cc="$root/bin/$prefix-gcc"; cxx="$root/bin/$prefix-g++"
+  physical_root=$(CDPATH= cd -- "$root" && pwd -P)
+  libstdcxx_a=$(existing_compiler_file "$cxx" libstdc++.a "$physical_root") || die "invalid Bootlin C++ runtime; run: $0 ensure $target"
+  libgcc_a=$(existing_compiler_file "$cxx" libgcc.a "$physical_root") || die "invalid Bootlin GCC runtime; run: $0 ensure $target"
   printf 'status=ready\nroot=%s\nprefix=%s\nsysroot=%s\nlibc=%s\n' "$root" "$prefix" "$root/$sysroot_rel" "${target##*-}"
   printf 'cc=%s\ncxx=%s\nld=%s\nar=%s\nranlib=%s\nstrip=%s\nnm=%s\nobjcopy=%s\nobjdump=%s\naddr2line=%s\ngdb=%s\nreadelf=%s\n' \
     "$cc" "$cxx" "$root/bin/$prefix-ld" "$root/bin/$prefix-ar" "$root/bin/$prefix-ranlib" "$root/bin/$prefix-strip" "$root/bin/$prefix-nm" "$root/bin/$prefix-objcopy" "$root/bin/$prefix-objdump" "$root/bin/$prefix-addr2line" "$root/bin/$prefix-gdb" "$root/bin/$prefix-readelf"
-  printf 'target_triple=%s\nlibstdcxx_a=%s\nlibgcc_a=%s\n' "${sysroot_rel%/sysroot}" "$(existing_compiler_file "$cxx" libstdc++.a)" "$(existing_compiler_file "$cxx" libgcc.a)"
+  printf 'target_triple=%s\nlibstdcxx_a=%s\nlibgcc_a=%s\n' "${sysroot_rel%/sysroot}" "$libstdcxx_a" "$libgcc_a"
 }
 
 print_darwin_target() {
