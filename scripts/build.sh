@@ -104,7 +104,8 @@ fi
 
 prepare_dependencies() {
   local producer="$cpkt_root/build/$cpkt_target/$cpkt_owner/producer" requested=cpkt_deps_all
-  if [ "$cpkt_owner" = core ] && [[ "$cpkt_target" == *-linux-* ]]; then
+  if [ "$cpkt_owner" = core ] && { [[ "$cpkt_target" == *-linux-* ]] ||
+      { [ "$cpkt_target" = arm64-apple-darwin ] && [ "$(uname -s)" != Darwin ]; }; }; then
     report=$(bash "$cpkt_scripts/cpkt-toolchains.sh" discover "$cpkt_target")
     if [[ $'\n'"$report"$'\n' != *$'\nstatus=ready\n'* ]]; then
       bash "$cpkt_scripts/cpkt-toolchains.sh" ensure "$cpkt_target"
