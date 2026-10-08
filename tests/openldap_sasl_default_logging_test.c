@@ -46,7 +46,6 @@ static int no_interaction(LDAP *ldap, unsigned flags, void *defaults,
 }
 
 int main(int argc, char **argv) {
-  char cwd[256];
   char path[sizeof(((struct sockaddr_un *)0)->sun_path)];
   char url[512];
   struct sockaddr_un address;
@@ -58,16 +57,14 @@ int main(int argc, char **argv) {
   int msgid = -1;
   int protocol_version = LDAP_VERSION3;
   int result;
-  size_t i;
-  size_t j;
 
   if (argc != 2 ||
       (strcmp(argv[1], "default") != 0 && strcmp(argv[1], "custom") != 0))
     return 1;
   custom = strcmp(argv[1], "custom") == 0;
-  if (getcwd(cwd, sizeof(cwd)) == NULL ||
-      snprintf(path, sizeof(path), "%s/cpkt-ldap-sasl-%ld", cwd,
-               (long)getpid()) >= (int)sizeof(path))
+  /* Relative Unix socket names also work in long extracted build paths. */
+  if (snprintf(path, sizeof(path), "cpkt-ldap-sasl-%ld", (long)getpid()) >=
+      (int)sizeof(path))
     return 2;
   memset(&address, 0, sizeof(address));
   address.sun_family = AF_UNIX;
@@ -81,17 +78,7 @@ int main(int argc, char **argv) {
     close(fd);
     return 4;
   }
-  memcpy(url, "ldapi://", sizeof("ldapi://") - 1U);
-  j = sizeof("ldapi://") - 1U;
-  for (i = 0; path[i] != '\0'; ++i) {
-    if (path[i] == '/') {
-      memcpy(url + j, "%2F", 3U);
-      j += 3U;
-    } else {
-      url[j++] = path[i];
-    }
-  }
-  url[j] = '\0';
+  (void)snprintf(url, sizeof(url), "ldapi://%s", path);
 
   old_sink = ber_set_log_print_fn(custom ? capture_log : NULL);
   result = ldap_initialize(&ldap, url);

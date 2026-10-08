@@ -36,23 +36,20 @@ static int answer_empty_user(LDAP *ldap, unsigned flags, void *defaults,
 }
 
 int main(void) {
-  char cwd[256];
   char path[sizeof(((struct sockaddr_un *)0)->sun_path)];
   char url[512];
   struct sockaddr_un address;
   BER_LOG_PRINT_FN old_sink = NULL;
   LDAP *ldap = NULL;
   const char *mechanism = NULL;
-  size_t i;
-  size_t j;
   int fd;
   int msgid = -1;
   int result;
   int protocol_version = LDAP_VERSION3;
 
-  if (getcwd(cwd, sizeof(cwd)) == NULL ||
-      snprintf(path, sizeof(path), "%s/cpkt-ldap-log-%ld", cwd,
-               (long)getpid()) >= (int)sizeof(path))
+  /* Relative Unix socket names also work in long extracted build paths. */
+  if (snprintf(path, sizeof(path), "cpkt-ldap-log-%ld", (long)getpid()) >=
+      (int)sizeof(path))
     return 1;
   memset(&address, 0, sizeof(address));
   address.sun_family = AF_UNIX;
@@ -66,17 +63,7 @@ int main(void) {
     close(fd);
     return 3;
   }
-  memcpy(url, "ldapi://", sizeof("ldapi://") - 1U);
-  j = sizeof("ldapi://") - 1U;
-  for (i = 0; path[i] != '\0'; ++i) {
-    if (path[i] == '/') {
-      memcpy(url + j, "%2F", 3U);
-      j += 3U;
-    } else {
-      url[j++] = path[i];
-    }
-  }
-  url[j] = '\0';
+  (void)snprintf(url, sizeof(url), "ldapi://%s", path);
   old_sink = ber_set_log_print_fn(capture_log);
   result = ldap_initialize(&ldap, url);
   if (result == LDAP_SUCCESS) {
