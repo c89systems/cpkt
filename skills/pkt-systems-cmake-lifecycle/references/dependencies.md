@@ -31,8 +31,9 @@ No semantic path-key scheme, contract interpreter or receipt database is require
 Respect declared dependency ownership. A declared lonejson or another format
 library owns product parsing/serialization/framing covered by its API; do not
 create a competing implementation. Missing product capability needs a scoped
-decision. Native CMake metadata and standard libraries in permitted generators
-and fixtures remain available; neither may become a pipeline controller.
+decision. Native CMake metadata and standard libraries in permitted source/data
+generators and small data fixtures remain available under the Python boundary
+in SKILL.md; neither may become a test driver or pipeline controller.
 
 Keep private dependencies below public interfaces. Imported CMake/pkg-config
 targets describe complete static link closure, including system/thread/runtime

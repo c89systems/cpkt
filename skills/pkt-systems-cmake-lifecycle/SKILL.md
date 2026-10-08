@@ -3,7 +3,7 @@ name: pkt-systems-cmake-lifecycle
 description: >-
   Build, test, package and release C/CMake pkt.systems or c89 systems components
   that choose this lifecycle, with or without cpkt. Use simple Make/Bash/CMake/CTest
-  workflows; Python is limited to generators and fixtures.
+  workflows; Python is limited to source/data generators and small data fixtures.
 metadata:
   short-description: Simple native C/CMake lifecycle
 ---
@@ -45,8 +45,12 @@ custom schedulers, preset interpreters, receipt services or process brokers.
 A helper needs a concrete job that existing tools do not already perform.
 Prefer deletion, consolidation or a clearer contract to another mechanism.
 
-Python may implement a CMake-declared generator or an isolated CTest fixture.
-It must not control configure/build/test/install/package/deploy/release decisions.
+Python may implement a CMake-declared source/data generator or prepare/serve small
+fixture data. A fixture supplies test inputs; it does not drive the test.
+Test execution, assertions and expected-failure checks belong in CTest with
+compiled tests or small CMake/Bash tests. Registering a Python test driver with
+CTest, or naming it a fixture, does not make it permitted.
+Python must not control configure/build/test/install/package/deploy/release decisions.
 Any other pipeline Python requires explicit developer permission before writing
 or extending it; existing Python and a generic refactor request are not permission.
 Porting a large controller into Bash or CMake does not satisfy this rule.
