@@ -40,7 +40,7 @@ trap 'rm -rf "$fake_bin" "$signal_root"' EXIT HUP INT TERM
 signal_skill="$signal_root/skill"
 signal_bin="$signal_root/bin"
 signal_cache="$signal_root/cache"
-signal_bootlin="$signal_root/bootlin"
+signal_bootlin="$signal_root/runtime collection/bootlin"
 mkdir -p "$signal_skill/scripts" "$signal_bin" "$signal_bootlin/include"
 cp "$resolver" "$signal_skill/scripts/cpkt-aflpp.sh"
 cp "$skill_dir/scripts/cpkt-archive-cache.sh" "$signal_skill/scripts/cpkt-archive-cache.sh"
@@ -50,15 +50,44 @@ chmod +x "$signal_skill/scripts/cpkt-aflpp.sh"
 touch "$signal_bootlin/include/gmp.h"
 printf '#!/bin/sh\nexit 0\n' > "$signal_bin/cc"
 printf '#!/bin/sh\nexit 0\n' > "$signal_bin/cxx"
+runtime_root="$signal_bootlin"
+runtime_sysroot="$runtime_root/sysroot"
+runtime_stage="$signal_root/runtime-stage"
+mkdir -p "$runtime_root/bin" "$runtime_root/lib" "$runtime_sysroot/lib" "$runtime_sysroot/usr/lib"
+touch "$runtime_root/lib/libstdc++.so.6"
+for tool in cc1 cc1plus; do
+  printf '#!/bin/sh\nexit 0\n' > "$runtime_root/bin/$tool"
+  chmod +x "$runtime_root/bin/$tool"
+done
+cat > "$runtime_root/bin/compiler" <<'COMPILER'
+#!/bin/sh
+case "$1" in
+  -print-file-name=libstdc++.so.6) printf '%s/lib/libstdc++.so.6\n' "$CPKT_TEST_RUNTIME_ROOT";;
+  -print-prog-name=cc1) printf '%s/bin/cc1\n' "$CPKT_TEST_RUNTIME_ROOT";;
+  -print-prog-name=cc1plus) printf '%s/bin/cc1plus\n' "$CPKT_TEST_RUNTIME_ROOT";;
+  *) printf '%s\n' "$@" > "$CPKT_TEST_RUNTIME_CALLS";;
+esac
+COMPILER
+cat > "$runtime_sysroot/lib/loader.real" <<'LOADER'
+#!/bin/sh
+[ "$1" = --library-path ] || exit 1
+shift 2
+exec "$@"
+LOADER
+chmod +x "$runtime_root/bin/compiler" "$runtime_sysroot/lib/loader.real"
+ln -s loader.real "$runtime_sysroot/lib/ld-linux-x86-64.so.2"
+export CPKT_TEST_RUNTIME_ROOT="$runtime_root"
+export CPKT_TEST_RUNTIME_CALLS="$signal_root/runtime-calls"
 cat > "$signal_skill/scripts/cpkt-toolchains.sh" <<EOF
 #!/bin/sh
 case "\$1" in
   ensure) printf 'ensure\\n' >> "\${CPKT_TEST_BOOTLIN_CALLS:?}"; exit 0 ;;
   discover)
     printf 'status=%s\\n' "\${CPKT_TEST_BOOTLIN_STATUS:-ready}"
-    printf 'cc=%s\\n' '$signal_bin/cc'
-    printf 'cxx=%s\\n' '$signal_bin/cxx'
+    printf 'cc=%s\\n' '$signal_bootlin/bin/compiler'
+    printf 'cxx=%s\\n' '$signal_bootlin/bin/compiler'
     printf 'root=%s\\n' '$signal_bootlin'
+    printf 'sysroot=%s\\n' '$runtime_sysroot'
     ;;
   *) exit 2 ;;
 esac
@@ -119,6 +148,19 @@ description=$(CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-a
 grep -Fqx 'status=ready' <<< "$description" || fail 'prepared discovery did not report readiness'
 grep -Fqx "root=$prepared" <<< "$description" || fail 'prepared discovery reported wrong root'
 environment=$(CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-aflpp.sh" env)
+for path in "$runtime_sysroot/lib/ld-linux-x86-64.so.2" "$runtime_root/lib/libstdc++.so.6" \
+    "$runtime_root/bin/cc1" "$runtime_root/bin/cc1plus" "$runtime_sysroot/usr/lib"; do
+  mv "$path" "$path.missing"
+  for mode in discover env ensure; do
+    if CPKT_TOOLCHAIN_CACHE="$signal_cache" "$signal_skill/scripts/cpkt-aflpp.sh" "$mode" \
+        > "$signal_root/$mode.out" 2> "$signal_root/$mode.err"; then
+      fail "$mode accepted a missing borrowed runtime input: $path"
+    fi
+    [[ ! -s "$signal_root/$mode.out" ]] || fail "$mode exported invalid runtime settings"
+  done
+  [[ ! -e "$path" && ! -e "$CPKT_TEST_DOWNLOADER_MARKER" && ! -e "$runtime_stage" ]] || fail 'runtime validation generated or repaired state'
+  mv "$path.missing" "$path"
+done
 foreign="$signal_cache/roots/aflplusplus-5.02c-x86_64-linux-gnu-bootlin"
 mkdir -p "$foreign"
 printf 'another resolver revision\n' > "$foreign/owned-by-other-resolver"
@@ -183,34 +225,6 @@ leftovers=$(find "$signal_cache/archives" -maxdepth 1 -name 'AFLplusplus-5.02c.t
 # Exercise runtime wrapper generation without compiling or using a real cache.
 source "$skill_dir/scripts/cpkt-afl-runtime.sh"
 die() { fail "$*"; }
-runtime_root="$signal_root/runtime collection"
-runtime_sysroot="$runtime_root/sysroot"
-runtime_stage="$signal_root/runtime-stage"
-mkdir -p "$runtime_root/bin" "$runtime_root/lib" "$runtime_sysroot/lib" "$runtime_sysroot/usr/lib"
-touch "$runtime_root/lib/libstdc++.so.6"
-for tool in cc1 cc1plus; do
-  printf '#!/bin/sh\nexit 0\n' > "$runtime_root/bin/$tool"
-  chmod +x "$runtime_root/bin/$tool"
-done
-cat > "$runtime_root/bin/compiler" <<'COMPILER'
-#!/bin/sh
-case "$1" in
-  -print-file-name=libstdc++.so.6) printf '%s/lib/libstdc++.so.6\n' "$CPKT_TEST_RUNTIME_ROOT";;
-  -print-prog-name=cc1) printf '%s/bin/cc1\n' "$CPKT_TEST_RUNTIME_ROOT";;
-  -print-prog-name=cc1plus) printf '%s/bin/cc1plus\n' "$CPKT_TEST_RUNTIME_ROOT";;
-  *) printf '%s\n' "$@" > "$CPKT_TEST_RUNTIME_CALLS";;
-esac
-COMPILER
-cat > "$runtime_sysroot/lib/loader.real" <<'LOADER'
-#!/bin/sh
-[ "$1" = --library-path ] || exit 1
-shift 2
-exec "$@"
-LOADER
-chmod +x "$runtime_root/bin/compiler" "$runtime_sysroot/lib/loader.real"
-ln -s loader.real "$runtime_sysroot/lib/ld-linux-x86-64.so.2"
-export CPKT_TEST_RUNTIME_ROOT="$runtime_root"
-export CPKT_TEST_RUNTIME_CALLS="$signal_root/runtime-calls"
 prepare_runtime() {
   cpkt_afl_prepare_runtime "$runtime_stage" "$runtime_root/bin/compiler" "$runtime_root/bin/compiler" \
     "$runtime_sysroot" "$runtime_root"

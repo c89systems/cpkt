@@ -7,9 +7,9 @@ cpkt_afl_owned_file() {
   [[ -f "$path" && "$path" == "$root/"* ]]
 }
 
-cpkt_afl_prepare_runtime() {
-  local stage=$1 cc=$2 cxx=$3 sysroot=$4 collection=$5
-  local library backend compiler name backend_dir directory resolved boundary
+cpkt_afl_resolve_runtime() {
+  local cc=$1 cxx=$2 sysroot=$3 collection=$4
+  local library backend compiler name directory resolved boundary
   collection=$(CDPATH= cd -- "$collection" && pwd -P) || return "$?"
   sysroot=$(CDPATH= cd -- "$sysroot" && pwd -P) || return "$?"
   [[ "$sysroot" == "$collection/"* ]] || die 'AFL++ requires the selected Bootlin sysroot'
@@ -34,13 +34,24 @@ cpkt_afl_prepare_runtime() {
     "-Wl,--dynamic-linker,$cpkt_afl_runtime_loader"
     -Wl,--disable-new-dtags
     "-Wl,-rpath,$cpkt_afl_runtime_library_path")
-  backend_dir="$stage/libexec/bootlin-runtime"
-  mkdir -p "$stage/bin" "$backend_dir"
   for name in cc1 cc1plus; do
     compiler=$cc
     [[ "$name" != cc1plus ]] || compiler=$cxx
     backend=$("$compiler" -print-prog-name="$name") || return "$?"
     [[ -x "$backend" ]] && cpkt_afl_owned_file "$collection" "$backend" || die "Bootlin compiler backend is missing or outside the selected collection: $backend"
+    printf -v "cpkt_afl_runtime_$name" '%s' "$backend"
+  done
+}
+
+cpkt_afl_prepare_runtime() {
+  local stage=$1 cc=$2 cxx=$3 sysroot=$4 collection=$5
+  local backend compiler name backend_dir
+  cpkt_afl_resolve_runtime "$cc" "$cxx" "$sysroot" "$collection" || return "$?"
+  backend_dir="$stage/libexec/bootlin-runtime"
+  mkdir -p "$stage/bin" "$backend_dir"
+  for name in cc1 cc1plus; do
+    backend=$cpkt_afl_runtime_cc1
+    [[ "$name" != cc1plus ]] || backend=$cpkt_afl_runtime_cc1plus
     printf '#!/usr/bin/env bash\nset -euo pipefail\nexec %q --library-path %q %q "$@"\n' \
       "$cpkt_afl_runtime_loader" "$cpkt_afl_runtime_library_path" "$backend" > "$backend_dir/$name"
     chmod +x "$backend_dir/$name"
