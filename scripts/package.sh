@@ -44,6 +44,7 @@ case "$action" in
   package|package-stage)
     for target in "${targets[@]}"; do
       selected="$target-release"
+      if [ "$group" = core ]; then selected="$preset"; fi
       if [ "$action" = package ]; then
         bash "$cpkt_scripts/build.sh" test --group core --preset "$selected"
       fi

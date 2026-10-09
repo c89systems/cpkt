@@ -5095,6 +5095,7 @@
       "command_inputs": [
         "tests/lifecycle_dispatch_test.sh",
         "scripts/lifecycle.sh",
+        "scripts/package.sh",
         "Makefile"
       ],
       "registrations": [
