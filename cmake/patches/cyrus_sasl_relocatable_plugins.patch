@@ -1,0 +1,106 @@
+--- a/lib/dlopen.c
++++ b/lib/dlopen.c
+@@ -43,6 +43,11 @@
+  * OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+  */
+ 
++#if defined(__linux__) && defined(__arm__)
++/* 32-bit readdir can fail with EOVERFLOW on large directory offsets. */
++#define _FILE_OFFSET_BITS 64
++#endif
++
+ #include <config.h>
+ #ifdef HAVE_DLFCN_H
+ #include <dlfcn.h>
+--- a/lib/common.c
++++ b/lib/common.c
+@@ -57,6 +57,9 @@
+ #include <ctype.h>
+ #include <assert.h>
+ 
++#if defined(PIC) && !defined(WIN32)
++#include <dlfcn.h>
++#endif
+ #include <sasl.h>
+ #include <saslutil.h>
+ #include <saslplug.h>
+@@ -1568,5 +1571,34 @@
+ }
+ 
++#if defined(PIC) && !defined(WIN32)
++/* Locate shipped mechanisms beside the shared library, not in /usr/lib. */
++static int
++_sasl_get_bundled_plugin_path(char **path_dest)
++{
++    Dl_info library;
++    const char *slash;
++    size_t directory_length;
++    char *path;
++
++    if (dladdr((const void *)&_sasl_getpath, &library) == 0 ||
++        library.dli_fname == NULL)
++        return SASL_FAIL;
++    slash = strrchr(library.dli_fname, '/');
++    if (slash == NULL)
++        return SASL_FAIL;
++    directory_length = (size_t)(slash - library.dli_fname);
++    if (directory_length > (size_t)-1 - sizeof("/sasl2"))
++        return SASL_FAIL;
++    path = sasl_ALLOC(directory_length + sizeof("/sasl2"));
++    if (path == NULL)
++        return SASL_NOMEM;
++    memcpy(path, library.dli_fname, directory_length);
++    memcpy(path + directory_length, "/sasl2", sizeof("/sasl2"));
++    *path_dest = path;
++    return SASL_OK;
++}
++#endif
++
+ static int
+ _sasl_getpath(void *context __attribute__((unused)),
+               const char ** path_dest)
+@@ -1589,6 +1616,15 @@
+                                                          SASL_PLUGIN_PATH_ATTR,
+                                                          PLUGINDIR);
+ #else
++#if defined(PIC)
++        /* Honor SASL_PATH only under upstream's real/effective ID check. */
++        path = _sasl_get_default_unix_path(context, SASL_PATH_ENV_VAR,
++                                           NULL);
++        if (path != NULL)
++            res = _sasl_strdup(path, &default_plugin_path, NULL);
++        else
++            res = _sasl_get_bundled_plugin_path(&default_plugin_path);
++#else
+         /* NB: On Unix platforms this value is never allocated */
+         path = _sasl_get_default_unix_path(context,
+                                            SASL_PATH_ENV_VAR,
+@@ -1596,5 +1632,6 @@
+                                            PLUGINDIR);
+ 
+         res = _sasl_strdup(path, &default_plugin_path, NULL);
++#endif
+ #endif
+     }
+--- a/lib/staticopen.h
++++ b/lib/staticopen.h
+@@ -93,5 +93,9 @@
+ extern SPECIFIC_CLIENT_PLUG_INIT_PROTO( digestmd5 );
+ #endif
++#ifdef STATIC_GS2
++extern SPECIFIC_SERVER_PLUG_INIT_PROTO( gs2 );
++extern SPECIFIC_CLIENT_PLUG_INIT_PROTO( gs2 );
++#endif
+ #ifdef STATIC_GSSAPIV2
+ extern SPECIFIC_SERVER_PLUG_INIT_PROTO( gssapiv2 );
+ extern SPECIFIC_CLIENT_PLUG_INIT_PROTO( gssapiv2 );
+@@ -144,5 +148,9 @@
+ 	SPECIFIC_CLIENT_PLUG_INIT( digestmd5, "DIGEST-MD5" ),
+ #endif
++#ifdef STATIC_GS2
++	SPECIFIC_SERVER_PLUG_INIT( gs2, "GS2" ),
++	SPECIFIC_CLIENT_PLUG_INIT( gs2, "GS2" ),
++#endif
+ #ifdef STATIC_GSSAPIV2
+ 	SPECIFIC_SERVER_PLUG_INIT( gssapiv2, "GSSAPI" ),
+ 	SPECIFIC_CLIENT_PLUG_INIT( gssapiv2, "GSSAPI" ),

@@ -1,0 +1,26 @@
+cmake_minimum_required(VERSION 3.21)
+project(lifecycle_skill_checks NONE)
+enable_testing()
+if(NOT SKILL_WORKSPACE_ROOT OR NOT EXISTS "${SKILL_WORKSPACE_ROOT}/CMakeLists.txt")
+  message(FATAL_ERROR "Pass the current repository as SKILL_WORKSPACE_ROOT")
+endif()
+set(scratch "${SKILL_WORKSPACE_ROOT}/build/skill-fixtures")
+if(IS_SYMLINK "${SKILL_WORKSPACE_ROOT}/build" OR IS_SYMLINK "${scratch}")
+  message(FATAL_ERROR "Fixture output must stay in the owned build directory")
+endif()
+# The caller supplies an owned workspace with build/ ignored, as SKILL.md requires.
+# Ignore-rule spelling and Git policy are outside this test graph.
+file(MAKE_DIRECTORY "${scratch}")
+find_program(HOST_BASH bash REQUIRED)
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+  add_test(NAME toolchain_contract
+    COMMAND "${HOST_BASH}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test-cpkt-toolchain-resolvers.sh")
+  set_tests_properties(toolchain_contract PROPERTIES
+    TIMEOUT 30 RUN_SERIAL TRUE LABELS resolver ENVIRONMENT "TMPDIR=${scratch}")
+  if(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "^(x86_64|amd64|AMD64)$")
+    add_test(NAME afl_contract
+      COMMAND "${HOST_BASH}" "${CMAKE_CURRENT_SOURCE_DIR}/../scripts/test-cpkt-aflpp-resolver.sh")
+    set_tests_properties(afl_contract PROPERTIES
+      TIMEOUT 30 RUN_SERIAL TRUE LABELS resolver ENVIRONMENT "TMPDIR=${scratch}")
+  endif()
+endif()

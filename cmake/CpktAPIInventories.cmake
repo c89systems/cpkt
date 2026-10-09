@@ -1,0 +1,37 @@
+# The generator emits data once; CTest owns the API assertions.
+function(cpkt_add_api_inventory)
+  cmake_parse_arguments(PARSE_ARGV 0 inventory "" "NAME;OUTPUT;KIND" "COMMAND")
+  cpkt_inventory_selected(tests "${inventory_NAME}" selected)
+  if(NOT selected)
+    return()
+  endif()
+  get_property(key GLOBAL PROPERTY "CPKT_KEY_tests_${inventory_NAME}")
+  list(GET inventory_COMMAND 1 generator)
+  set(inputs "${generator}" "${CMAKE_SOURCE_DIR}/tools/generated_output_paths.py")
+  string(JSON directory GET "${CPKT_INVENTORY}" components "${inventory_KIND}" directory)
+  file(GLOB_RECURSE headers CONFIGURE_DEPENDS LIST_DIRECTORIES FALSE
+    "${CPKT_EXTERNAL_ROOT}/${directory}/install/include/*")
+  list(APPEND inputs ${headers})
+  set(next_is_input OFF)
+  foreach(argument IN LISTS inventory_COMMAND)
+    if(next_is_input)
+      list(APPEND inputs "${argument}")
+      set(next_is_input OFF)
+    elseif(argument MATCHES "^--(library|native-library|facade-library|facade-header|num)$")
+      set(next_is_input ON)
+    endif()
+  endforeach()
+  if(inventory_KIND STREQUAL "mqttc")
+    list(APPEND inputs "${CMAKE_SOURCE_DIR}/tools/generate_mqttc_c89_facade.py")
+  endif()
+  # Test assertion edits invalidate CTest, not the inventory producer.
+  file(CONFIGURE OUTPUT "${inventory_OUTPUT}.inputs" CONTENT "${inventory_COMMAND}\n" @ONLY)
+  cpkt_register_generated_outputs("${inventory_OUTPUT}")
+  add_custom_command(OUTPUT "${inventory_OUTPUT}" COMMAND ${inventory_COMMAND}
+    DEPENDS "${inventory_OUTPUT}.inputs" ${inputs} VERBATIM)
+  add_custom_target(cpkt_data_${inventory_NAME} ALL DEPENDS "${inventory_OUTPUT}")
+  cpkt_group_add_test(NAME "${inventory_NAME}" COMMAND "${CMAKE_COMMAND}"
+    "-DCPKT_INPUT=${inventory_OUTPUT}" "-DCPKT_KIND=${inventory_KIND}"
+    -P "${CMAKE_SOURCE_DIR}/tests/api_inventory_test.cmake")
+  set_property(GLOBAL APPEND PROPERTY "CPKT_TEST_INPUTS_${inventory_NAME}" "${inventory_OUTPUT}")
+endfunction()

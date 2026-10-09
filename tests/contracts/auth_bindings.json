@@ -1,0 +1,935 @@
+{
+  "gssapi": {
+    "gss_accept_sec_context": {
+      "facade": [
+        "cpkt_gss_accept_context"
+      ]
+    },
+    "gss_acquire_cred": {
+      "facade": [
+        "cpkt_gss_acquire_credential"
+      ]
+    },
+    "gss_acquire_cred_from": {
+      "facade": [
+        "cpkt_gss_acquire_credential_from"
+      ]
+    },
+    "gss_acquire_cred_impersonate_name": {
+      "facade": [
+        "cpkt_gss_acquire_credential_impersonating"
+      ]
+    },
+    "gss_acquire_cred_with_password": {
+      "facade": [
+        "cpkt_gss_acquire_credential_with_password"
+      ]
+    },
+    "gss_add_buffer_set_member": {
+      "facade": [
+        "cpkt_gss_add_buffer_set_member"
+      ]
+    },
+    "gss_add_cred": {
+      "facade": [
+        "cpkt_gss_add_credential"
+      ]
+    },
+    "gss_add_cred_from": {
+      "facade": [
+        "cpkt_gss_add_credential"
+      ]
+    },
+    "gss_add_cred_impersonate_name": {
+      "facade": [
+        "cpkt_gss_add_credential"
+      ]
+    },
+    "gss_add_cred_with_password": {
+      "facade": [
+        "cpkt_gss_add_credential"
+      ]
+    },
+    "gss_add_oid_set_member": {
+      "facade": [
+        "cpkt_gss_add_oid_to_set"
+      ]
+    },
+    "gss_authorize_localname": {
+      "facade": [
+        "cpkt_gss_authorize_local_name"
+      ]
+    },
+    "gss_canonicalize_name": {
+      "facade": [
+        "cpkt_gss_canonicalize_name"
+      ]
+    },
+    "gss_compare_name": {
+      "facade": [
+        "cpkt_gss_compare_names"
+      ]
+    },
+    "gss_complete_auth_token": {
+      "facade": [
+        "cpkt_gss_complete_auth_token"
+      ]
+    },
+    "gss_context_time": {
+      "facade": [
+        "cpkt_gss_context_lifetime"
+      ]
+    },
+    "gss_create_empty_buffer_set": {
+      "facade": [
+        "cpkt_gss_create_buffer_set"
+      ]
+    },
+    "gss_create_empty_oid_set": {
+      "facade": [
+        "cpkt_gss_create_oid_set"
+      ]
+    },
+    "gss_decapsulate_token": {
+      "facade": [
+        "cpkt_gss_decapsulate_token"
+      ]
+    },
+    "gss_delete_name_attribute": {
+      "facade": [
+        "cpkt_gss_delete_name_attribute"
+      ]
+    },
+    "gss_delete_sec_context": {
+      "facade": [
+        "cpkt_gss_delete_context"
+      ]
+    },
+    "gss_display_mech_attr": {
+      "facade": [
+        "cpkt_gss_display_mechanism_attribute"
+      ]
+    },
+    "gss_display_name": {
+      "facade": [
+        "cpkt_gss_display_name"
+      ]
+    },
+    "gss_display_name_ext": {
+      "facade": [
+        "cpkt_gss_display_name_ext"
+      ]
+    },
+    "gss_display_status": {
+      "facade": [
+        "cpkt_gss_display_status"
+      ]
+    },
+    "gss_duplicate_name": {
+      "facade": [
+        "cpkt_gss_duplicate_name"
+      ]
+    },
+    "gss_encapsulate_token": {
+      "facade": [
+        "cpkt_gss_encapsulate_token"
+      ]
+    },
+    "gss_export_cred": {
+      "facade": [
+        "cpkt_gss_export_credential"
+      ]
+    },
+    "gss_export_name": {
+      "facade": [
+        "cpkt_gss_export_name"
+      ]
+    },
+    "gss_export_name_composite": {
+      "facade": [
+        "cpkt_gss_export_name_composite"
+      ]
+    },
+    "gss_export_name_object": {
+      "unavailable": "no linked public implementation"
+    },
+    "gss_export_sec_context": {
+      "facade": [
+        "cpkt_gss_export_context"
+      ]
+    },
+    "gss_get_mic": {
+      "facade": [
+        "cpkt_gss_get_mic"
+      ]
+    },
+    "gss_get_mic_iov": {
+      "facade": [
+        "cpkt_gss_get_mic_iov"
+      ]
+    },
+    "gss_get_mic_iov_length": {
+      "facade": [
+        "cpkt_gss_get_mic_iov_length"
+      ]
+    },
+    "gss_get_name_attribute": {
+      "facade": [
+        "cpkt_gss_get_name_attribute"
+      ]
+    },
+    "gss_import_cred": {
+      "facade": [
+        "cpkt_gss_import_credential"
+      ]
+    },
+    "gss_import_name": {
+      "facade": [
+        "cpkt_gss_import_name"
+      ]
+    },
+    "gss_import_name_object": {
+      "unavailable": "no linked public implementation"
+    },
+    "gss_import_sec_context": {
+      "facade": [
+        "cpkt_gss_import_context"
+      ]
+    },
+    "gss_indicate_mechs": {
+      "facade": [
+        "cpkt_gss_indicate_mechanisms"
+      ]
+    },
+    "gss_indicate_mechs_by_attrs": {
+      "facade": [
+        "cpkt_gss_indicate_mechanisms_by_attributes"
+      ]
+    },
+    "gss_init_sec_context": {
+      "facade": [
+        "cpkt_gss_init_context"
+      ]
+    },
+    "gss_initialize": {
+      "unavailable": "no linked public implementation"
+    },
+    "gss_inquire_attrs_for_mech": {
+      "facade": [
+        "cpkt_gss_inquire_mechanism_attributes"
+      ]
+    },
+    "gss_inquire_context": {
+      "facade": [
+        "cpkt_gss_inquire_context"
+      ]
+    },
+    "gss_inquire_cred": {
+      "facade": [
+        "cpkt_gss_inquire_credential"
+      ]
+    },
+    "gss_inquire_cred_by_mech": {
+      "facade": [
+        "cpkt_gss_inquire_credential_by_mechanism"
+      ]
+    },
+    "gss_inquire_cred_by_oid": {
+      "facade": [
+        "cpkt_gss_inquire_credential_by_oid"
+      ]
+    },
+    "gss_inquire_mech_for_saslname": {
+      "facade": [
+        "cpkt_gss_mechanism_for_sasl_name"
+      ]
+    },
+    "gss_inquire_mechs_for_name": {
+      "facade": [
+        "cpkt_gss_inquire_mechanisms_for_name"
+      ]
+    },
+    "gss_inquire_name": {
+      "facade": [
+        "cpkt_gss_inquire_name"
+      ]
+    },
+    "gss_inquire_names_for_mech": {
+      "facade": [
+        "cpkt_gss_inquire_names_for_mechanism"
+      ]
+    },
+    "gss_inquire_saslname_for_mech": {
+      "facade": [
+        "cpkt_gss_sasl_name_for_mechanism"
+      ]
+    },
+    "gss_inquire_sec_context_by_oid": {
+      "facade": [
+        "cpkt_gss_inquire_context_by_oid"
+      ]
+    },
+    "gss_krb5_ccache_name": {
+      "facade": [
+        "cpkt_gss_krb5_cache_name"
+      ]
+    },
+    "gss_krb5_copy_ccache": {
+      "facade": [
+        "cpkt_gss_krb5_copy_cache"
+      ]
+    },
+    "gss_krb5_export_lucid_sec_context": {
+      "facade": [
+        "cpkt_gss_krb5_export_lucid_context"
+      ]
+    },
+    "gss_krb5_free_lucid_sec_context": {
+      "facade": [
+        "cpkt_gss_krb5_free_lucid_context"
+      ]
+    },
+    "gss_krb5_get_tkt_flags": {
+      "facade": [
+        "cpkt_gss_krb5_get_ticket_flags"
+      ]
+    },
+    "gss_krb5_import_cred": {
+      "facade": [
+        "cpkt_gss_krb5_import_credential"
+      ]
+    },
+    "gss_krb5_set_allowable_enctypes": {
+      "facade": [
+        "cpkt_gss_krb5_set_enctypes"
+      ]
+    },
+    "gss_krb5_set_cred_rcache": {
+      "facade": [
+        "cpkt_gss_krb5_set_credential_replay_cache"
+      ]
+    },
+    "gss_krb5_set_trace_callback": {
+      "facade": [
+        "cpkt_gss_set_trace_callback"
+      ]
+    },
+    "gss_localname": {
+      "facade": [
+        "cpkt_gss_local_name"
+      ]
+    },
+    "gss_map_name_to_any": {
+      "facade": [
+        "cpkt_gss_map_name_to_pac"
+      ]
+    },
+    "gss_oid_equal": {
+      "facade": [
+        "cpkt_gss_oid_equal"
+      ]
+    },
+    "gss_oid_to_str": {
+      "facade": [
+        "cpkt_gss_oid_to_text"
+      ]
+    },
+    "gss_pname_to_uid": {
+      "facade": [
+        "cpkt_gss_principal_name_to_uid"
+      ]
+    },
+    "gss_process_context_token": {
+      "facade": [
+        "cpkt_gss_process_context_token"
+      ]
+    },
+    "gss_pseudo_random": {
+      "facade": [
+        "cpkt_gss_pseudo_random"
+      ]
+    },
+    "gss_release_any_name_mapping": {
+      "facade": [
+        "cpkt_gss_pac_release"
+      ]
+    },
+    "gss_release_buffer": {
+      "facade": [
+        "cpkt_gss_release_buffer"
+      ]
+    },
+    "gss_release_buffer_set": {
+      "facade": [
+        "cpkt_gss_inquire_name"
+      ]
+    },
+    "gss_release_cred": {
+      "facade": [
+        "cpkt_gss_release_credential"
+      ]
+    },
+    "gss_release_iov_buffer": {
+      "facade": [
+        "cpkt_gss_release_iov"
+      ]
+    },
+    "gss_release_name": {
+      "facade": [
+        "cpkt_gss_inquire_context"
+      ]
+    },
+    "gss_release_oid": {
+      "facade": [
+        "cpkt_gss_release_oid"
+      ]
+    },
+    "gss_release_oid_set": {
+      "facade": [
+        "cpkt_gss_store_credential"
+      ]
+    },
+    "gss_seal": {
+      "facade": [
+        "cpkt_gss_seal"
+      ]
+    },
+    "gss_set_cred_option": {
+      "facade": [
+        "cpkt_gss_set_credential_option"
+      ]
+    },
+    "gss_set_name_attribute": {
+      "facade": [
+        "cpkt_gss_set_name_attribute"
+      ]
+    },
+    "gss_set_neg_mechs": {
+      "facade": [
+        "cpkt_gss_set_negotiation_mechanisms"
+      ]
+    },
+    "gss_set_sec_context_option": {
+      "facade": [
+        "cpkt_gss_set_context_option"
+      ]
+    },
+    "gss_sign": {
+      "facade": [
+        "cpkt_gss_sign"
+      ]
+    },
+    "gss_store_cred": {
+      "facade": [
+        "cpkt_gss_store_credential"
+      ]
+    },
+    "gss_store_cred_into": {
+      "facade": [
+        "cpkt_gss_store_credential"
+      ]
+    },
+    "gss_str_to_oid": {
+      "facade": [
+        "cpkt_gss_oid_from_text"
+      ]
+    },
+    "gss_test_oid_set_member": {
+      "facade": [
+        "cpkt_gss_oid_set_contains"
+      ]
+    },
+    "gss_unseal": {
+      "facade": [
+        "cpkt_gss_unseal"
+      ]
+    },
+    "gss_unwrap": {
+      "facade": [
+        "cpkt_gss_unwrap"
+      ]
+    },
+    "gss_unwrap_aead": {
+      "facade": [
+        "cpkt_gss_unwrap_aead"
+      ]
+    },
+    "gss_unwrap_iov": {
+      "facade": [
+        "cpkt_gss_unwrap_iov"
+      ]
+    },
+    "gss_userok": {
+      "facade": [
+        "cpkt_gss_user_ok"
+      ]
+    },
+    "gss_verify": {
+      "facade": [
+        "cpkt_gss_verify"
+      ]
+    },
+    "gss_verify_mic": {
+      "facade": [
+        "cpkt_gss_verify_mic"
+      ]
+    },
+    "gss_verify_mic_iov": {
+      "facade": [
+        "cpkt_gss_verify_mic_iov"
+      ]
+    },
+    "gss_wrap": {
+      "facade": [
+        "cpkt_gss_wrap"
+      ]
+    },
+    "gss_wrap_aead": {
+      "facade": [
+        "cpkt_gss_wrap_aead"
+      ]
+    },
+    "gss_wrap_iov": {
+      "facade": [
+        "cpkt_gss_wrap_iov"
+      ]
+    },
+    "gss_wrap_iov_length": {
+      "facade": [
+        "cpkt_gss_wrap_iov_length"
+      ]
+    },
+    "gss_wrap_size_limit": {
+      "facade": [
+        "cpkt_gss_wrap_size_limit"
+      ]
+    },
+    "gssalloc_calloc": {
+      "facade": [
+        "cpkt_gss_allocation_calloc"
+      ]
+    },
+    "gssalloc_free": {
+      "facade": [
+        "cpkt_gss_allocation_free"
+      ]
+    },
+    "gssalloc_malloc": {
+      "facade": [
+        "cpkt_gss_allocation_malloc"
+      ]
+    },
+    "gssalloc_realloc": {
+      "facade": [
+        "cpkt_gss_allocation_realloc"
+      ]
+    },
+    "gssalloc_strdup": {
+      "facade": [
+        "cpkt_gss_allocation_strdup"
+      ]
+    },
+    "gsskrb5_extract_authtime_from_sec_context": {
+      "facade": [
+        "cpkt_gss_krb5_extract_authentication_time"
+      ]
+    },
+    "gsskrb5_extract_authz_data_from_sec_context": {
+      "facade": [
+        "cpkt_gss_krb5_extract_authorization_data"
+      ]
+    },
+    "gssspi_exchange_meta_data": {
+      "unavailable": "NegoEx mechanism-provider SPI dispatch: g_negoex.c documents SPNEGO as its sole caller and omits public argument validation; not an application API"
+    },
+    "gssspi_mech_invoke": {
+      "facade": [
+        "cpkt_gss_mechanism_invoke"
+      ]
+    },
+    "gssspi_query_mechanism_info": {
+      "unavailable": "NegoEx mechanism-provider SPI dispatch: g_negoex.c documents SPNEGO as its sole caller and omits public argument validation; not an application API"
+    },
+    "gssspi_query_meta_data": {
+      "unavailable": "NegoEx mechanism-provider SPI dispatch: g_negoex.c documents SPNEGO as its sole caller and omits public argument validation; not an application API"
+    },
+    "krb5_gss_register_acceptor_identity": {
+      "facade": [
+        "cpkt_gss_krb5_register_acceptor_identity"
+      ]
+    }
+  },
+  "sasl": {
+    "_sasl_MD5Final": {
+      "facade": [
+        "cpkt_sasl_md5_final"
+      ]
+    },
+    "_sasl_MD5Init": {
+      "facade": [
+        "cpkt_sasl_md5_initialize"
+      ]
+    },
+    "_sasl_MD5Update": {
+      "facade": [
+        "cpkt_sasl_md5_update"
+      ]
+    },
+    "_sasl_hmac_md5": {
+      "facade": [
+        "cpkt_sasl_hmac_md5"
+      ]
+    },
+    "_sasl_hmac_md5_final": {
+      "facade": [
+        "cpkt_sasl_hmac_md5_final"
+      ]
+    },
+    "_sasl_hmac_md5_import": {
+      "facade": [
+        "cpkt_sasl_hmac_md5_import"
+      ]
+    },
+    "_sasl_hmac_md5_init": {
+      "facade": [
+        "cpkt_sasl_hmac_md5_initialize"
+      ]
+    },
+    "_sasl_hmac_md5_precalc": {
+      "facade": [
+        "cpkt_sasl_hmac_md5_precalculate"
+      ]
+    },
+    "auxprop_plugin_info": {
+      "facade": [
+        "cpkt_sasl_auxiliary_plugin_info"
+      ]
+    },
+    "prop_clear": {
+      "facade": [
+        "cpkt_sasl_property_clear"
+      ]
+    },
+    "prop_dispose": {
+      "facade": [
+        "cpkt_sasl_property_dispose"
+      ]
+    },
+    "prop_dup": {
+      "facade": [
+        "cpkt_sasl_property_duplicate"
+      ]
+    },
+    "prop_erase": {
+      "facade": [
+        "cpkt_sasl_property_erase"
+      ]
+    },
+    "prop_format": {
+      "facade": [
+        "cpkt_sasl_property_format"
+      ]
+    },
+    "prop_get": {
+      "facade": [
+        "cpkt_sasl_property_get"
+      ]
+    },
+    "prop_getnames": {
+      "facade": [
+        "cpkt_sasl_property_getnames"
+      ]
+    },
+    "prop_new": {
+      "facade": [
+        "cpkt_sasl_property_new"
+      ]
+    },
+    "prop_request": {
+      "facade": [
+        "cpkt_sasl_property_request"
+      ]
+    },
+    "prop_set": {
+      "facade": [
+        "cpkt_sasl_property_set"
+      ]
+    },
+    "prop_setvals": {
+      "facade": [
+        "cpkt_sasl_property_set_values"
+      ]
+    },
+    "sasl_auxprop_add_plugin": {
+      "facade": [
+        "cpkt_sasl_auxiliary_add_plugin"
+      ]
+    },
+    "sasl_auxprop_getctx": {
+      "facade": [
+        "cpkt_sasl.auxiliary_context"
+      ]
+    },
+    "sasl_auxprop_request": {
+      "facade": [
+        "cpkt_sasl.auxiliary_request"
+      ]
+    },
+    "sasl_auxprop_store": {
+      "facade": [
+        "cpkt_sasl.auxiliary_store"
+      ]
+    },
+    "sasl_canonuser_add_plugin": {
+      "facade": [
+        "cpkt_sasl_canonicalizer_add_plugin"
+      ]
+    },
+    "sasl_checkapop": {
+      "facade": [
+        "cpkt_sasl.check_apop"
+      ]
+    },
+    "sasl_checkpass": {
+      "facade": [
+        "cpkt_sasl.check_password"
+      ]
+    },
+    "sasl_churn": {
+      "facade": [
+        "cpkt_sasl_random_churn"
+      ]
+    },
+    "sasl_client_add_plugin": {
+      "facade": [
+        "cpkt_sasl_client_add_plugin"
+      ]
+    },
+    "sasl_client_done": {
+      "facade": [
+        "cpkt_sasl_client_finish"
+      ]
+    },
+    "sasl_client_init": {
+      "facade": [
+        "cpkt_sasl_client_initialize"
+      ]
+    },
+    "sasl_client_new": {
+      "facade": [
+        "cpkt_sasl_client_new"
+      ]
+    },
+    "sasl_client_plugin_info": {
+      "facade": [
+        "cpkt_sasl_client_plugin_info"
+      ]
+    },
+    "sasl_client_start": {
+      "facade": [
+        "cpkt_sasl.start"
+      ]
+    },
+    "sasl_client_step": {
+      "facade": [
+        "cpkt_sasl.step"
+      ]
+    },
+    "sasl_config_done": {
+      "facade": [
+        "cpkt_sasl_config_finish"
+      ]
+    },
+    "sasl_config_init": {
+      "facade": [
+        "cpkt_sasl_config_initialize"
+      ]
+    },
+    "sasl_decode": {
+      "facade": [
+        "cpkt_sasl.decode"
+      ]
+    },
+    "sasl_decode64": {
+      "facade": [
+        "cpkt_sasl_base64_decode"
+      ]
+    },
+    "sasl_dispose": {
+      "facade": [
+        "cpkt_sasl.close"
+      ]
+    },
+    "sasl_done": {
+      "facade": [
+        "cpkt_sasl_finish_all"
+      ]
+    },
+    "sasl_encode": {
+      "facade": [
+        "cpkt_sasl.encode"
+      ]
+    },
+    "sasl_encode64": {
+      "facade": [
+        "cpkt_sasl_base64_encode"
+      ]
+    },
+    "sasl_encodev": {
+      "facade": [
+        "cpkt_sasl.encode_vector"
+      ]
+    },
+    "sasl_erasebuffer": {
+      "facade": [
+        "cpkt_sasl_erase_buffer"
+      ]
+    },
+    "sasl_errdetail": {
+      "facade": [
+        "cpkt_sasl.error_detail"
+      ]
+    },
+    "sasl_errstring": {
+      "facade": [
+        "cpkt_sasl_error_string"
+      ]
+    },
+    "sasl_getprop": {
+      "facade": [
+        "cpkt_sasl.get_text_property"
+      ]
+    },
+    "sasl_global_listmech": {
+      "facade": [
+        "cpkt_sasl_global_mechanisms"
+      ]
+    },
+    "sasl_idle": {
+      "facade": [
+        "cpkt_sasl.idle",
+        "cpkt_sasl_idle"
+      ]
+    },
+    "sasl_listmech": {
+      "facade": [
+        "cpkt_sasl.list_mechanisms"
+      ]
+    },
+    "sasl_mkchal": {
+      "facade": [
+        "cpkt_sasl.make_challenge"
+      ]
+    },
+    "sasl_rand": {
+      "facade": [
+        "cpkt_sasl_random_fill"
+      ]
+    },
+    "sasl_randcreate": {
+      "facade": [
+        "cpkt_sasl_random_new"
+      ]
+    },
+    "sasl_randfree": {
+      "facade": [
+        "cpkt_sasl_random_free"
+      ]
+    },
+    "sasl_randseed": {
+      "facade": [
+        "cpkt_sasl_random_seed"
+      ]
+    },
+    "sasl_server_add_plugin": {
+      "facade": [
+        "cpkt_sasl_server_add_plugin"
+      ]
+    },
+    "sasl_server_done": {
+      "facade": [
+        "cpkt_sasl_server_finish"
+      ]
+    },
+    "sasl_server_init": {
+      "facade": [
+        "cpkt_sasl_server_initialize"
+      ]
+    },
+    "sasl_server_new": {
+      "facade": [
+        "cpkt_sasl_server_new"
+      ]
+    },
+    "sasl_server_plugin_info": {
+      "facade": [
+        "cpkt_sasl_server_plugin_info"
+      ]
+    },
+    "sasl_server_start": {
+      "facade": [
+        "cpkt_sasl.server_start"
+      ]
+    },
+    "sasl_server_step": {
+      "facade": [
+        "cpkt_sasl.step"
+      ]
+    },
+    "sasl_set_alloc": {
+      "facade": [
+        "cpkt_sasl_set_allocators"
+      ]
+    },
+    "sasl_set_mutex": {
+      "facade": [
+        "cpkt_sasl_set_mutexes"
+      ]
+    },
+    "sasl_set_path": {
+      "facade": [
+        "cpkt_sasl_set_path"
+      ]
+    },
+    "sasl_seterror": {
+      "facade": [
+        "cpkt_sasl.set_error"
+      ]
+    },
+    "sasl_setpass": {
+      "facade": [
+        "cpkt_sasl.set_password"
+      ]
+    },
+    "sasl_setprop": {
+      "facade": [
+        "cpkt_sasl.set_external_ssf"
+      ]
+    },
+    "sasl_strlower": {
+      "facade": [
+        "cpkt_sasl_lowercase"
+      ]
+    },
+    "sasl_user_exists": {
+      "facade": [
+        "cpkt_sasl.user_exists"
+      ]
+    },
+    "sasl_utf8verify": {
+      "facade": [
+        "cpkt_sasl_utf8_verify"
+      ]
+    },
+    "sasl_version": {
+      "facade": [
+        "cpkt_sasl_legacy_version"
+      ]
+    },
+    "sasl_version_info": {
+      "facade": [
+        "cpkt_sasl_version"
+      ]
+    }
+  }
+}

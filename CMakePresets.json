@@ -1,0 +1,329 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}/core",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CPKT_BUILD_DEPENDENCIES": "OFF",
+        "CPKT_BUILD_TESTS": "ON",
+        "CPKT_DIST_DIR": "${sourceDir}/dist",
+        "CPKT_GROUP": "core"
+      }
+    },
+    {
+      "name": "x86_64-linux-gnu-release",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/CpktReadOnlyToolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CPKT_TARGET_ARCH": "x86_64",
+        "CPKT_TARGET_OS": "linux",
+        "CPKT_TARGET_LIBC": "gnu"
+      },
+      "binaryDir": "${sourceDir}/build/x86_64-linux-gnu/core/Release"
+    },
+    {
+      "name": "release",
+      "inherits": "x86_64-linux-gnu-release",
+      "binaryDir": "${sourceDir}/build/x86_64-linux-gnu/core/Release"
+    },
+    {
+      "name": "debug",
+      "inherits": "base",
+      "toolchainFile": "${sourceDir}/cmake/CpktReadOnlyToolchain.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CPKT_TARGET_ARCH": "x86_64",
+        "CPKT_TARGET_OS": "linux",
+        "CPKT_TARGET_LIBC": "gnu"
+      },
+      "binaryDir": "${sourceDir}/build/x86_64-linux-gnu/core/Debug"
+    },
+    {
+      "name": "valgrind",
+      "inherits": "debug",
+      "cacheVariables": {
+        "CPKT_BUILD_DEPENDENCIES": "OFF",
+        "CPKT_FACADE_ONLY": "ON",
+        "CPKT_BORROW_ORDINARY_DEPENDENCIES": "ON"
+      },
+      "binaryDir": "${sourceDir}/build/x86_64-linux-gnu/core/Valgrind"
+    },
+    {
+      "name": "fuzz",
+      "inherits": "debug",
+      "toolchainFile": "${sourceDir}/cmake/CpktReadOnlyAflToolchain.cmake",
+      "cacheVariables": {
+        "CPKT_BUILD_DEPENDENCIES": "OFF",
+        "CPKT_FACADE_ONLY": "ON",
+        "CPKT_ENABLE_FUZZING": "ON",
+        "CPKT_BORROW_ORDINARY_DEPENDENCIES": "ON"
+      },
+      "binaryDir": "${sourceDir}/build/x86_64-linux-gnu/core/Fuzz"
+    },
+    {
+      "name": "x86_64-linux-musl-release",
+      "inherits": "x86_64-linux-gnu-release",
+      "toolchainFile": "${sourceDir}/cmake/CpktReadOnlyToolchain.cmake",
+      "cacheVariables": {
+        "CPKT_TARGET_ARCH": "x86_64",
+        "CPKT_TARGET_OS": "linux",
+        "CPKT_TARGET_LIBC": "musl"
+      },
+      "binaryDir": "${sourceDir}/build/x86_64-linux-musl/core/Release"
+    },
+    {
+      "name": "aarch64-linux-gnu-release",
+      "inherits": "x86_64-linux-gnu-release",
+      "toolchainFile": "${sourceDir}/cmake/CpktReadOnlyToolchain.cmake",
+      "cacheVariables": {
+        "CPKT_TARGET_ARCH": "aarch64",
+        "CPKT_TARGET_OS": "linux",
+        "CPKT_TARGET_LIBC": "gnu"
+      },
+      "binaryDir": "${sourceDir}/build/aarch64-linux-gnu/core/Release"
+    },
+    {
+      "name": "aarch64-linux-musl-release",
+      "inherits": "x86_64-linux-gnu-release",
+      "toolchainFile": "${sourceDir}/cmake/CpktReadOnlyToolchain.cmake",
+      "cacheVariables": {
+        "CPKT_TARGET_ARCH": "aarch64",
+        "CPKT_TARGET_OS": "linux",
+        "CPKT_TARGET_LIBC": "musl"
+      },
+      "binaryDir": "${sourceDir}/build/aarch64-linux-musl/core/Release"
+    },
+    {
+      "name": "armhf-linux-gnu-release",
+      "inherits": "x86_64-linux-gnu-release",
+      "toolchainFile": "${sourceDir}/cmake/CpktReadOnlyToolchain.cmake",
+      "cacheVariables": {
+        "CPKT_TARGET_ARCH": "armhf",
+        "CPKT_TARGET_OS": "linux",
+        "CPKT_TARGET_LIBC": "gnu"
+      },
+      "binaryDir": "${sourceDir}/build/armhf-linux-gnu/core/Release"
+    },
+    {
+      "name": "armhf-linux-musl-release",
+      "inherits": "x86_64-linux-gnu-release",
+      "toolchainFile": "${sourceDir}/cmake/CpktReadOnlyToolchain.cmake",
+      "cacheVariables": {
+        "CPKT_TARGET_ARCH": "armhf",
+        "CPKT_TARGET_OS": "linux",
+        "CPKT_TARGET_LIBC": "musl"
+      },
+      "binaryDir": "${sourceDir}/build/armhf-linux-musl/core/Release"
+    },
+    {
+      "name": "arm64-apple-darwin-native",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "15.0",
+        "CPKT_MACOS_DEPLOYMENT_TARGET": "15.0",
+        "CPKT_TARGET_ARCH": "arm64",
+        "CPKT_TARGET_OS": "darwin",
+        "CPKT_TARGET_LIBC": ""
+      },
+      "binaryDir": "${sourceDir}/build/arm64-apple-darwin/core/Release"
+    },
+    {
+      "name": "arm64-apple-darwin-release",
+      "inherits": "x86_64-linux-gnu-release",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/arm64-apple-darwin.cmake",
+      "cacheVariables": {
+        "CPKT_TARGET_ARCH": "arm64",
+        "CPKT_TARGET_OS": "darwin",
+        "CPKT_TARGET_LIBC": ""
+      },
+      "binaryDir": "${sourceDir}/build/arm64-apple-darwin/core/Release"
+    },
+    {
+      "name": "arm64-apple-darwin-debug",
+      "inherits": "arm64-apple-darwin-native",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      },
+      "binaryDir": "${sourceDir}/build/arm64-apple-darwin/core/Debug"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "arm64-apple-darwin-native",
+      "configurePreset": "arm64-apple-darwin-native"
+    },
+    {
+      "name": "x86_64-linux-gnu-release",
+      "configurePreset": "x86_64-linux-gnu-release"
+    },
+    {
+      "name": "release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "valgrind",
+      "configurePreset": "valgrind"
+    },
+    {
+      "name": "fuzz",
+      "configurePreset": "fuzz"
+    },
+    {
+      "name": "x86_64-linux-musl-release",
+      "configurePreset": "x86_64-linux-musl-release"
+    },
+    {
+      "name": "aarch64-linux-gnu-release",
+      "configurePreset": "aarch64-linux-gnu-release"
+    },
+    {
+      "name": "aarch64-linux-musl-release",
+      "configurePreset": "aarch64-linux-musl-release"
+    },
+    {
+      "name": "armhf-linux-gnu-release",
+      "configurePreset": "armhf-linux-gnu-release"
+    },
+    {
+      "name": "armhf-linux-musl-release",
+      "configurePreset": "armhf-linux-musl-release"
+    },
+    {
+      "name": "arm64-apple-darwin-release",
+      "configurePreset": "arm64-apple-darwin-release"
+    },
+    {
+      "name": "package-x86_64-linux-gnu-release",
+      "configurePreset": "x86_64-linux-gnu-release",
+      "targets": [
+        "package-bundle"
+      ]
+    },
+    {
+      "name": "package-x86_64-linux-musl-release",
+      "configurePreset": "x86_64-linux-musl-release",
+      "targets": [
+        "package-bundle"
+      ]
+    },
+    {
+      "name": "package-aarch64-linux-gnu-release",
+      "configurePreset": "aarch64-linux-gnu-release",
+      "targets": [
+        "package-bundle"
+      ]
+    },
+    {
+      "name": "package-aarch64-linux-musl-release",
+      "configurePreset": "aarch64-linux-musl-release",
+      "targets": [
+        "package-bundle"
+      ]
+    },
+    {
+      "name": "package-armhf-linux-gnu-release",
+      "configurePreset": "armhf-linux-gnu-release",
+      "targets": [
+        "package-bundle"
+      ]
+    },
+    {
+      "name": "package-armhf-linux-musl-release",
+      "configurePreset": "armhf-linux-musl-release",
+      "targets": [
+        "package-bundle"
+      ]
+    },
+    {
+      "name": "package-arm64-apple-darwin-release",
+      "configurePreset": "arm64-apple-darwin-release",
+      "targets": [
+        "package-bundle"
+      ]
+    },
+    {
+      "name": "arm64-apple-darwin-debug",
+      "configurePreset": "arm64-apple-darwin-debug"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "x86_64-linux-gnu-release",
+      "configurePreset": "x86_64-linux-gnu-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "debug",
+      "configurePreset": "debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "valgrind",
+      "configurePreset": "valgrind",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "x86_64-linux-musl-release",
+      "configurePreset": "x86_64-linux-musl-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "aarch64-linux-gnu-release",
+      "configurePreset": "aarch64-linux-gnu-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "aarch64-linux-musl-release",
+      "configurePreset": "aarch64-linux-musl-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "armhf-linux-gnu-release",
+      "configurePreset": "armhf-linux-gnu-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "armhf-linux-musl-release",
+      "configurePreset": "armhf-linux-musl-release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "arm64-apple-darwin-debug",
+      "configurePreset": "arm64-apple-darwin-debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}
