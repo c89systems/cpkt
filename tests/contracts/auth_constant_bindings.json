@@ -1,0 +1,1148 @@
+{
+  "gssapi": {
+    "GSSAPI_ALLOC_H": {
+      "unavailable": "installed header guard"
+    },
+    "GSSAPI_EXT_H_": {
+      "unavailable": "installed header guard"
+    },
+    "GSS_CALLING_ERROR(x)": {
+      "facade": "CPKT_GSS_CALLING_ERROR",
+      "kind": "numeric"
+    },
+    "GSS_CALLING_ERROR_FIELD(x)": {
+      "facade": "CPKT_GSS_CALLING_ERROR_FIELD",
+      "kind": "numeric"
+    },
+    "GSS_C_ACCEPT": {
+      "facade": "CPKT_GSS_CREDENTIAL_ACCEPT",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_APPLETALK": {
+      "facade": "CPKT_GSS_AF_APPLETALK",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_BSC": {
+      "facade": "CPKT_GSS_AF_BSC",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_CCITT": {
+      "facade": "CPKT_GSS_AF_CCITT",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_CHAOS": {
+      "facade": "CPKT_GSS_AF_CHAOS",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_DATAKIT": {
+      "facade": "CPKT_GSS_AF_DATAKIT",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_DECnet": {
+      "facade": "CPKT_GSS_AF_DECNET",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_DLI": {
+      "facade": "CPKT_GSS_AF_DLI",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_DSS": {
+      "facade": "CPKT_GSS_AF_DSS",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_ECMA": {
+      "facade": "CPKT_GSS_AF_ECMA",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_HYLINK": {
+      "facade": "CPKT_GSS_AF_HYLINK",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_IMPLINK": {
+      "facade": "CPKT_GSS_AF_IMPLINK",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_INET": {
+      "facade": "CPKT_GSS_AF_INET",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_LAT": {
+      "facade": "CPKT_GSS_AF_LAT",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_LOCAL": {
+      "facade": "CPKT_GSS_AF_LOCAL",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_NBS": {
+      "facade": "CPKT_GSS_AF_NBS",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_NETBIOS": {
+      "facade": "CPKT_GSS_AF_NETBIOS",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_NS": {
+      "facade": "CPKT_GSS_AF_NS",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_NULLADDR": {
+      "facade": "CPKT_GSS_AF_NULL_ADDRESS",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_OSI": {
+      "facade": "CPKT_GSS_AF_OSI",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_PUP": {
+      "facade": "CPKT_GSS_AF_PUP",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_SNA": {
+      "facade": "CPKT_GSS_AF_SNA",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_UNSPEC": {
+      "facade": "CPKT_GSS_AF_UNSPEC",
+      "kind": "numeric"
+    },
+    "GSS_C_AF_X25": {
+      "facade": "CPKT_GSS_AF_X25",
+      "kind": "numeric"
+    },
+    "GSS_C_ANON_FLAG": {
+      "facade": "CPKT_GSS_FLAG_ANONYMOUS",
+      "kind": "numeric"
+    },
+    "GSS_C_BOTH": {
+      "facade": "CPKT_GSS_CREDENTIAL_BOTH",
+      "kind": "numeric"
+    },
+    "GSS_C_CALLING_ERROR_MASK": {
+      "facade": "CPKT_GSS_CALLING_ERROR_MASK",
+      "kind": "numeric"
+    },
+    "GSS_C_CALLING_ERROR_OFFSET": {
+      "facade": "CPKT_GSS_CALLING_ERROR_OFFSET",
+      "kind": "numeric"
+    },
+    "GSS_C_CHANNEL_BOUND_FLAG": {
+      "facade": "CPKT_GSS_FLAG_CHANNEL_BOUND",
+      "kind": "numeric"
+    },
+    "GSS_C_CONF_FLAG": {
+      "facade": "CPKT_GSS_FLAG_CONFIDENTIALITY",
+      "kind": "numeric"
+    },
+    "GSS_C_DCE_STYLE": {
+      "facade": "CPKT_GSS_FLAG_DCE_STYLE",
+      "kind": "numeric"
+    },
+    "GSS_C_DELEG_FLAG": {
+      "facade": "CPKT_GSS_FLAG_DELEGATE",
+      "kind": "numeric"
+    },
+    "GSS_C_DELEG_POLICY_FLAG": {
+      "facade": "CPKT_GSS_FLAG_DELEGATE_POLICY",
+      "kind": "numeric"
+    },
+    "GSS_C_EMPTY_BUFFER": {
+      "facade": "CPKT_GSS_EMPTY_BUFFER",
+      "kind": "sentinel"
+    },
+    "GSS_C_EXTENDED_ERROR_FLAG": {
+      "facade": "CPKT_GSS_FLAG_EXTENDED_ERROR",
+      "kind": "numeric"
+    },
+    "GSS_C_GSS_CODE": {
+      "facade": "CPKT_GSS_STATUS_GSS_CODE",
+      "kind": "numeric"
+    },
+    "GSS_C_IDENTIFY_FLAG": {
+      "facade": "CPKT_GSS_FLAG_IDENTIFY",
+      "kind": "numeric"
+    },
+    "GSS_C_INDEFINITE": {
+      "facade": "CPKT_GSS_LIFETIME_INDEFINITE",
+      "kind": "numeric"
+    },
+    "GSS_C_INITIATE": {
+      "facade": "CPKT_GSS_CREDENTIAL_INITIATE",
+      "kind": "numeric"
+    },
+    "GSS_C_INTEG_FLAG": {
+      "facade": "CPKT_GSS_FLAG_INTEGRITY",
+      "kind": "numeric"
+    },
+    "GSS_C_MECH_CODE": {
+      "facade": "CPKT_GSS_STATUS_MECHANISM_CODE",
+      "kind": "numeric"
+    },
+    "GSS_C_MUTUAL_FLAG": {
+      "facade": "CPKT_GSS_FLAG_MUTUAL",
+      "kind": "numeric"
+    },
+    "GSS_C_NO_BUFFER": {
+      "facade": "CPKT_GSS_NO_BUFFER",
+      "kind": "sentinel"
+    },
+    "GSS_C_NO_BUFFER_SET": {
+      "facade": "CPKT_GSS_NO_BUFFER_SET",
+      "kind": "sentinel"
+    },
+    "GSS_C_NO_CHANNEL_BINDINGS": {
+      "facade": "CPKT_GSS_NO_CHANNEL_BINDINGS",
+      "kind": "sentinel"
+    },
+    "GSS_C_NO_CONTEXT": {
+      "facade": "CPKT_GSS_NO_CONTEXT",
+      "kind": "sentinel"
+    },
+    "GSS_C_NO_CREDENTIAL": {
+      "facade": "CPKT_GSS_NO_CREDENTIAL",
+      "kind": "sentinel"
+    },
+    "GSS_C_NO_CRED_STORE": {
+      "facade": "CPKT_GSS_NO_CREDENTIAL_STORE",
+      "kind": "sentinel"
+    },
+    "GSS_C_NO_IOV_BUFFER": {
+      "facade": "CPKT_GSS_NO_IOV_BUFFER",
+      "kind": "sentinel"
+    },
+    "GSS_C_NO_NAME": {
+      "facade": "CPKT_GSS_NO_NAME",
+      "kind": "sentinel"
+    },
+    "GSS_C_NO_OID": {
+      "facade": "CPKT_GSS_NO_OID",
+      "kind": "sentinel"
+    },
+    "GSS_C_NO_OID_SET": {
+      "facade": "CPKT_GSS_NO_OID_SET",
+      "kind": "sentinel"
+    },
+    "GSS_C_NULL_OID": {
+      "facade": "CPKT_GSS_NO_OID",
+      "kind": "sentinel"
+    },
+    "GSS_C_NULL_OID_SET": {
+      "facade": "CPKT_GSS_NO_OID_SET",
+      "kind": "sentinel"
+    },
+    "GSS_C_PRF_KEY_FULL": {
+      "facade": "CPKT_GSS_PRF_KEY_FULL",
+      "kind": "numeric"
+    },
+    "GSS_C_PRF_KEY_PARTIAL": {
+      "facade": "CPKT_GSS_PRF_KEY_PARTIAL",
+      "kind": "numeric"
+    },
+    "GSS_C_PROT_READY_FLAG": {
+      "facade": "CPKT_GSS_FLAG_PROTECTION_READY",
+      "kind": "numeric"
+    },
+    "GSS_C_QOP_DEFAULT": {
+      "facade": "CPKT_GSS_QOP_DEFAULT",
+      "kind": "numeric"
+    },
+    "GSS_C_REPLAY_FLAG": {
+      "facade": "CPKT_GSS_FLAG_REPLAY",
+      "kind": "numeric"
+    },
+    "GSS_C_ROUTINE_ERROR_MASK": {
+      "facade": "CPKT_GSS_ROUTINE_ERROR_MASK",
+      "kind": "numeric"
+    },
+    "GSS_C_ROUTINE_ERROR_OFFSET": {
+      "facade": "CPKT_GSS_ROUTINE_ERROR_OFFSET",
+      "kind": "numeric"
+    },
+    "GSS_C_SEQUENCE_FLAG": {
+      "facade": "CPKT_GSS_FLAG_SEQUENCE",
+      "kind": "numeric"
+    },
+    "GSS_C_SUPPLEMENTARY_MASK": {
+      "facade": "CPKT_GSS_SUPPLEMENTARY_MASK",
+      "kind": "numeric"
+    },
+    "GSS_C_SUPPLEMENTARY_OFFSET": {
+      "facade": "CPKT_GSS_SUPPLEMENTARY_OFFSET",
+      "kind": "numeric"
+    },
+    "GSS_C_TRANS_FLAG": {
+      "facade": "CPKT_GSS_FLAG_TRANSFERRABLE",
+      "kind": "numeric"
+    },
+    "GSS_DLLIMP": {
+      "unavailable": "native compiler visibility annotation"
+    },
+    "GSS_EMPTY_BUFFER(buf)": {
+      "facade": "CPKT_GSS_BUFFER_IS_EMPTY",
+      "kind": "sentinel"
+    },
+    "GSS_ERROR(x)": {
+      "facade": "CPKT_GSS_ERROR",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_FLAGS(_type)": {
+      "facade": "CPKT_GSS_IOV_FLAGS",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_FLAG_ALLOCATE": {
+      "facade": "CPKT_GSS_IOV_ALLOCATE",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_FLAG_ALLOCATED": {
+      "facade": "CPKT_GSS_IOV_ALLOCATED",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_FLAG_MASK": {
+      "facade": "CPKT_GSS_IOV_FLAG_MASK",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE(_type)": {
+      "facade": "CPKT_GSS_IOV_TYPE",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE_DATA": {
+      "facade": "CPKT_GSS_IOV_DATA",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE_EMPTY": {
+      "facade": "CPKT_GSS_IOV_EMPTY",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE_HEADER": {
+      "facade": "CPKT_GSS_IOV_HEADER",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE_MECH_PARAMS": {
+      "facade": "CPKT_GSS_IOV_MECH_PARAMS",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE_MIC_TOKEN": {
+      "facade": "CPKT_GSS_IOV_MIC_TOKEN",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE_PADDING": {
+      "facade": "CPKT_GSS_IOV_PADDING",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE_SIGN_ONLY": {
+      "facade": "CPKT_GSS_IOV_SIGN_ONLY",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE_STREAM": {
+      "facade": "CPKT_GSS_IOV_STREAM",
+      "kind": "numeric"
+    },
+    "GSS_IOV_BUFFER_TYPE_TRAILER": {
+      "facade": "CPKT_GSS_IOV_TRAILER",
+      "kind": "numeric"
+    },
+    "GSS_KRB5_NT_HOSTBASED_SERVICE_NAME": {
+      "facade": "cpkt_gss_name_type_hostbased_service",
+      "kind": "accessor"
+    },
+    "GSS_KRB5_NT_MACHINE_UID_NAME": {
+      "facade": "cpkt_gss_name_type_machine_uid",
+      "kind": "accessor"
+    },
+    "GSS_KRB5_NT_STRING_UID_NAME": {
+      "facade": "cpkt_gss_name_type_string_uid",
+      "kind": "accessor"
+    },
+    "GSS_KRB5_NT_USER_NAME": {
+      "facade": "cpkt_gss_name_type_user",
+      "kind": "accessor"
+    },
+    "GSS_ROUTINE_ERROR(x)": {
+      "facade": "CPKT_GSS_ROUTINE_ERROR",
+      "kind": "numeric"
+    },
+    "GSS_ROUTINE_ERROR_FIELD(x)": {
+      "facade": "CPKT_GSS_ROUTINE_ERROR_FIELD",
+      "kind": "numeric"
+    },
+    "GSS_SUPPLEMENTARY_INFO(x)": {
+      "facade": "CPKT_GSS_SUPPLEMENTARY_INFO",
+      "kind": "numeric"
+    },
+    "GSS_SUPPLEMENTARY_INFO_FIELD(x)": {
+      "facade": "CPKT_GSS_SUPPLEMENTARY_INFO_FIELD",
+      "kind": "numeric"
+    },
+    "GSS_S_BAD_BINDINGS": {
+      "facade": "CPKT_GSS_S_BAD_BINDINGS",
+      "kind": "numeric"
+    },
+    "GSS_S_BAD_MECH": {
+      "facade": "CPKT_GSS_S_BAD_MECHANISM",
+      "kind": "numeric"
+    },
+    "GSS_S_BAD_MECH_ATTR": {
+      "facade": "CPKT_GSS_S_BAD_MECHANISM_ATTRIBUTE",
+      "kind": "numeric"
+    },
+    "GSS_S_BAD_MIC": {
+      "facade": "CPKT_GSS_S_BAD_MIC",
+      "kind": "numeric"
+    },
+    "GSS_S_BAD_NAME": {
+      "facade": "CPKT_GSS_S_BAD_NAME",
+      "kind": "numeric"
+    },
+    "GSS_S_BAD_NAMETYPE": {
+      "facade": "CPKT_GSS_S_BAD_NAME_TYPE",
+      "kind": "numeric"
+    },
+    "GSS_S_BAD_QOP": {
+      "facade": "CPKT_GSS_S_BAD_QOP",
+      "kind": "numeric"
+    },
+    "GSS_S_BAD_SIG": {
+      "facade": "CPKT_GSS_S_BAD_SIGNATURE",
+      "kind": "numeric"
+    },
+    "GSS_S_BAD_STATUS": {
+      "facade": "CPKT_GSS_S_BAD_STATUS",
+      "kind": "numeric"
+    },
+    "GSS_S_CALL_BAD_STRUCTURE": {
+      "facade": "CPKT_GSS_S_CALL_BAD_STRUCTURE",
+      "kind": "numeric"
+    },
+    "GSS_S_CALL_INACCESSIBLE_READ": {
+      "facade": "CPKT_GSS_S_CALL_INACCESSIBLE_READ",
+      "kind": "numeric"
+    },
+    "GSS_S_CALL_INACCESSIBLE_WRITE": {
+      "facade": "CPKT_GSS_S_CALL_INACCESSIBLE_WRITE",
+      "kind": "numeric"
+    },
+    "GSS_S_COMPLETE": {
+      "facade": "CPKT_GSS_COMPLETE",
+      "kind": "numeric"
+    },
+    "GSS_S_CONTEXT_EXPIRED": {
+      "facade": "CPKT_GSS_S_CONTEXT_EXPIRED",
+      "kind": "numeric"
+    },
+    "GSS_S_CONTINUE_NEEDED": {
+      "facade": "CPKT_GSS_S_CONTINUE_NEEDED",
+      "kind": "numeric"
+    },
+    "GSS_S_CREDENTIALS_EXPIRED": {
+      "facade": "CPKT_GSS_S_CREDENTIALS_EXPIRED",
+      "kind": "numeric"
+    },
+    "GSS_S_CRED_UNAVAIL": {
+      "facade": "CPKT_GSS_S_CREDENTIAL_UNAVAILABLE",
+      "kind": "numeric"
+    },
+    "GSS_S_DEFECTIVE_CREDENTIAL": {
+      "facade": "CPKT_GSS_S_DEFECTIVE_CREDENTIAL",
+      "kind": "numeric"
+    },
+    "GSS_S_DEFECTIVE_TOKEN": {
+      "facade": "CPKT_GSS_S_DEFECTIVE_TOKEN",
+      "kind": "numeric"
+    },
+    "GSS_S_DUPLICATE_ELEMENT": {
+      "facade": "CPKT_GSS_S_DUPLICATE_ELEMENT",
+      "kind": "numeric"
+    },
+    "GSS_S_DUPLICATE_TOKEN": {
+      "facade": "CPKT_GSS_S_DUPLICATE_TOKEN",
+      "kind": "numeric"
+    },
+    "GSS_S_FAILURE": {
+      "facade": "CPKT_GSS_S_FAILURE",
+      "kind": "numeric"
+    },
+    "GSS_S_GAP_TOKEN": {
+      "facade": "CPKT_GSS_S_GAP_TOKEN",
+      "kind": "numeric"
+    },
+    "GSS_S_NAME_NOT_MN": {
+      "facade": "CPKT_GSS_S_NAME_NOT_MN",
+      "kind": "numeric"
+    },
+    "GSS_S_NO_CONTEXT": {
+      "facade": "CPKT_GSS_S_NO_CONTEXT",
+      "kind": "numeric"
+    },
+    "GSS_S_NO_CRED": {
+      "facade": "CPKT_GSS_S_NO_CREDENTIAL",
+      "kind": "numeric"
+    },
+    "GSS_S_OLD_TOKEN": {
+      "facade": "CPKT_GSS_S_OLD_TOKEN",
+      "kind": "numeric"
+    },
+    "GSS_S_UNAUTHORIZED": {
+      "facade": "CPKT_GSS_S_UNAUTHORIZED",
+      "kind": "numeric"
+    },
+    "GSS_S_UNAVAILABLE": {
+      "facade": "CPKT_GSS_S_UNAVAILABLE",
+      "kind": "numeric"
+    },
+    "GSS_S_UNSEQ_TOKEN": {
+      "facade": "CPKT_GSS_S_UNSEQUENCED_TOKEN",
+      "kind": "numeric"
+    },
+    "gss_krb5_nt_general_name": {
+      "facade": "cpkt_gss_known_oid",
+      "kind": "accessor"
+    },
+    "gss_krb5_nt_machine_uid_name": {
+      "facade": "cpkt_gss_name_type_machine_uid",
+      "kind": "accessor"
+    },
+    "gss_krb5_nt_principal": {
+      "facade": "cpkt_gss_krb5_principal_name_type",
+      "kind": "accessor"
+    },
+    "gss_krb5_nt_service_name": {
+      "facade": "cpkt_gss_name_type_hostbased_service",
+      "kind": "accessor"
+    },
+    "gss_krb5_nt_string_uid_name": {
+      "facade": "cpkt_gss_name_type_string_uid",
+      "kind": "accessor"
+    },
+    "gss_krb5_nt_user_name": {
+      "facade": "cpkt_gss_name_type_user",
+      "kind": "accessor"
+    }
+  },
+  "sasl": {
+    "HMAC_MD5_H": {
+      "unavailable": "installed header guard"
+    },
+    "HMAC_MD5_SIZE": {
+      "facade": "CPKT_SASL_HMAC_MD5_SIZE",
+      "kind": "numeric"
+    },
+    "PROP_DEFAULT": {
+      "facade": "CPKT_SASL_PROPERTY_DEFAULT_CAPACITY",
+      "kind": "numeric"
+    },
+    "PROP_H": {
+      "unavailable": "installed header guard"
+    },
+    "SASL_APPNAME": {
+      "facade": "CPKT_SASL_PROPERTY_APPLICATION",
+      "kind": "numeric"
+    },
+    "SASL_AUTHSOURCE": {
+      "facade": "CPKT_SASL_PROPERTY_AUTHENTICATION_SOURCE",
+      "kind": "numeric"
+    },
+    "SASL_AUTHUSER": {
+      "facade": "CPKT_SASL_PROPERTY_AUTHENTICATED_USER",
+      "kind": "numeric"
+    },
+    "SASL_AUTH_EXTERNAL": {
+      "facade": "CPKT_SASL_PROPERTY_EXTERNAL_AUTHENTICATION",
+      "kind": "numeric"
+    },
+    "SASL_AUXPROP_AUTHZID": {
+      "facade": "CPKT_SASL_AUXILIARY_AUTHORIZATION_ID",
+      "kind": "numeric"
+    },
+    "SASL_AUXPROP_OVERRIDE": {
+      "facade": "CPKT_SASL_AUXILIARY_OVERRIDE",
+      "kind": "numeric"
+    },
+    "SASL_AUXPROP_PLUG_VERSION": {
+      "facade": "CPKT_SASL_AUXILIARY_PLUGIN_VERSION",
+      "kind": "numeric"
+    },
+    "SASL_AUXPROP_VERIFY_AGAINST_HASH": {
+      "facade": "CPKT_SASL_AUXILIARY_VERIFY_HASH",
+      "kind": "numeric"
+    },
+    "SASL_AUX_ALL": {
+      "facade": "CPKT_SASL_AUX_ALL",
+      "kind": "string"
+    },
+    "SASL_AUX_END": {
+      "facade": "CPKT_SASL_AUX_END",
+      "kind": "sentinel"
+    },
+    "SASL_AUX_FULLNAME": {
+      "facade": "CPKT_SASL_AUX_FULL_NAME",
+      "kind": "string"
+    },
+    "SASL_AUX_GIDNUM": {
+      "facade": "CPKT_SASL_AUX_GID_NUMBER",
+      "kind": "string"
+    },
+    "SASL_AUX_HOMEDIR": {
+      "facade": "CPKT_SASL_AUX_HOME_DIRECTORY",
+      "kind": "string"
+    },
+    "SASL_AUX_MAILADDR": {
+      "facade": "CPKT_SASL_AUX_MAIL_ADDRESS",
+      "kind": "string"
+    },
+    "SASL_AUX_MAILCHAN": {
+      "facade": "CPKT_SASL_AUX_MAIL_CHANNEL",
+      "kind": "string"
+    },
+    "SASL_AUX_PASSWORD": {
+      "facade": "CPKT_SASL_AUX_PASSWORD",
+      "kind": "string"
+    },
+    "SASL_AUX_PASSWORD_PROP": {
+      "facade": "CPKT_SASL_AUX_PASSWORD_PROPERTY",
+      "kind": "string"
+    },
+    "SASL_AUX_SHELL": {
+      "facade": "CPKT_SASL_AUX_SHELL",
+      "kind": "string"
+    },
+    "SASL_AUX_UIDNUM": {
+      "facade": "CPKT_SASL_AUX_UID_NUMBER",
+      "kind": "string"
+    },
+    "SASL_AUX_UNIXMBX": {
+      "facade": "CPKT_SASL_AUX_UNIX_MAILBOX",
+      "kind": "string"
+    },
+    "SASL_BADAUTH": {
+      "facade": "CPKT_SASL_BADAUTH",
+      "kind": "numeric"
+    },
+    "SASL_BADBINDING": {
+      "facade": "CPKT_SASL_BADBINDING",
+      "kind": "numeric"
+    },
+    "SASL_BADMAC": {
+      "facade": "CPKT_SASL_BADMAC",
+      "kind": "numeric"
+    },
+    "SASL_BADPARAM": {
+      "facade": "CPKT_SASL_BADPARAM",
+      "kind": "numeric"
+    },
+    "SASL_BADPROT": {
+      "facade": "CPKT_SASL_BADPROT",
+      "kind": "numeric"
+    },
+    "SASL_BADSERV": {
+      "facade": "CPKT_SASL_BADSERV",
+      "kind": "numeric"
+    },
+    "SASL_BADVERS": {
+      "facade": "CPKT_SASL_BADVERS",
+      "kind": "numeric"
+    },
+    "SASL_BUFOVER": {
+      "facade": "CPKT_SASL_BUFOVER",
+      "kind": "numeric"
+    },
+    "SASL_CALLBACK": {
+      "facade": "CPKT_SASL_PROPERTY_CALLBACKS",
+      "kind": "numeric"
+    },
+    "SASL_CANONUSER_PLUG_VERSION": {
+      "facade": "CPKT_SASL_CANONICALIZER_PLUGIN_VERSION",
+      "kind": "numeric"
+    },
+    "SASL_CB_AUTHNAME": {
+      "facade": "CPKT_SASL_CALLBACK_AUTHENTICATION_NAME",
+      "kind": "numeric"
+    },
+    "SASL_CB_CANON_USER": {
+      "facade": "CPKT_SASL_CALLBACK_CANONICALIZE",
+      "kind": "numeric"
+    },
+    "SASL_CB_CNONCE": {
+      "facade": "CPKT_SASL_CALLBACK_CLIENT_NONCE",
+      "kind": "numeric"
+    },
+    "SASL_CB_CRITICAL(params)": {
+      "facade": "CPKT_SASL_CHANNEL_BINDING_CRITICAL",
+      "kind": "predicate"
+    },
+    "SASL_CB_ECHOPROMPT": {
+      "facade": "CPKT_SASL_CALLBACK_ECHO_PROMPT",
+      "kind": "numeric"
+    },
+    "SASL_CB_GETCONFPATH": {
+      "facade": "CPKT_SASL_CALLBACK_CONFIGURATION_PATH",
+      "kind": "numeric"
+    },
+    "SASL_CB_GETOPT": {
+      "facade": "CPKT_SASL_CALLBACK_OPTION",
+      "kind": "numeric"
+    },
+    "SASL_CB_GETPATH": {
+      "facade": "CPKT_SASL_CALLBACK_PLUGIN_PATH",
+      "kind": "numeric"
+    },
+    "SASL_CB_GETREALM": {
+      "facade": "CPKT_SASL_CALLBACK_REALM",
+      "kind": "numeric"
+    },
+    "SASL_CB_LANGUAGE": {
+      "facade": "CPKT_SASL_CALLBACK_LANGUAGE",
+      "kind": "numeric"
+    },
+    "SASL_CB_LIST_END": {
+      "facade": "CPKT_SASL_CALLBACK_LIST_END",
+      "kind": "numeric"
+    },
+    "SASL_CB_LOG": {
+      "facade": "CPKT_SASL_CALLBACK_LOG",
+      "kind": "numeric"
+    },
+    "SASL_CB_NOECHOPROMPT": {
+      "facade": "CPKT_SASL_CALLBACK_NO_ECHO_PROMPT",
+      "kind": "numeric"
+    },
+    "SASL_CB_PASS": {
+      "facade": "CPKT_SASL_CALLBACK_PASSWORD",
+      "kind": "numeric"
+    },
+    "SASL_CB_PRESENT(params)": {
+      "facade": "CPKT_SASL_CHANNEL_BINDING_PRESENT",
+      "kind": "predicate"
+    },
+    "SASL_CB_PROXY_POLICY": {
+      "facade": "CPKT_SASL_CALLBACK_PROXY_POLICY",
+      "kind": "numeric"
+    },
+    "SASL_CB_SERVER_USERDB_CHECKPASS": {
+      "facade": "CPKT_SASL_CALLBACK_CHECK_PASSWORD",
+      "kind": "numeric"
+    },
+    "SASL_CB_SERVER_USERDB_SETPASS": {
+      "facade": "CPKT_SASL_CALLBACK_SET_PASSWORD",
+      "kind": "numeric"
+    },
+    "SASL_CB_USER": {
+      "facade": "CPKT_SASL_CALLBACK_USER",
+      "kind": "numeric"
+    },
+    "SASL_CB_VERIFYFILE": {
+      "facade": "CPKT_SASL_CALLBACK_VERIFY_FILE",
+      "kind": "numeric"
+    },
+    "SASL_CHANNEL_BINDING": {
+      "facade": "CPKT_SASL_PROPERTY_CHANNEL_BINDING",
+      "kind": "numeric"
+    },
+    "SASL_CLIENT_PLUG_VERSION": {
+      "facade": "CPKT_SASL_CLIENT_PLUGIN_VERSION",
+      "kind": "numeric"
+    },
+    "SASL_CONFIGERR": {
+      "facade": "CPKT_SASL_CONFIGERR",
+      "kind": "numeric"
+    },
+    "SASL_CONSTRAINT_VIOLAT": {
+      "facade": "CPKT_SASL_CONSTRAINT_VIOLAT",
+      "kind": "numeric"
+    },
+    "SASL_CONTINUE": {
+      "facade": "CPKT_SASL_CONTINUE",
+      "kind": "numeric"
+    },
+    "SASL_CU_ASIS_MASK": {
+      "facade": "CPKT_SASL_CANONICALIZE_AS_IS_MASK",
+      "kind": "numeric"
+    },
+    "SASL_CU_AUTHID": {
+      "facade": "CPKT_SASL_CANONICALIZE_AUTHENTICATION_ID",
+      "kind": "numeric"
+    },
+    "SASL_CU_AUTHZID": {
+      "facade": "CPKT_SASL_CANONICALIZE_AUTHORIZATION_ID",
+      "kind": "numeric"
+    },
+    "SASL_CU_EXTERNALLY_VERIFIED": {
+      "facade": "CPKT_SASL_CANONICALIZE_EXTERNALLY_VERIFIED",
+      "kind": "numeric"
+    },
+    "SASL_CU_NONE": {
+      "facade": "CPKT_SASL_CANONICALIZE_NONE",
+      "kind": "numeric"
+    },
+    "SASL_CU_OVERRIDE": {
+      "facade": "CPKT_SASL_CANONICALIZE_OVERRIDE",
+      "kind": "numeric"
+    },
+    "SASL_CU_VERIFY_AGAINST_HASH": {
+      "facade": "CPKT_SASL_CANONICALIZE_VERIFY_HASH",
+      "kind": "numeric"
+    },
+    "SASL_DEFUSERREALM": {
+      "facade": "CPKT_SASL_PROPERTY_DEFAULT_REALM",
+      "kind": "numeric"
+    },
+    "SASL_DELEGATEDCREDS": {
+      "facade": "CPKT_SASL_PROPERTY_DELEGATED_CREDENTIALS",
+      "kind": "numeric"
+    },
+    "SASL_DISABLED": {
+      "facade": "CPKT_SASL_DISABLED",
+      "kind": "numeric"
+    },
+    "SASL_ENCRYPT": {
+      "facade": "CPKT_SASL_ENCRYPT",
+      "kind": "numeric"
+    },
+    "SASL_EXPIRED": {
+      "facade": "CPKT_SASL_EXPIRED",
+      "kind": "numeric"
+    },
+    "SASL_FAIL": {
+      "facade": "CPKT_SASL_FAIL",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_ALLOWS_PROXY": {
+      "facade": "CPKT_SASL_FEATURE_ALLOWS_PROXY",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_CHANNEL_BINDING": {
+      "facade": "CPKT_SASL_FEATURE_CHANNEL_BINDING",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_DONTUSE_USERPASSWD": {
+      "facade": "CPKT_SASL_FEATURE_DONT_USE_USER_PASSWORD",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_GETSECRET": {
+      "facade": "CPKT_SASL_FEATURE_GET_SECRET",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_GSS_FRAMING": {
+      "facade": "CPKT_SASL_FEATURE_GSS_FRAMING",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_NEEDSERVERFQDN": {
+      "facade": "CPKT_SASL_FEATURE_NEEDS_SERVER_NAME",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_SERVER_FIRST": {
+      "facade": "CPKT_SASL_FEATURE_SERVER_FIRST",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_SERVICE": {
+      "facade": "CPKT_SASL_FEATURE_SERVICE",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_SUPPORTS_HTTP": {
+      "facade": "CPKT_SASL_FEATURE_SUPPORTS_HTTP",
+      "kind": "numeric"
+    },
+    "SASL_FEAT_WANT_CLIENT_FIRST": {
+      "facade": "CPKT_SASL_FEATURE_WANT_CLIENT_FIRST",
+      "kind": "numeric"
+    },
+    "SASL_GETOPTCTX": {
+      "facade": "CPKT_SASL_PROPERTY_OPTION_CONTEXT",
+      "kind": "numeric"
+    },
+    "SASL_GET_HASH_STRENGTH(x)": {
+      "facade": "CPKT_SASL_GET_HASH_STRENGTH",
+      "kind": "numeric"
+    },
+    "SASL_GSS_CREDS": {
+      "facade": "CPKT_SASL_PROPERTY_GSS_CREDENTIALS",
+      "kind": "numeric"
+    },
+    "SASL_GSS_LOCAL_NAME": {
+      "facade": "CPKT_SASL_PROPERTY_GSS_LOCAL_NAME",
+      "kind": "numeric"
+    },
+    "SASL_GSS_PEER_NAME": {
+      "facade": "CPKT_SASL_PROPERTY_GSS_PEER_NAME",
+      "kind": "numeric"
+    },
+    "SASL_H": {
+      "unavailable": "installed header guard"
+    },
+    "SASL_HTTP_REQUEST": {
+      "facade": "CPKT_SASL_PROPERTY_HTTP_REQUEST",
+      "kind": "numeric"
+    },
+    "SASL_INTERACT": {
+      "facade": "CPKT_SASL_INTERACT",
+      "kind": "numeric"
+    },
+    "SASL_IPLOCALPORT": {
+      "facade": "CPKT_SASL_PROPERTY_LOCAL_ENDPOINT",
+      "kind": "numeric"
+    },
+    "SASL_IPREMOTEPORT": {
+      "facade": "CPKT_SASL_PROPERTY_REMOTE_ENDPOINT",
+      "kind": "numeric"
+    },
+    "SASL_LOG_DEBUG": {
+      "facade": "CPKT_SASL_LOG_DEBUG",
+      "kind": "numeric"
+    },
+    "SASL_LOG_ERR": {
+      "facade": "CPKT_SASL_LOG_ERROR",
+      "kind": "numeric"
+    },
+    "SASL_LOG_FAIL": {
+      "facade": "CPKT_SASL_LOG_FAILURE",
+      "kind": "numeric"
+    },
+    "SASL_LOG_NONE": {
+      "facade": "CPKT_SASL_LOG_NONE",
+      "kind": "numeric"
+    },
+    "SASL_LOG_NOTE": {
+      "facade": "CPKT_SASL_LOG_NOTE",
+      "kind": "numeric"
+    },
+    "SASL_LOG_PASS": {
+      "facade": "CPKT_SASL_LOG_PASSWORD",
+      "kind": "numeric"
+    },
+    "SASL_LOG_TRACE": {
+      "facade": "CPKT_SASL_LOG_TRACE",
+      "kind": "numeric"
+    },
+    "SASL_LOG_WARN": {
+      "facade": "CPKT_SASL_LOG_WARNING",
+      "kind": "numeric"
+    },
+    "SASL_MAXOUTBUF": {
+      "facade": "CPKT_SASL_PROPERTY_MAXIMUM_OUTPUT",
+      "kind": "numeric"
+    },
+    "SASL_MECHNAME": {
+      "facade": "CPKT_SASL_PROPERTY_MECHANISM",
+      "kind": "numeric"
+    },
+    "SASL_MECHNAMEMAX": {
+      "facade": "CPKT_SASL_MAX_MECHANISM_NAME",
+      "kind": "numeric"
+    },
+    "SASL_NEED_HTTP": {
+      "facade": "CPKT_SASL_NEED_HTTP",
+      "kind": "numeric"
+    },
+    "SASL_NEED_OLD_PASSWD": {
+      "facade": "CPKT_SASL_NEED_OLD_PASSWD",
+      "kind": "numeric"
+    },
+    "SASL_NEED_PROXY": {
+      "facade": "CPKT_SASL_NEED_PROXY",
+      "kind": "numeric"
+    },
+    "SASL_NOAUTHZ": {
+      "facade": "CPKT_SASL_NOAUTHZ",
+      "kind": "numeric"
+    },
+    "SASL_NOCHANGE": {
+      "facade": "CPKT_SASL_NOCHANGE",
+      "kind": "numeric"
+    },
+    "SASL_NOLOG": {
+      "facade": "CPKT_SASL_NOLOG",
+      "kind": "numeric"
+    },
+    "SASL_NOMECH": {
+      "facade": "CPKT_SASL_NOMECH",
+      "kind": "numeric"
+    },
+    "SASL_NOMEM": {
+      "facade": "CPKT_SASL_NOMEM",
+      "kind": "numeric"
+    },
+    "SASL_NOTDONE": {
+      "facade": "CPKT_SASL_NOTDONE",
+      "kind": "numeric"
+    },
+    "SASL_NOTINIT": {
+      "facade": "CPKT_SASL_NOTINIT",
+      "kind": "numeric"
+    },
+    "SASL_NOUSER": {
+      "facade": "CPKT_SASL_NOUSER",
+      "kind": "numeric"
+    },
+    "SASL_NOUSERPASS": {
+      "facade": "CPKT_SASL_NOUSERPASS",
+      "kind": "numeric"
+    },
+    "SASL_NOVERIFY": {
+      "facade": "CPKT_SASL_NOVERIFY",
+      "kind": "numeric"
+    },
+    "SASL_OK": {
+      "facade": "CPKT_SASL_OK",
+      "kind": "numeric"
+    },
+    "SASL_PATH_TYPE_CONFIG": {
+      "facade": "CPKT_SASL_PATH_CONFIGURATION",
+      "kind": "numeric"
+    },
+    "SASL_PATH_TYPE_PLUGIN": {
+      "facade": "CPKT_SASL_PATH_PLUGIN",
+      "kind": "numeric"
+    },
+    "SASL_PLUGERR": {
+      "facade": "CPKT_SASL_PROPERTY_PLUGIN_ERROR",
+      "kind": "numeric"
+    },
+    "SASL_PWLOCK": {
+      "facade": "CPKT_SASL_PWLOCK",
+      "kind": "numeric"
+    },
+    "SASL_SEC_FORWARD_SECRECY": {
+      "facade": "CPKT_SASL_SECURITY_FORWARD_SECRECY",
+      "kind": "numeric"
+    },
+    "SASL_SEC_MAXIMUM": {
+      "facade": "CPKT_SASL_SECURITY_MAXIMUM",
+      "kind": "numeric"
+    },
+    "SASL_SEC_MUTUAL_AUTH": {
+      "facade": "CPKT_SASL_SECURITY_MUTUAL_AUTH",
+      "kind": "numeric"
+    },
+    "SASL_SEC_NOACTIVE": {
+      "facade": "CPKT_SASL_SECURITY_NO_ACTIVE",
+      "kind": "numeric"
+    },
+    "SASL_SEC_NOANONYMOUS": {
+      "facade": "CPKT_SASL_SECURITY_NO_ANONYMOUS",
+      "kind": "numeric"
+    },
+    "SASL_SEC_NODICTIONARY": {
+      "facade": "CPKT_SASL_SECURITY_NO_DICTIONARY",
+      "kind": "numeric"
+    },
+    "SASL_SEC_NOPLAINTEXT": {
+      "facade": "CPKT_SASL_SECURITY_NO_PLAINTEXT",
+      "kind": "numeric"
+    },
+    "SASL_SEC_PASS_CREDENTIALS": {
+      "facade": "CPKT_SASL_SECURITY_PASS_CREDENTIALS",
+      "kind": "numeric"
+    },
+    "SASL_SEC_PROPS": {
+      "facade": "CPKT_SASL_PROPERTY_SECURITY",
+      "kind": "numeric"
+    },
+    "SASL_SERVERFQDN": {
+      "facade": "CPKT_SASL_PROPERTY_SERVER_NAME",
+      "kind": "numeric"
+    },
+    "SASL_SERVER_PLUG_VERSION": {
+      "facade": "CPKT_SASL_SERVER_PLUGIN_VERSION",
+      "kind": "numeric"
+    },
+    "SASL_SERVICE": {
+      "facade": "CPKT_SASL_PROPERTY_SERVICE",
+      "kind": "numeric"
+    },
+    "SASL_SET_CREATE": {
+      "facade": "CPKT_SASL_SET_CREATE",
+      "kind": "numeric"
+    },
+    "SASL_SET_CURMECH_ONLY": {
+      "facade": "CPKT_SASL_SET_CURRENT_MECHANISM",
+      "kind": "numeric"
+    },
+    "SASL_SET_DISABLE": {
+      "facade": "CPKT_SASL_SET_DISABLE",
+      "kind": "numeric"
+    },
+    "SASL_SET_HASH_STRENGTH_BITS(x)": {
+      "facade": "CPKT_SASL_SET_HASH_STRENGTH_BITS",
+      "kind": "numeric"
+    },
+    "SASL_SET_NOPLAIN": {
+      "facade": "CPKT_SASL_SET_NO_PLAINTEXT",
+      "kind": "numeric"
+    },
+    "SASL_SET_REMOVE": {
+      "facade": "CPKT_SASL_SET_REMOVE",
+      "kind": "numeric"
+    },
+    "SASL_SSF": {
+      "facade": "CPKT_SASL_PROPERTY_SSF",
+      "kind": "numeric"
+    },
+    "SASL_SSF_EXTERNAL": {
+      "facade": "CPKT_SASL_PROPERTY_EXTERNAL_SSF",
+      "kind": "numeric"
+    },
+    "SASL_SUCCESS_DATA": {
+      "facade": "CPKT_SASL_USE_SUCCESS_DATA",
+      "kind": "numeric"
+    },
+    "SASL_TOOWEAK": {
+      "facade": "CPKT_SASL_TOOWEAK",
+      "kind": "numeric"
+    },
+    "SASL_TRANS": {
+      "facade": "CPKT_SASL_TRANS",
+      "kind": "numeric"
+    },
+    "SASL_TRYAGAIN": {
+      "facade": "CPKT_SASL_TRYAGAIN",
+      "kind": "numeric"
+    },
+    "SASL_UNAVAIL": {
+      "facade": "CPKT_SASL_UNAVAIL",
+      "kind": "numeric"
+    },
+    "SASL_USERNAME": {
+      "facade": "CPKT_SASL_PROPERTY_USERNAME",
+      "kind": "numeric"
+    },
+    "SASL_UTILS_VERSION": {
+      "facade": "CPKT_SASL_UTILS_VERSION",
+      "kind": "numeric"
+    },
+    "SASL_VERSION_FULL": {
+      "facade": "CPKT_SASL_VERSION_FULL",
+      "kind": "numeric"
+    },
+    "SASL_VERSION_MAJOR": {
+      "facade": "CPKT_SASL_VERSION_MAJOR",
+      "kind": "numeric"
+    },
+    "SASL_VERSION_MINOR": {
+      "facade": "CPKT_SASL_VERSION_MINOR",
+      "kind": "numeric"
+    },
+    "SASL_VERSION_STEP": {
+      "facade": "CPKT_SASL_VERSION_STEP",
+      "kind": "numeric"
+    },
+    "SASL_WEAKPASS": {
+      "facade": "CPKT_SASL_WEAKPASS",
+      "kind": "numeric"
+    },
+    "SASL_WRONGMECH": {
+      "facade": "CPKT_SASL_WRONGMECH",
+      "kind": "numeric"
+    }
+  },
+  "sasl_enums": {
+    "SASL_CB_DISP_NONE": "CPKT_SASL_CHANNEL_BINDING_NONE",
+    "SASL_CB_DISP_USED": "CPKT_SASL_CHANNEL_BINDING_USED",
+    "SASL_CB_DISP_WANT": "CPKT_SASL_CHANNEL_BINDING_WANTED",
+    "SASL_INFO_LIST_END": "CPKT_SASL_INFO_LIST_END",
+    "SASL_INFO_LIST_MECH": "CPKT_SASL_INFO_LIST_MECHANISM",
+    "SASL_INFO_LIST_START": "CPKT_SASL_INFO_LIST_START",
+    "SASL_VRFY_CONF": "CPKT_SASL_VERIFY_CONFIGURATION_FILE",
+    "SASL_VRFY_OTHER": "CPKT_SASL_VERIFY_OTHER_FILE",
+    "SASL_VRFY_PASSWD": "CPKT_SASL_VERIFY_PASSWORD_FILE",
+    "SASL_VRFY_PLUGIN": "CPKT_SASL_VERIFY_PLUGIN_FILE"
+  }
+}

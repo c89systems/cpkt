@@ -1,0 +1,2 @@
+# This provider needs no Memcheck suppressions.
+# All definite/indirect leaks and invalid accesses remain failing results.

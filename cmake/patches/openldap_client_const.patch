@@ -1,0 +1,45 @@
+--- a/libraries/liblutil/base64.c
++++ b/libraries/liblutil/base64.c
+@@ -195 +195 @@
+-	char *pos;
++	const char *pos;
+--- a/libraries/liblutil/passwd.c
++++ b/libraries/liblutil/passwd.c
+@@ -190,2 +190,3 @@
+ 	struct berval bv;
++	const char *brace;
+ 
+@@ -195,5 +196,5 @@
+-	bv.bv_val = strchr( scheme, '}' );
+-	if ( !bv.bv_val )
++	brace = strchr( scheme, '}' );
++	if ( !brace )
+ 		return NULL;
+ 
+-	bv.bv_len = bv.bv_val - scheme + 1;
++	bv.bv_len = brace - scheme + 1;
+--- a/libraries/libldap/tls_o.c
++++ b/libraries/libldap/tls_o.c
+@@ -827 +827 @@
+-	char *ptr;
++	const char *ptr;
+@@ -873 +873 @@
+-			char *domain = NULL;
++			const char *domain = NULL;
+@@ -976 +976 @@
+-		char *cnstr;
++		const char *cnstr;
+@@ -1007 +1007 @@
+-			cnstr = (char *)ASN1_STRING_get0_data( cn );
++			cnstr = (const char *)ASN1_STRING_get0_data( cn );
+@@ -1009 +1009 @@
+-				strncasecmp( name, (char *) cnstr, nlen ) == 0 ) {
++				strncasecmp( name, cnstr, nlen ) == 0 ) {
+@@ -1013 +1013 @@
+-				char *domain = strchr(name, '.');
++				const char *domain = strchr(name, '.');
+--- a/libraries/libldap/ldif.c
++++ b/libraries/libldap/ldif.c
+@@ -275 +275 @@
+-	char *nl;
++	const char *nl;

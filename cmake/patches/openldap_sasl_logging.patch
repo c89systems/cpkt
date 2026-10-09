@@ -1,0 +1,162 @@
+--- a/libraries/libldap/cyrus.c
++++ b/libraries/libldap/cyrus.c
+@@ -20,6 +20,7 @@
+ #ifdef HAVE_CYRUS_SASL
+ 
+ #include <stdio.h>
++#include <ac/stdarg.h>
+ 
+ #include <ac/socket.h>
+ #include <ac/stdlib.h>
+@@ -57,7 +58,73 @@
+ * Various Cyrus SASL related stuff.
+ */
+ 
++/* Route Cyrus records through the caller-selectable BER print sink. */
++static int
++ldap_sasl_log( void *context, int level, const char *message )
++{
++    size_t len;
++    char *line;
++    (void)context;
++    (void)level;
++    if ( message == NULL ) return SASL_OK;
++    len = strlen( message );
++    line = (char *)malloc( len + 2 );
++    if ( line == NULL ) return SASL_FAIL;
++    memcpy( line, message, len );
++    if ( len == 0 || message[len - 1] != '\n' ) line[len++] = '\n';
++    line[len] = '\0';
++    ber_pvt_log_print( line );
++    free( line );
++    return SASL_OK;
++}
++
++/* Unlike BER debug output, user-visible SASL status is never debug-filtered. */
++static void
++ldap_sasl_status( const char *format, ... )
++{
++    va_list ap;
++    int length;
++    char *line;
++    va_start( ap, format );
++    length = vsnprintf( NULL, 0, format, ap );
++    va_end( ap );
++    if ( length < 0 ) return;
++    line = (char *)malloc( (size_t)length + 1 );
++    if ( line == NULL ) return;
++    va_start( ap, format );
++    (void)vsnprintf( line, (size_t)length + 1, format, ap );
++    va_end( ap );
++    ber_pvt_log_print( line );
++    free( line );
++}
++
++static const sasl_callback_t ldap_init_log_callbacks[] = {
++    { SASL_CB_LOG, (int (*)(void))ldap_sasl_log, NULL },
++    { SASL_CB_LIST_END, NULL, NULL }
++};
++
++static int
++ldap_sasl_has_custom_sink( void )
++{
++    BER_LOG_PRINT_FN sink = NULL;
++    (void)ber_get_option( NULL, LBER_OPT_LOG_PRINT_FN, &sink );
++    return sink != NULL && sink != ber_error_print;
++}
++
+ static const sasl_callback_t client_callbacks[] = {
++#ifdef SASL_CB_GETREALM
++	{ SASL_CB_GETREALM, NULL, NULL },
++#endif
++	{ SASL_CB_USER, NULL, NULL },
++	{ SASL_CB_AUTHNAME, NULL, NULL },
++	{ SASL_CB_PASS, NULL, NULL },
++	{ SASL_CB_ECHOPROMPT, NULL, NULL },
++	{ SASL_CB_NOECHOPROMPT, NULL, NULL },
++	{ SASL_CB_LIST_END, NULL, NULL }
++};
++
++static const sasl_callback_t client_log_callbacks[] = {
++    { SASL_CB_LOG, (int (*)(void))ldap_sasl_log, NULL },
+ #ifdef SASL_CB_GETREALM
+ 	{ SASL_CB_GETREALM, NULL, NULL },
+ #endif
+@@ -114,7 +181,9 @@
+ 		ldap_pvt_sasl_mutex_dispose );    
+ #endif
+ 
+-	if ( sasl_client_init( NULL ) == SASL_OK ) {
++	/* Preserve Cyrus' default syslog when no BER hook has been installed. */
++	if ( sasl_client_init( ldap_sasl_has_custom_sink()
++	                       ? ldap_init_log_callbacks : NULL ) == SASL_OK ) {
+ 		return 0;
+ 	}
+ 
+@@ -317,6 +386,7 @@
+ {
+ 	int rc;
+ 	sasl_conn_t *ctx;
++	const sasl_callback_t *callbacks;
+ 
+ 	assert( lc->lconn_sasl_authctx == NULL );
+ 
+@@ -325,11 +395,12 @@
+ 		return ld->ld_errno;
+ 	}
+ 
++	callbacks = ldap_sasl_has_custom_sink() ? client_log_callbacks : client_callbacks;
+ #if SASL_VERSION_MAJOR >= 2
+ 	rc = sasl_client_new( "ldap", host, NULL, NULL,
+-		client_callbacks, 0, &ctx );
++		callbacks, 0, &ctx );
+ #else
+-	rc = sasl_client_new( "ldap", host, client_callbacks,
++	rc = sasl_client_new( "ldap", host, callbacks,
+ 		SASL_SECURITY_LAYER, &ctx );
+ #endif
+ 
+@@ -608,7 +679,7 @@
+ 				*rmech = mech;
+ 
+ 				if( flags != LDAP_SASL_QUIET ) {
+-					fprintf(stderr,
++					ldap_sasl_status(
+ 						"SASL/%s authentication started\n",
+ 						pmech );
+ 				}
+@@ -722,14 +793,14 @@
+ 		saslrc = sasl_getprop( ctx, SASL_USERNAME,
+ 			(SASL_CONST void **)(char *) &data );
+ 		if( saslrc == SASL_OK && data && *data ) {
+-			fprintf( stderr, "SASL username: %s\n", data );
++			ldap_sasl_status( "SASL username: %s\n", data );
+ 		}
+ 
+ #if SASL_VERSION_MAJOR < 2
+ 		saslrc = sasl_getprop( ctx, SASL_REALM,
+ 			(SASL_CONST void **) &data );
+ 		if( saslrc == SASL_OK && data && *data ) {
+-			fprintf( stderr, "SASL realm: %s\n", data );
++			ldap_sasl_status( "SASL realm: %s\n", data );
+ 		}
+ #endif
+ 	}
+@@ -738,7 +809,7 @@
+ 	saslrc = sasl_getprop( ctx, SASL_SSF, (SASL_CONST void **)(char *) &ssf );
+ 	if( saslrc == SASL_OK ) {
+ 		if( flags != LDAP_SASL_QUIET ) {
+-			fprintf( stderr, "SASL SSF: %lu\n",
++			ldap_sasl_status( "SASL SSF: %lu\n",
+ 				(unsigned long) *ssf );
+ 		}
+ 
+@@ -752,7 +823,7 @@
+ 			ld->ld_defconn->lconn_sasl_sockctx = ctx;
+ 
+ 			if( flags != LDAP_SASL_QUIET ) {
+-				fprintf( stderr, "SASL data security layer installed.\n" );
++				ldap_sasl_status( "SASL data security layer installed.\n" );
+ 			}
+ 		}
+ 	}

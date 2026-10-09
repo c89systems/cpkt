@@ -1,0 +1,41 @@
+--- a/include/lber.h
++++ b/include/lber.h
+@@ -118,6 +118,11 @@
+ 
+ typedef void (*BER_LOG_PRINT_FN) LDAP_P(( LDAP_CONST char *buf ));
+ 
++/* C89-safe replacement for LBER_OPT_LOG_PRINT_FN.  NULL restores the
++ * library default.  The returned callback is the previous destination. */
++LBER_F( BER_LOG_PRINT_FN ) ber_set_log_print_fn LDAP_P((
++    BER_LOG_PRINT_FN callback ));
++
+ typedef void* (BER_MEMALLOC_FN)	LDAP_P(( ber_len_t size, void *ctx ));
+ typedef void* (BER_MEMCALLOC_FN)	LDAP_P(( ber_len_t n, ber_len_t size, void *ctx ));
+ typedef void* (BER_MEMREALLOC_FN)	LDAP_P(( void *p, ber_len_t size, void *ctx ));
+--- a/libraries/liblber/bprint.c
++++ b/libraries/liblber/bprint.c
+@@ -89,6 +89,14 @@
+ 
+ BER_LOG_PRINT_FN ber_pvt_log_print = ber_error_print;
+ 
++BER_LOG_PRINT_FN
++ber_set_log_print_fn( BER_LOG_PRINT_FN callback )
++{
++    BER_LOG_PRINT_FN previous = ber_pvt_log_print;
++    ber_pvt_log_print = callback != NULL ? callback : ber_error_print;
++    return previous;
++}
++
+ /*
+  * lber log 
+  */
+--- a/libraries/liblber/lber.map
++++ b/libraries/liblber/lber.map
+@@ -108,6 +108,7 @@
+     ber_reset;
+     ber_rewind;
+     ber_scanf;
++    ber_set_log_print_fn;
+     ber_set_option;
+     ber_skip_data;
+     ber_skip_element;

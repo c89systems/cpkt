@@ -1,0 +1,48 @@
+name: Native Darwin cpkt verification
+
+on:
+  push:
+    branches: ["feature/**", "fix/**", trunk]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  arm64:
+    runs-on: macos-26
+    timeout-minutes: 120
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "15.0"
+      CPKT_DEPENDENCY_BUILD_JOBS: "2"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Install build tools
+        run: brew install bash cmake ninja coreutils gnu-sed gnu-tar gpatch util-linux pkg-config
+      - name: Select host Bash
+        shell: /bin/bash --noprofile --norc -e -o pipefail {0}
+        run: |
+          host_bash_bin="$(brew --prefix bash)/bin"
+          export PATH="$host_bash_bin:$PATH"
+          hash -r
+          bash scripts/require-host-bash.sh
+          printf '%s\n' "$host_bash_bin" >> "$GITHUB_PATH"
+      - name: Native source and runtime contract
+        run: |
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          make test-darwin-native
+      - name: Preserve diagnostic SDK archives and test evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cpkt-native-arm64-apple-darwin
+          path: |
+            build/package-stage/arm64-apple-darwin/core/archives/*.tar.gz
+            build/arm64-apple-darwin/*/Debug/Testing/Temporary/LastTest.log
+            build/arm64-apple-darwin/*/Release/Testing/Temporary/LastTest.log
+            build/package-verify/**/Testing/Temporary/LastTest.log
+          if-no-files-found: error
