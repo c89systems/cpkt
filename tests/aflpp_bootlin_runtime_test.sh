@@ -7,7 +7,7 @@ die() { printf 'AFL++ Bootlin runtime: %s\n' "$*" >&2; exit 1; }
 description=$(bash "$source_dir/scripts/cpkt-toolchains.sh" discover x86_64-linux-gnu)
 value() { sed -n "s/^$1=//p" <<< "$description"; }
 [[ $(value status) == ready ]] || die 'prepare the native Bootlin collection first'
-collection=$(value root)
+collection=$(readlink -f -- "$(value root)")
 [[ $(readlink -f -- "$collection") == $(readlink -f -- "$configured_root") ]] || die 'configured Bootlin collection differs from discovery'
 cc=$(value cc)
 cxx=$(value cxx)
