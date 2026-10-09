@@ -198,8 +198,9 @@ if(CPKT_BUILD_TESTS AND CPKT_NATIVE_BOOTLIN_RUNTIME)
   target_compile_options(cpkt_bootlin_runtime_test PRIVATE -std=c89)
   cpkt_add_repo_warning_errors(cpkt_bootlin_runtime_test)
   cpkt_group_use_local_runtime(cpkt_bootlin_runtime_test)
+  file(REAL_PATH "${CMAKE_SYSROOT}" _cpkt_runtime_sysroot)
   cpkt_group_add_test(NAME bootlin_runtime_process_boundary
-      COMMAND cpkt_bootlin_runtime_test "${CMAKE_SYSROOT}")
+      COMMAND cpkt_bootlin_runtime_test "${_cpkt_runtime_sysroot}")
   cpkt_group_add_test(NAME local_runtime_rejects_wrong_loader
       COMMAND bash "${CMAKE_SOURCE_DIR}/tests/local_executable_runtime_policy_test.sh"
         "${CPKT_RUNTIME_LOADER}.wrong" "$<TARGET_FILE:cpkt_bootlin_runtime_test>")
