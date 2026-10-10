@@ -14,8 +14,10 @@ Share matching upstream output between consumers; distinct instrumentation keeps
 distinct output. A test edit preserves an unchanged library. Reuse valid checks
 under [local CI](local-ci.md), without per-case receipts or a generic identity engine.
 
-Installed combinations have unique payload owners, declared imports and no cycles
-or collisions. Where order independence is promised, test both extraction orders.
+Packages remain independent installations in separate prefixes, with unique
+payload owners, declared imports and no dependency cycles. Discover dependencies
+through ordinary CMake/pkg-config search paths; do not merge or overlay prefixes.
+Verify consumers against those separate installations, including relocation.
 Pin prerequisite version, target, archive digest and public package identity.
 Validate metadata, licenses, consumer links and actual delivered bytes.
 

@@ -26,10 +26,14 @@ libraries. Resolve imported component versions from the validated core manifest;
 copied producer defaults are not the imported dependency selection.
 
 Use each repository's inventory and `make help` for its actual commands. The
-family's archive names are `<provider>-<version>-<target>.tar.gz`; strip/map each
-archive root into the chosen shared install prefix when composing them. Optional
-archives contain only owned payload and identify the exact required core version,
-target and package ID. Their own version need not match core. Preserve public
+family's archive names are `<provider>-<version>-<target>.tar.gz`. Extract each SDK
+as an independent installation, preserving its packaged layout and using its own
+prefix. Never merge or overlay provider payloads into a shared prefix.
+Discover prerequisites with ordinary `find_package`/`find_dependency` through
+`CMAKE_PREFIX_PATH`, or pkg-config through `PKG_CONFIG_PATH`; consumers link the
+provided imported targets rather than copying prerequisite files.
+Optional archives contain only owned payload and identify the exact required core
+version, target and package ID. Their own version need not match core. Preserve public
 `<cpkt/...>` header names and library ABI identities through repository moves.
 See [package-isolation-and-build-reuse.md](package-isolation-and-build-reuse.md)
 and [packaging.md](packaging.md).
