@@ -33,8 +33,8 @@ Discover prerequisites with ordinary `find_package`/`find_dependency` through
 `CMAKE_PREFIX_PATH`, or pkg-config through `PKG_CONFIG_PATH`; consumers link the
 provided imported targets rather than copying prerequisite files.
 Optional archives contain only owned payload and identify the exact required core
-version, target and package ID. Their own version need not match core. Preserve public
-`<cpkt/...>` header names and library ABI identities through repository moves.
+version, target and package ID. Their own version need not match core. Preserve
+declared public `<cpkt/...>` header names and library ABI identities.
 See [package-isolation-and-build-reuse.md](package-isolation-and-build-reuse.md)
 and [packaging.md](packaging.md).
 

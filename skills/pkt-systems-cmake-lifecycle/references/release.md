@@ -5,7 +5,8 @@ Preparation is incremental; final tagged release is one clean local artifact bui
 Failures stop. Repair is a separate authorized iteration, not an in-flow fix/retry.
 The release boundary in SKILL.md has no exceptions: the amended, signed,
 lightweight-tagged final commit must complete the entire local release gate before
-any default/release-branch or release-tag push. Never push for CI or validation.
+any default/release-branch or release-tag push in the release workflow.
+Never push for CI or validation.
 
 ## Preparation
 
@@ -45,9 +46,8 @@ Prepare the release commit locally against the pinned release base, preserving
 the development branch and leaving remote release refs unchanged. For a topic
 release, squash the verified tree into one factual Conventional Commit.
 Present that commit for the engineer to amend and sign. Verify the completed
-signature and exact tree before tagging; unsigned continuation is forbidden.
-"I have amended/signed the commit" is the continue checkpoint: verify it and
-proceed with the authorized release, without asking for the same permission again.
+signature and exact tree before tagging, then continue the authorized release.
+Unsigned continuation is forbidden; signing does not require renewed release approval.
 Message/signature-only changes preserve preparation proof. Freeze the final
 commit identity before the clean release build; later amendments require a new
 final gate against the amended, signed, lightweight-tagged commit.
@@ -66,10 +66,10 @@ a release push.
 Read-only lifecycle-version-contract checks may expose that validation.
 Invalid identity preserves generated outputs and starts no producers.
 
-Clean the release checkout's entire build/, dist/ and local .cache/ once;
-preserve only the declared global verified cache and workstation prerequisites.
-A worktree is not a cleanup workaround: it must not reach into another checkout's
-sources, build products or locally generated tools. Do not redirect caches to evade clean.
+Run full `make clean` once in the release checkout to remove build/, dist/ and
+local .cache/; preserve the declared global verified cache and workstation prerequisites.
+The release checkout uses only its own sources and local generated state,
+the declared global cache and installed workstation prerequisites.
 Build each effective configuration once, sharing prerequisites. Run each required
 check once in its actual scope. If source ships, its clean reconstruction can supply
 the native Release lane. Do not require every cross target to move to that workspace.

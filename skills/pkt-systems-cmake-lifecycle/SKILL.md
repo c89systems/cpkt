@@ -31,22 +31,28 @@ These limits do not waive checks on downloads, declared prerequisites or shipped
 bytes. Reject missing required tools, wrong dependency identity, bad checksums,
 unsafe cleanup scope and incomplete release evidence.
 
-**Prohibited antipattern: cleanup evasion through another checkout.** A checkout
-or worktree must never use another checkout's sources, generated tools, build state
-or caches. An environment override or symlink does not make them shared.
+A checkout or worktree must not use another checkout's sources, generated tools,
+build state or local caches, including through environment overrides or symlinks.
 `make clean` must remove its entire `build/`, `dist/` and local `.cache/`, including
-hidden entries. Only the declared global cache (`~/.cache/cpkt`) and installed
-workstation prerequisites survive; never relocate or borrow local state to evade clean.
+hidden entries. Cache overrides use owned `build/` or `.cache/` paths or the declared
+global cpkt cache (default `~/.cache/cpkt`). `make clean` preserves that global
+cache and installed workstation prerequisites. Scoped cleanup removes only the
+selected owned generated outputs.
 
 ## Release boundary: no exceptions
 
-Never push the default/release branch or release tag until the final amended
-commit has a verified signature, its exact local lightweight tag, and a completed
-clean release build with all required local tests and final-artifact checks passing.
+Never push product or pipeline changes to the default/release branch, or any
+release tag, until the final amended commit has a verified signature, its exact
+local lightweight tag, and a completed clean release build with all required
+local tests and final-artifact checks passing.
 The commit is signed; the lightweight tag is not an annotated/signed tag.
 Keep remote release refs unchanged throughout preparation, signing and building.
 Never push to trigger CI. Hosted builds are optional diagnostics, never release
 gates or release artifacts; Darwin release proof uses local osxcross.
+
+Updates limited to documentation or skill instructions follow the project's
+verification, commit/signing and explicitly authorized push policy. They create
+no release tags or artifacts and do not require a release build.
 
 ## Keep implementation small
 

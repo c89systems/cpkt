@@ -8,7 +8,8 @@ SDK prerequisites use exact verified release assets, not sibling checkouts.
 ## Shared archives
 
 Resolve `CPKT_DEPENDENCY_CACHE` once: explicit CMake PATH value, environment,
-XDG cache, then `$HOME/.cache/cpkt/deps`. Toolchains use their separate cache.
+XDG cache, then `$HOME/.cache/cpkt/deps`. Overrides obey the cache ownership
+boundary in SKILL.md. Toolchains use their separate cache.
 Keep verified archives in `archives/sha256/<digest>/<name>` with per-digest locks.
 Names are diagnostic; the digest is identity. Hash before reuse. A verified hit
 makes zero acquisition network requests, including probes and metadata refreshes.
@@ -19,10 +20,10 @@ bounded retries. Reject bad/missing hashes and incomplete downloads before extra
 Never publish a partial archive or silently fall back to host/unpinned content.
 Test miss, hit, corruption and request counts against a local fixture origin.
 
-Shared archives survive project clean/release. Repo-local `.cache/` holds
-disposable extracted/build/install state, owned by component and target. Native
-dependencies decide staleness; reprepare only affected owned components. Borrowed
-roots fail with their preparation requirement rather than being repaired.
+Archives in the declared global cache survive `make clean`. Repo-local
+`.cache/` holds disposable extracted/build/install state, owned by component and
+target. Native dependencies decide staleness; reprepare only affected owned
+components. Borrowed roots fail with their preparation requirement rather than being repaired.
 Expected configure-time outputs do not prove a successful producer.
 No semantic path-key scheme, contract interpreter or receipt database is required.
 

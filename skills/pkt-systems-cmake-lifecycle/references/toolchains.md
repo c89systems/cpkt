@@ -40,7 +40,8 @@ real use/compatibility. Do not select a newer compiler merely because it is inst
 
 Toolchain cache is CPKT_TOOLCHAIN_CACHE, XDG cache or $HOME/.cache/cpkt/toolchains.
 Dependency archives have a separate cache under [dependencies](dependencies.md).
-Use stable absolute cache paths. Readiness reports are simple line-oriented fields;
+Cache overrides obey the ownership boundary in SKILL.md; use stable absolute paths.
+Readiness reports are simple line-oriented fields;
 control characters/newlines in configured paths are outside that interface.
 Ordinary spaces and argv boundaries remain supported.
 
@@ -48,8 +49,9 @@ Keep archives verified and roots immutable after successful preparation.
 Per-collection flock locks serialize explicit provisioning; readiness is rechecked
 under the lock, staging is owned, and publication occurs only after success.
 A verified archive hit makes no acquisition requests, even if an asset name changes.
-Project clean/release preserves shared caches. Missing prerequisites and observed
-corruption fail; reprepare through the owner. Do not add per-file cache attestation.
+Full `make clean` preserves the declared global cache. Missing prerequisites
+and observed corruption fail; reprepare through the owner. Do not add per-file
+cache attestation.
 
 Use the activated skill's scripts directory or the declared exact vendored copy.
 Keep require-host-bash.sh, cpkt-archive-cache.sh, cpkt-toolchains.sh, cpkt-aflpp.sh and
@@ -136,6 +138,18 @@ endfunction()
 
 For a cross target, also set CMAKE_SYSTEM_NAME/PROCESSOR and static-library
 try_compile before applying the collection. Native Darwin uses its own Apple setup.
+
+Set `target_sdk_prefixes` to the project's verified target SDK installations.
+After selecting the compiler collection, append them to both search lists.
+Package lookup remains restricted to target roots:
+
+```cmake
+list(APPEND CMAKE_FIND_ROOT_PATH ${target_sdk_prefixes})
+list(APPEND CMAKE_PREFIX_PATH ${target_sdk_prefixes})
+```
+
+Each SDK retains its own installation prefix. Validate discovered prerequisite
+identity and target; do not enable host fallback to reach an SDK.
 
 Apply -std=c89 and strict warning/pedantic flags to owned C89 targets explicitly;
 keep this off deliberately newer upstream/Lua implementations. Generated large

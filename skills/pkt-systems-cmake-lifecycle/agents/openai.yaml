@@ -2,6 +2,6 @@ interface:
   display_name: "pkt.systems CMake Lifecycle"
   short_description: "Local C/CMake lifecycle and toolchain automation"
   default_prompt: >-
-    Use $pkt-systems-cmake-lifecycle to classify the repository, preserve bespoke
-    workflows, resolve cpkt toolchains when relevant, implement the requested
+    Use $pkt-systems-cmake-lifecycle to classify the repository, preserve product
+    behavior, resolve cpkt toolchains when relevant, implement the requested
     lifecycle task, run the appropriate local gates, and report exact outcomes.

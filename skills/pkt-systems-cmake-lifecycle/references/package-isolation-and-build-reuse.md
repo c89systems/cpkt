@@ -23,8 +23,8 @@ Validate metadata, licenses, consumer links and actual delivered bytes.
 
 Selected staging/checksums live in owned `build/` namespaces and cannot authorize
 complete-release uploads or replace `dist/` proof. Final release rejects partial
-selectors and covers its declared complete set. Cold release shares equivalent
-producers/checks but cannot borrow earlier rehearsal success.
+selectors and covers its declared complete set. Clean release shares equivalent
+producers/checks and uses verification results produced within that run.
 
 Use focused CTest fixtures for no-op reuse, invalidation, wrong/missing inputs,
 ownership and consumer behavior. Measure suspected duplicate work with existing
