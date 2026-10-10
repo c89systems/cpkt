@@ -16,7 +16,7 @@ export GROUP="$group"
 remove_generated() {
   local path=$1 parent
   case "$path" in
-    "$cpkt_root/build/"*|"$cpkt_root/.cache/"*|"$cpkt_root/.cache"|"$cpkt_root/dist"|"$cpkt_root"/package-assertions-*) ;;
+    "$cpkt_root/build"|"$cpkt_root/build/"*|"$cpkt_root/.cache/"*|"$cpkt_root/.cache"|"$cpkt_root/dist"|"$cpkt_root"/package-assertions-*) ;;
     "$cpkt_root"/scripts/*|"$cpkt_root"/tests/*|"$cpkt_root"/tools/*|"$cpkt_root"/cmake/*)
       [ "${path##*/}" = __pycache__ ] || cpkt_fail "cleanup source path is not a Python cache: $path" ;;
     *) cpkt_fail "cleanup path is not generated repository state: $path" ;;
@@ -42,9 +42,7 @@ case "$action" in
   *) cpkt_fail "unsupported cleanup operation: $action" ;;
 esac
 if [ "$group" = all ]; then
-  for entry in "$cpkt_root/build/"*; do
-    remove_generated "$entry"
-  done
+  remove_generated "$cpkt_root/build"
   remove_generated "$cpkt_root/.cache"
   remove_generated "$cpkt_root/dist"
   for entry in "$cpkt_root"/package-assertions-*; do remove_generated "$entry"; done

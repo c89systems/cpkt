@@ -37,6 +37,17 @@ refs=$(git -C "$root" show-ref)
 [ "$(bash "$root/scripts/release-version.sh" "$root")" = 1.2.3 ]
 check
 [ "$(git -C "$root" show-ref)" = "$refs" ]
+CPKT_TOOLCHAIN_CACHE="$root/build/owned-tools" check
+CPKT_DEPENDENCY_CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/cpkt/deps" check
+other="$root/build/other-checkout"
+git -C "$root" worktree add --detach -q "$other" HEAD
+CPKT_TOOLCHAIN_CACHE="$other/build/tools" reject
+CPKT_DEPENDENCY_CACHE="$other/build/deps" reject
+CPKT_TOOLCHAIN_CACHE="$repo/build/rehearsal-toolchains" reject
+if CPKT_TOOLCHAIN_CACHE="$root/build/owned-tools" bash "$other/scripts/version-contract.sh" check; then exit 1; fi
+mkdir -p "$other/build/tools"
+ln -s "$other/build/tools" "$root/build/cache-alias"
+CPKT_TOOLCHAIN_CACHE="$root/build/cache-alias" reject
 cp "$root/build/signing/allowed" "$root/build/signing/allowed.saved"
 : > "$root/build/signing/allowed"
 reject

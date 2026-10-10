@@ -66,7 +66,10 @@ a release push.
 Read-only lifecycle-version-contract checks may expose that validation.
 Invalid identity preserves generated outputs and starts no producers.
 
-Clean owned local generated state and dist once; preserve shared verified caches.
+Clean the release checkout's entire build/, dist/ and local .cache/ once;
+preserve only the declared global verified cache and workstation prerequisites.
+A worktree is not a cleanup workaround: it must not reach into another checkout's
+sources, build products or locally generated tools. Do not redirect caches to evade clean.
 Build each effective configuration once, sharing prerequisites. Run each required
 check once in its actual scope. If source ships, its clean reconstruction can supply
 the native Release lane. Do not require every cross target to move to that workspace.

@@ -3599,7 +3599,13 @@
     "dependency_archive_cache": {
       "group": "tooling",
       "command_inputs": [
-        "tests/dependency_archive_cache_test.sh"
+        "tests/dependency_archive_cache_test.sh",
+        "tests/dependency_archive_cache_test.cmake",
+        "tests/dependency_archive_cache_failure_test.cmake",
+        "cmake/CpktDependencyArchiveCache.cmake",
+        "scripts/clean.sh",
+        "scripts/lifecycle-common.sh",
+        "scripts/mutation-paths.sh"
       ],
       "registrations": [
         {

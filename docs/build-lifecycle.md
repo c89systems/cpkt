@@ -59,7 +59,7 @@ its native check binds the packaged libraries to the verified SDK and checks
 the executable architecture, deployment floor and relative loader paths.
 
 `make prerelease` prepares incrementally. Final `make release` requires a clean
-committed checkout with one exact lightweight release tag. It checks identity
+committed checkout with a verified signed commit and one exact lightweight release tag. It checks identity
 before cleanup, packages the tracked source, and builds the final matrix in one
 fresh extracted workspace. Each required configuration is built once within
 that run. The source reconstruction shares those same producers and checks.
@@ -72,5 +72,8 @@ retry the release or publish.
 Sources, tools and configuration stay stable during a check. Restored timestamps
 or changed tool collections require explicit invalidation. The terminal or job
 runner cancels the whole process group; signalling only a wrapper is unsupported.
-Project cleanup removes owned generated state and preserves shared verified
-archive and tool caches. External publication requires explicit authorization.
+Full project cleanup removes build/, dist/ and local .cache/ entirely, including
+hidden contents and locally generated tools. Only the declared global cpkt cache
+and installed workstation prerequisites are shared. Checkouts/worktrees never
+borrow one another's sources or generated state. External publication requires
+explicit authorization.

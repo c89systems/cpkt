@@ -31,6 +31,13 @@ These limits do not waive checks on downloads, declared prerequisites or shipped
 bytes. Reject missing required tools, wrong dependency identity, bad checksums,
 unsafe cleanup scope and incomplete release evidence.
 
+**Prohibited antipattern: cleanup evasion through another checkout.** A checkout
+or worktree must never use another checkout's sources, generated tools, build state
+or caches. An environment override or symlink does not make them shared.
+`make clean` must remove its entire `build/`, `dist/` and local `.cache/`, including
+hidden entries. Only the declared global cache (`~/.cache/cpkt`) and installed
+workstation prerequisites survive; never relocate or borrow local state to evade clean.
+
 ## Release boundary: no exceptions
 
 Never push the default/release branch or release tag until the final amended

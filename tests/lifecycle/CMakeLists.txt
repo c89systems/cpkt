@@ -5,6 +5,9 @@ get_filename_component(CPKT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 add_test(NAME host_bash COMMAND bash "${CPKT_ROOT}/tests/host_bash_test.sh" "${CPKT_ROOT}")
 add_test(NAME github_actions_contracts COMMAND "${CMAKE_COMMAND}" "-DCPKT_REPO=${CPKT_ROOT}"
   -P "${CPKT_ROOT}/tests/github_actions_contract_test.cmake")
+add_test(NAME dependency_archive_cache
+  COMMAND bash "${CPKT_ROOT}/tests/dependency_archive_cache_test.sh" "${CPKT_ROOT}")
+set_tests_properties(dependency_archive_cache PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
 add_test(NAME lifecycle_dispatch
   COMMAND bash "${CPKT_ROOT}/tests/lifecycle_dispatch_test.sh" "${CPKT_ROOT}" "${CMAKE_BINARY_DIR}")
 set_tests_properties(lifecycle_dispatch PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)

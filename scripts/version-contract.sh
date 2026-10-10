@@ -2,6 +2,7 @@
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/lifecycle-common.sh"
 [ "${1:-check}" = check ] || cpkt_fail 'usage: version-contract.sh check'
+cpkt_check_cache_overrides
 [ -z "${CPKT_RELEASE_VERSION_OVERRIDE:-}" ] || cpkt_fail 'final release rejects candidate version override'
 top=$(git -C "$cpkt_root" rev-parse --show-toplevel)
 [ "$(CDPATH= cd -- "$top" && pwd -P)" = "$cpkt_root" ] || cpkt_fail 'release requires the owning Git checkout'

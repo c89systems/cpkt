@@ -14,7 +14,10 @@ belong in `dist/`. Dependencies use disposable local state and shared verified
 archives under [dependency policy](dependencies.md). Resolve an explicit owning
 root, not the caller's working directory. Reject unsafe cleanup roots and output
 redirection; remove only owned generated paths. Never clean borrowed prerequisites
-or shared archive/toolchain caches. Normal build/test entrypoints never depend on clean.
+or the declared global archive/toolchain cache. Full clean removes `build/`,
+`dist/` and local `.cache/` completely, including hidden contents and local tools.
+Checkouts/worktrees are isolated; another checkout's generated state is not a
+shared cache. Normal build/test entrypoints never depend on clean.
 
 Bash helpers preserve argv, check command status, and use ordinary foreground
 execution. The caller owns whole-job cancellation under SKILL.md. Do not add a

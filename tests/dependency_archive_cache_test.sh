@@ -63,7 +63,17 @@ cp -a "$source_dir/cmake" "$clean_fixture/"
 cp "$source_dir/CMakePresets.json" "$clean_fixture/"
 unset GROUP
 : > "$shared_cache/verified-archive"
+mkdir -p "$clean_fixture/build/.hidden-tools" "$clean_fixture/.cache/local-tools"
+: > "$clean_fixture/build/.hidden-tools/tool"
+: > "$clean_fixture/dist/artifact"
+: > "$clean_fixture/.cache/local-tools/tool"
 CPKT_DEPENDENCY_CACHE="$shared_cache" "$clean_fixture/scripts/clean.sh"
+for path in build .cache dist; do
+  [[ ! -e "$clean_fixture/$path" ]] || {
+    printf 'make clean left generated directory: %s\n' "$path" >&2
+    exit 1
+  }
+done
 [[ -f "$shared_cache/verified-archive" ]] || {
   printf 'make clean removed the shared dependency archive cache\n' >&2
   exit 1

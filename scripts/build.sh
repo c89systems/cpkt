@@ -58,6 +58,7 @@ if [ "$fresh" = yes ]; then
   case "$action" in configure|build) ;; *) cpkt_fail '--fresh requires configure or build' ;; esac
 fi
 if [ "$action" = path ]; then printf '%s\n' "$cpkt_binary"; exit 0; fi
+cpkt_check_cache_overrides
 cpkt_owned_path "$cpkt_binary"
 cpkt_owned_path "$cpkt_root/build/$cpkt_target/$cpkt_owner/producer/CMakeCache.txt"
 export GROUP="$group"
@@ -85,6 +86,11 @@ fi
 consumer_job_arguments=()
 producer_job_arguments=()
 producer="$cpkt_root/build/$cpkt_target/$cpkt_owner/producer"
+for cache in "$cpkt_binary/CMakeCache.txt" "$producer/CMakeCache.txt"; do
+  if value=$(cpkt_cache_value CPKT_DEPENDENCY_CACHE "$cache"); then
+    cpkt_validate_cache_location "$value"
+  fi
+done
 if [ -n "${CPKT_DEPENDENCY_BUILD_JOBS:-${CMAKE_BUILD_PARALLEL_LEVEL:-}}" ]; then
   jobs=$(cpkt_jobs "$cpkt_binary")
   consumer_job_arguments+=("-DCPKT_DEPENDENCY_BUILD_JOBS=$jobs")

@@ -92,7 +92,9 @@ tag are pushed only after the complete signed, tagged local release gate passes.
 Shared dependency archives use
 `${CPKT_DEPENDENCY_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cpkt/deps}`;
 compiler collections use the corresponding `cpkt/toolchains` root. A verified
-SHA-256 cache hit performs no network acquisition. `clean` removes disposable
-repository state and preserves both shared caches.
+SHA-256 cache hit performs no network acquisition. `make clean` removes `build/`,
+`dist/` and local `.cache/` completely, including hidden entries and local tools.
+The global cpkt cache is preserved. Checkouts and worktrees must not borrow each
+other's sources, generated tools or build caches.
 
 The native build ownership and specialist validation boundaries are documented in [build lifecycle architecture](docs/build-lifecycle.md).
