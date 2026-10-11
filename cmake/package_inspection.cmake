@@ -19,7 +19,7 @@ function(cpkt_get_osxcross_lookup out_host_var out_hints_var)
       RESULT_VARIABLE _resolver_result
       OUTPUT_VARIABLE _resolver_report
       ERROR_VARIABLE _resolver_error)
-    if(NOT _resolver_result EQUAL 0 OR NOT _resolver_report MATCHES "status=ready")
+    if(NOT _resolver_result EQUAL 0 OR NOT _resolver_report MATCHES "(^|[\r\n])status=ready([\r\n]|$)")
       message(FATAL_ERROR "Darwin toolchain is not ready for package assertions: ${_resolver_error}${_resolver_report}")
     endif()
     string(REGEX MATCH "(^|\n)prefix=([^\n]+)" _prefix_match "${_resolver_report}")

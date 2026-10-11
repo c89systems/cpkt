@@ -799,7 +799,7 @@ if(CPKT_BUILD_TESTS)
   include(cmake/CpktTestPslog.cmake)
   # Fixture registration is shared in CpktPreflightTests.cmake.
   cpkt_group_set_tests_properties(krb5_trace_prototypes PROPERTIES LABELS "packaging;smoke" TIMEOUT 30)
-  if(CPKT_SELECT_core OR CPKT_SELECT_misc)
+  if(CPKT_SELECT_core)
     cpkt_add_test_pslog()
   endif()
   foreach(_cpkt_curl_linkage IN ITEMS static shared)
@@ -1537,6 +1537,9 @@ if(CPKT_BUILD_TESTS)
       cpkt_group_add_test(NAME sdk_native_validation COMMAND "${CMAKE_COMMAND}"
         "-DCPKT_ROOT=${CMAKE_SOURCE_DIR}" "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}"
         -P "${CMAKE_SOURCE_DIR}/tests/sdk_native_validation_test.cmake")
+      cpkt_group_add_test(NAME package_verification COMMAND "${CMAKE_COMMAND}"
+        "-DCPKT_ROOT=${CMAKE_SOURCE_DIR}" "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}"
+        -P "${CMAKE_SOURCE_DIR}/tests/package_verification_test.cmake")
       cpkt_group_add_test(NAME release_identity COMMAND bash "${CMAKE_SOURCE_DIR}/tests/release_identity_test.sh"
         "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}")
       if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")

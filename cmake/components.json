@@ -55,7 +55,6 @@
         "cmake/CpktTestInventory.cmake",
         "scripts/lifecycle.sh",
         "scripts/build.sh",
-        "cmake/producer-cache.cmake",
         "cmake/CpktLuaInventoryTest.cmake",
         "cmake/CpktLuaExportsTest.cmake",
         "scripts/archive.sh"
@@ -2502,6 +2501,7 @@
       "group": "core",
       "command_inputs": [
         "tests/auth_package_discovery_test.cmake",
+        "cmake/package_metadata.cmake",
         "tests/test-command.cmake"
       ],
       "registrations": [
@@ -5101,7 +5101,10 @@
       "command_inputs": [
         "tests/lifecycle_dispatch_test.sh",
         "scripts/lifecycle.sh",
+        "scripts/lifecycle-common.sh",
         "scripts/package.sh",
+        "scripts/memcheck.sh",
+        "scripts/mutation-paths.sh",
         "Makefile"
       ],
       "registrations": [
@@ -5141,11 +5144,35 @@
       "command_inputs": [
         "tests/sdk_native_validation_test.cmake",
         "cmake/CpktSDKValidate.cmake",
+        "cmake/sdk-discovery.cmake",
+        "tests/sdk-consumers/native/CMakeLists.txt",
+        "cmake/components.json",
         "tests/test-command.cmake"
       ],
       "registrations": [
         {
           "name": "sdk_native_validation",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "package_verification": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/package_verification_test.cmake",
+        "tests/package/CMakeLists.txt",
+        "cmake/CpktMutationPaths.cmake",
+        "cmake/package_inspection.cmake",
+        "tests/test-command.cmake"
+      ],
+      "registrations": [
+        {
+          "name": "package_verification",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",
@@ -5161,6 +5188,10 @@
         "tests/release_identity_test.sh",
         "scripts/release-version.sh",
         "scripts/version-contract.sh",
+        "scripts/package-verify.sh",
+        "scripts/package-consumers.sh",
+        "scripts/fuzz.sh",
+        "scripts/memcheck.sh",
         "scripts/lifecycle-common.sh",
         "scripts/mutation-paths.sh"
       ],

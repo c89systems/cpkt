@@ -4,7 +4,8 @@ repo=${1:?repository required}
 root=${2:?scratch required}/release-identity
 rm -rf -- "$root"
 mkdir -p "$root/scripts" "$root/cmake" "$root/empty-template"
-for name in release-version.sh version-contract.sh lifecycle-common.sh require-host-bash.sh mutation-paths.sh; do
+for name in release-version.sh version-contract.sh lifecycle-common.sh require-host-bash.sh mutation-paths.sh \
+    package-verify.sh package-consumers.sh fuzz.sh memcheck.sh; do
   cp -- "$repo/scripts/$name" "$root/scripts/"
 done
 printf 'execute_process(COMMAND "${CMAKE_COMMAND}" -E echo core)\n' > "$root/cmake/lifecycle-info.cmake"
@@ -43,6 +44,20 @@ other="$root/build/other-checkout"
 git -C "$root" worktree add --detach -q "$other" HEAD
 CPKT_TOOLCHAIN_CACHE="$other/build/tools" reject
 CPKT_DEPENDENCY_CACHE="$other/build/deps" reject
+XDG_CACHE_HOME="$other/build/cache" reject
+for entry in package-verify package-consumers fuzz memcheck; do
+  case "$entry" in
+    package-verify) args=(missing.tar.gz x86_64-linux-gnu 1.2.3) ;;
+    package-consumers) args=("$root/build/sdk" x86_64-linux-gnu "$root/build/consumers") ;;
+    fuzz) args=(smoke) ;;
+    memcheck) args=() ;;
+  esac
+  if CPKT_TOOLCHAIN_CACHE="$other/build/tools" bash "$root/scripts/$entry.sh" "${args[@]}" \
+      > "$root/build/$entry-rejected.log" 2>&1; then
+    printf 'Foreign cache was accepted by %s\n' "$entry" >&2; exit 1
+  fi
+  rg -q 'cache belongs to another checkout' "$root/build/$entry-rejected.log"
+done
 CPKT_TOOLCHAIN_CACHE="$repo/build/rehearsal-toolchains" reject
 if CPKT_TOOLCHAIN_CACHE="$root/build/owned-tools" bash "$other/scripts/version-contract.sh" check; then exit 1; fi
 mkdir -p "$other/build/tools"

@@ -72,7 +72,7 @@ if(NOT EXISTS "${path}")
 message(FATAL_ERROR
       "${label} was not found at ${path}\n"
       "Provide the dependency tree for this preset under CPKT_EXTERNAL_ROOT.\n"
-      "You can prebuild it explicitly with scripts/deps.sh, but normal build/test/release entry points do not do that for you.")
+      "Prepare its owning graph with make deps DEPENDENCY=<name> PRESET=<preset>.")
 endif()
 endfunction()
 function(cpkt_normalize_prefix var path)
@@ -163,11 +163,9 @@ foreach(_prefix_var IN ITEMS
       CPKT_LIBXML2_PREFIX
       CPKT_LUA_PREFIX
       CPKT_MQTTC_PREFIX
-      CPKT_OPEN62541_PREFIX
       CPKT_KRB5_PREFIX
       CPKT_CYRUS_SASL_PREFIX
-      CPKT_OPENLDAP_PREFIX
-      CPKT_POSTGRESQL_PREFIX)
+      CPKT_OPENLDAP_PREFIX)
 if(DEFINED ${_prefix_var} AND NOT "${${_prefix_var}}" STREQUAL "")
 list(APPEND _pkg_config_dirs
         "${${_prefix_var}}/lib/pkgconfig"

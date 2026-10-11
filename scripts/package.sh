@@ -51,7 +51,8 @@ case "$action" in
       cpkt_preset "$selected"
       "$cpkt_cmake" --build "$cpkt_binary" --target package-bundle
       if [ "$group" = all ]; then
-        cp -- "$cpkt_root/build/package-stage/$target/core/archives/cpkt-$version-$target.tar.gz" "$base/"
+        cpkt_copy_artifact "$cpkt_root/build/package-stage/$target/core/archives/cpkt-$version-$target.tar.gz" \
+          "$base/cpkt-$version-$target.tar.gz"
       fi
     done
     if [ "$group" = all ]; then

@@ -31,6 +31,9 @@ add_test(NAME sdk_native_validation
   COMMAND "${CMAKE_COMMAND}" "-DCPKT_ROOT=${CPKT_ROOT}" "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}"
     -P "${CPKT_ROOT}/tests/sdk_native_validation_test.cmake")
 set_tests_properties(sdk_native_validation PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
+add_test(NAME package_verification COMMAND "${CMAKE_COMMAND}" "-DCPKT_ROOT=${CPKT_ROOT}"
+  "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}" -P "${CPKT_ROOT}/tests/package_verification_test.cmake")
+set_tests_properties(package_verification PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 add_test(NAME release_identity
   COMMAND bash "${CPKT_ROOT}/tests/release_identity_test.sh" "${CPKT_ROOT}" "${CMAKE_BINARY_DIR}")
 set_tests_properties(release_identity PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)

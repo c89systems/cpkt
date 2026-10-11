@@ -10,6 +10,8 @@ printf 'all: fixture.o\n' > "$work/implicit/Makefile"
 cp -- "$repo/Makefile" "$work/Makefile"
 cp -- "$repo/scripts/lifecycle.sh" "$work/scripts/"
 cp -- "$repo/scripts/package.sh" "$work/scripts/"
+cp -- "$repo/scripts/memcheck.sh" "$repo/scripts/mutation-paths.sh" "$work/scripts/"
+printf 'exit 0\n' > "$work/scripts/require-native-hardening-host.sh"
 printf 'printf "0.0.0\\n"\n' > "$work/scripts/release-version.sh"
 cat > "$work/scripts/lifecycle-common.sh" <<'EOF'
 cpkt_scripts=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -17,7 +19,9 @@ cpkt_root=${cpkt_scripts%/scripts}
 cpkt_owner=core
 cpkt_cmake=cpkt_mock_cmake
 cpkt_mock_cmake() { printf '%s\n' "$*" >> "$cpkt_root/calls"; }
-cpkt_owned_path() { :; }
+source "$cpkt_scripts/mutation-paths.sh"
+cpkt_owned_path() { cpkt_validate_mutation_path "$1"; }
+cpkt_check_cache_overrides() { :; }
 cpkt_fail() { printf '%s\n' "$*" >&2; exit 2; }
 cpkt_check_group() { case "$1" in all|core) ;; *) cpkt_fail 'wrong owner';; esac; }
 cpkt_default_preset() { echo debug; }
@@ -32,6 +36,7 @@ cpkt_info() {
   printf '%s\n' x86_64-linux-gnu x86_64-linux-musl aarch64-linux-gnu aarch64-linux-musl armhf-linux-gnu armhf-linux-musl arm64-apple-darwin
 }
 EOF
+sed -n '/^cpkt_copy_artifact()/,/^}/p' "$repo/scripts/lifecycle-common.sh" >> "$work/scripts/lifecycle-common.sh"
 cat > "$work/scripts/build.sh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$(dirname "$0")/../calls"
@@ -50,6 +55,7 @@ native=debug
 [ "$(uname -s)" != Darwin ] || native=arm64-apple-darwin-debug
 expect "build --group all --preset $native" build
 expect "test --group all --preset $native" test
+expect "deps --dependency openssl --group all --preset $native" deps DEPENDENCY=openssl
 expect 'test --group all --preset aarch64-linux-musl-release' test PRESET=aarch64-linux-musl-release
 for action in build-release cross-build test-cross cross-test; do
   mode=build
@@ -68,6 +74,33 @@ for preset in arm64-apple-darwin-native arm64-apple-darwin-release aarch64-linux
   bash "$work/scripts/package.sh" package-stage --group core --preset "$preset" --scope selected
   [ "$(cat "$work/calls")" = "$package_build" ] || { cat "$work/calls" >&2; exit 1; }
 done
+for target in x86_64-linux-gnu x86_64-linux-musl aarch64-linux-gnu aarch64-linux-musl armhf-linux-gnu armhf-linux-musl arm64-apple-darwin; do
+  directory="$work/build/package-stage/$target/core/archives"
+  mkdir -p "$directory"
+  printf 'fixture SDK\n' > "$directory/cpkt-0.0.0-$target.tar.gz"
+done
+bash "$work/scripts/package.sh" package-stage --group all --scope binary
+artifact="$work/dist/cpkt-0.0.0-x86_64-linux-gnu.tar.gz"
+marker="$work/copy-time"
+touch -t 200001010000 "$artifact" "$marker"
+bash "$work/scripts/package.sh" package-stage --group all --scope binary
+[ ! "$artifact" -nt "$marker" ] || { printf 'Unchanged artifact was recopied\n' >&2; exit 1; }
+printf 'changed SDK\n' > "$work/build/package-stage/x86_64-linux-gnu/core/archives/cpkt-0.0.0-x86_64-linux-gnu.tar.gz"
+bash "$work/scripts/package.sh" package-stage --group all --scope binary
+cmp -- "$artifact" "$work/build/package-stage/x86_64-linux-gnu/core/archives/cpkt-0.0.0-x86_64-linux-gnu.tar.gz"
+[ "$artifact" -nt "$marker" ] || { printf 'Changed artifact was not updated\n' >&2; exit 1; }
+for action in release prerelease test build package; do
+  rm -f -- "$work/calls"
+  if make --no-print-directory -C "$work" "$action" DEPENDENCY=openssl; then exit 1; fi
+  [ ! -e "$work/calls" ] || { cat "$work/calls" >&2; exit 1; }
+done
 rm -f -- "$work/calls"
 if make --no-print-directory -C "$work" build GROUP=db; then exit 1; fi
+[ ! -e "$work/calls" ]
+mkdir -p "$work/borrowed-debug" "$work/bin" "$work/build"
+touch "$work/borrowed-debug/CMakeCache.txt"
+printf '#!/usr/bin/env bash\nexit 0\n' > "$work/bin/valgrind"
+chmod +x "$work/bin/valgrind"
+ln -s "$work/borrowed-debug" "$work/build/debug"
+if PATH="$work/bin:$PATH" bash "$work/scripts/memcheck.sh"; then exit 1; fi
 [ ! -e "$work/calls" ]

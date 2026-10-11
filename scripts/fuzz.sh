@@ -5,6 +5,7 @@ mode=${1:-smoke}
 cpkt_check_group "${GROUP:-all}"
 case "$mode" in smoke|standard|long) ;; *) cpkt_fail "unknown fuzz mode: $mode";; esac
 [ "$mode" != long ] || [ "${CPKT_FUZZ_LONG_ENABLE:-0}" = 1 ] || cpkt_fail 'long fuzz requires CPKT_FUZZ_LONG_ENABLE=1'
+cpkt_check_cache_overrides
 bash "$cpkt_scripts/require-native-hardening-host.sh" afl++
 resolved=$(bash "$cpkt_scripts/cpkt-aflpp.sh" env) || exit $?
 eval "$resolved"

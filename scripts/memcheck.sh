@@ -14,9 +14,11 @@ while [ "$#" -gt 0 ]; do
   shift 2
 done
 cpkt_check_group "$group"
+cpkt_check_cache_overrides
 bash "$cpkt_scripts/require-native-hardening-host.sh" valgrind
 command -v valgrind >/dev/null || cpkt_fail 'host Valgrind is required'
 cpkt_preset debug
+cpkt_owned_path "$cpkt_binary"
 [ -f "$cpkt_binary/CMakeCache.txt" ] || cpkt_fail 'prepare native Debug before Memcheck'
 if [ -n "$regex" ]; then
   suppression=$(cpkt_info memcheck-suppression)

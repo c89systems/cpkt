@@ -27,6 +27,7 @@ while [ "$#" -gt 0 ]; do
   shift 2
 done
 cpkt_check_group "$group"
+[ -z "$dependency" ] || [ "$action" = deps ] || cpkt_fail 'DEPENDENCY requires the deps action'
 case "$preset_explicit:$scope_explicit" in yes:yes|yes:no|no:yes|no:no) ;; *) cpkt_fail 'explicit selectors must be yes or no' ;; esac
 case "$scope" in ''|selected|binary|release) ;; *) cpkt_fail "unknown SCOPE=$scope" ;; esac
 cpkt_preset "$preset"

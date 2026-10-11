@@ -30,6 +30,9 @@ add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/consumers.passed"
   COMMAND "${CMAKE_COMMAND}" -E touch "${CMAKE_BINARY_DIR}/consumers.passed"
   DEPENDS "${CMAKE_BINARY_DIR}/archive.passed" ${consumer_inputs}
     "${CPKT_SOURCE}/scripts/package-consumers.sh" "${CPKT_SOURCE}/cmake/components.json"
+    "${CPKT_SOURCE}/scripts/lifecycle-common.sh" "${CPKT_SOURCE}/scripts/mutation-paths.sh"
+    "${CPKT_SOURCE}/scripts/require-host-bash.sh" "${CPKT_SOURCE}/scripts/cpkt-toolchains.sh"
+    "${CPKT_SOURCE}/scripts/cpkt-archive-cache.sh" "${CPKT_SOURCE}/cmake/lifecycle-info.cmake"
     "${CPKT_SOURCE}/cmake/CpktLocalRuntime.cmake"
     "${CPKT_SOURCE}/cmake/CpktReadOnlyToolchain.cmake" "${CPKT_SOURCE}/cmake/CpktToolchainDiscovery.cmake"
     "${CPKT_SOURCE}/cmake/toolchains/arm64-apple-darwin.cmake" VERBATIM)

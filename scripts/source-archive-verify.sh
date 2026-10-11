@@ -17,8 +17,10 @@ source_mode=smoke
 "$cpkt_cmake" --build "$workspace" --target verify_source
 if [ "$mode" = --release-build ]; then
   targets=$(cpkt_info targets)
-  for target in $targets; do cp -- "$workspace/source/dist/cpkt-$version-$target.tar.gz" "$cpkt_root/dist/"; done
+  for target in $targets; do
+    cpkt_copy_artifact "$workspace/source/dist/cpkt-$version-$target.tar.gz" "$cpkt_root/dist/cpkt-$version-$target.tar.gz"
+  done
   for name in "cpkt-$version-arm64-apple-darwin-smoke-test.zip" "cpkt-$version-CHECKSUMS"; do
-    cp -- "$workspace/source/dist/$name" "$cpkt_root/dist/"
+    cpkt_copy_artifact "$workspace/source/dist/$name" "$cpkt_root/dist/$name"
   done
 fi

@@ -4,6 +4,7 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/lifecycle-common.sh"
 prefix=${1:?SDK prefix required}
 target=${2:?target required}
 workspace=${3:?consumer workspace required}
+cpkt_check_cache_overrides
 cpkt_owned_path "$workspace"
 cpkt_preset "$target-release"
 unset SASL_PATH

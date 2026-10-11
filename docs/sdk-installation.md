@@ -10,19 +10,24 @@ are <https://github.com/c89systems/cpktdb> and
 An optional package requires the exact core version, target and package ID
 recorded in its `share/cpkt/packages/<group>.json` manifest.
 
-Extract each selected archive into the same fresh prefix with its one root
-component stripped:
+Extract each selected archive as its own installation, retaining its archive root:
 
 ```sh
-mkdir sdk
+mkdir -p sdk
 # ARCHIVE paths must refer to previously checksum-verified release bytes.
-tar -xzf "$CORE_ARCHIVE" --strip-components=1 -C sdk
-# If selected, extract the verified matching optional archive into sdk too.
+tar -xzf "$CORE_ARCHIVE" -C sdk
+# Extract verified optional archives with their own roots; never overlay providers.
 ```
 
 CMake package discovery performs native content and prerequisite validation.
-Use the SDK prefix explicitly, keep all selected packages together, and avoid
-mixing host libraries into imported SDK targets. pkg-config cannot validate
+Set `CMAKE_PREFIX_PATH` to the selected independent installation prefixes, and
+`PKG_CONFIG_PATH` to their `lib/pkgconfig` directories. Cross builds also include
+the verified target SDK prefixes in `CMAKE_FIND_ROOT_PATH`. Avoid mixing host
+libraries into imported SDK targets. `find_package(CpktCore CONFIG REQUIRED)`
+provides the validated `CpktCore_PREFIX`, `CpktCore_VERSION`, `CpktCore_TARGET_ID`
+and `CpktCore_PACKAGE_ID`. Downstream packages validate their own payload and
+match their prerequisite pin against that discovered core identity.
+pkg-config cannot validate
 payload identities; the supplied pkg-config example uses CMake to validate the
 prefix before linking. Static and shared
 facade APIs keep their existing library names and `<cpkt/...>` headers.

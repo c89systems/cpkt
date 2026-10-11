@@ -5,6 +5,7 @@ archive=${1:?archive required}
 target=${2:?target required}
 version=${3:?version required}
 smoke=${4:-}
+cpkt_check_cache_overrides
 cpkt_preset "$target-release"
 if [ "$target" = arm64-apple-darwin ] && [ "$(uname -s)" = Darwin ]; then
   tool=$(xcrun --find otool)

@@ -41,6 +41,11 @@ cpkt_owned_path() {
   cpkt_validate_mutation_path "$path"
 }
 
+cpkt_copy_artifact() {
+  cpkt_owned_path "$2"
+  cmp -s -- "$1" "$2" || cp -- "$1" "$2"
+}
+
 cpkt_cache_value() {
   local key=$1 file=$2 line
   [ -f "$file" ] || return 1
@@ -73,11 +78,9 @@ cpkt_validate_cache_location() {
 }
 
 cpkt_check_cache_overrides() {
-  local name value
-  for name in CPKT_TOOLCHAIN_CACHE CPKT_DEPENDENCY_CACHE; do
-    value=${!name:-}
-    [ -z "$value" ] || cpkt_validate_cache_location "$value"
-  done
+  local global=${XDG_CACHE_HOME:-${HOME:?HOME is required}/.cache}/cpkt
+  cpkt_validate_cache_location "${CPKT_TOOLCHAIN_CACHE:-$global/toolchains}"
+  cpkt_validate_cache_location "${CPKT_DEPENDENCY_CACHE:-$global/deps}"
 }
 
 cpkt_preset() {
