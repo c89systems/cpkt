@@ -6,7 +6,7 @@ deliveries to use cpkt, split repositories, ship SDKs or adopt this target matri
 
 The SDK family has three public repositories with independent release versions:
 
-| Provider | Repository | Own payload | SDK prerequisite |
+| Provider | Repository | Own payload | Build prerequisite |
 | --- | --- | --- | --- |
 | `cpkt` | `https://github.com/c89systems/cpkt` | Core libraries and cmocka | None |
 | `cpktdb` | `https://github.com/c89systems/cpktdb` | PostgreSQL, SQLite and iODBC | Exact pinned published `cpkt` SDK |
@@ -20,7 +20,7 @@ requested installation operation.
 
 `GROUP=all` in one provider means that repository's complete payload. It cannot
 build, test, clean, commit or release a sibling repository. Optional providers do
-not require each other. Their core prerequisite comes from a checked-in exact
+not require each other. Their build prerequisite comes from a checked-in exact
 release/target/archive-SHA-256/package-ID pin, never a sibling checkout or host
 libraries. Resolve imported component versions from the validated core manifest;
 copied producer defaults are not the imported dependency selection.
@@ -32,8 +32,15 @@ prefix. Never merge or overlay provider payloads into a shared prefix.
 Discover prerequisites with ordinary `find_package`/`find_dependency` through
 `CMAKE_PREFIX_PATH`, or pkg-config through `PKG_CONFIG_PATH`; consumers link the
 provided imported targets rather than copying prerequisite files.
-Optional archives contain only owned payload and identify the exact required core
-version, target and package ID. Their own version need not match core. Preserve
+Optional archives contain only owned payload and record the exact core build pin
+as provenance. Installed consumers request a core compatibility baseline through
+ordinary `find_dependency`, with optional explicit range bounds. Core's version
+file accepts baselines from its declared compatibility floor through its release
+version; advance the floor on a break rather than assuming all same-major releases
+are compatible. Keep target and independent payload-integrity checks; do not require
+consumer core bytes to match the producer pin. Prove accepted upgrades with unchanged
+provider binaries and static archives. pkg-config constraints need the same CMake
+compatibility validation. Their own version need not match core. Preserve
 declared public `<cpkt/...>` header names and library ABI identities.
 See [package-isolation-and-build-reuse.md](package-isolation-and-build-reuse.md)
 and [packaging.md](packaging.md).

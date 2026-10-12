@@ -2,6 +2,13 @@
 if(NOT _owner STREQUAL "core")
   message(FATAL_ERROR "This repository installs only the core SDK")
 endif()
+# Oldest compatible core release. Advance this when compatibility is broken.
+set(_core_compatible_since "0.2.0")
+if(CPKT_BUNDLE_VERSION STREQUAL "0.0.0")
+  set(_core_compatible_since "0.0.0")
+elseif(CPKT_BUNDLE_VERSION VERSION_LESS _core_compatible_since)
+  message(FATAL_ERROR "Core compatibility floor exceeds its release version")
+endif()
 if(CPKT_TARGET_ID MATCHES "darwin$")
   set(_shared_suffix ".dylib")
 else()
@@ -56,7 +63,6 @@ string(CONFIGURE "${_facade_config}" _facade_config @ONLY)
 file(WRITE "${_stage_root}/lib/cmake/CpktCmocka/CpktCmockaConfig.cmake" "${_facade_config}")
 include(CMakePackageConfigHelpers)
 write_basic_package_version_file("${_native}/cmocka-config-version.cmake" VERSION "${CPKT_CMOCKA_VERSION}" COMPATIBILITY AnyNewerVersion)
-write_basic_package_version_file("${_stage_root}/lib/cmake/CpktCmocka/CpktCmockaConfigVersion.cmake" VERSION "${CPKT_BUNDLE_VERSION}" COMPATIBILITY AnyNewerVersion)
 foreach(_name cmocka cmocka-shared cmocka-static cpkt-cmocka)
   set(_libs "-lcmocka")
   set(_flags "")
@@ -76,15 +82,29 @@ endforeach()
 file(WRITE "${_stage_root}/lib/pkgconfig/cpkt-core.pc"
   "prefix=\${pcfiledir}/../..\nName: cpkt-core\nDescription: Validated cpkt core identity marker\nVersion: ${CPKT_BUNDLE_VERSION}\nLibs:\nCflags:\n")
 file(MAKE_DIRECTORY "${_stage_root}/lib/cmake/CpktCore")
-file(WRITE "${_stage_root}/lib/cmake/CpktCore/CpktCoreConfig.cmake" [=[
+set(_core_config [=[
 set(CpktCore_PREFIX "${_cpkt_sdk_prefix}")
 file(READ "${CpktCore_PREFIX}/share/cpkt/packages/core.json" _cpkt_core_manifest)
 string(JSON CpktCore_VERSION GET "${_cpkt_core_manifest}" release_version)
 string(JSON CpktCore_TARGET_ID GET "${_cpkt_core_manifest}" target_id)
 string(JSON CpktCore_PACKAGE_ID GET "${_cpkt_core_manifest}" package_id)
+set(CpktCore_COMPATIBLE_SINCE "@_core_compatible_since@")
 ]=])
-write_basic_package_version_file("${_stage_root}/lib/cmake/CpktCore/CpktCoreConfigVersion.cmake"
-  VERSION "${CPKT_BUNDLE_VERSION}" COMPATIBILITY ExactVersion)
+string(CONFIGURE "${_core_config}" _core_config @ONLY)
+file(WRITE "${_stage_root}/lib/cmake/CpktCore/CpktCoreConfig.cmake" "${_core_config}")
+foreach(_package CpktCore CpktCmocka)
+  set(_version_file "${_stage_root}/lib/cmake/${_package}/${_package}ConfigVersion.cmake")
+  write_basic_package_version_file("${_version_file}"
+    VERSION "${CPKT_BUNDLE_VERSION}" COMPATIBILITY AnyNewerVersion)
+  file(READ "${_version_file}" _native_version)
+  file(WRITE "${_version_file}"
+    "if(NOT \"\${PACKAGE_FIND_VERSION}\" STREQUAL \"\" AND\n"
+    "    PACKAGE_FIND_VERSION VERSION_LESS \"${_core_compatible_since}\")\n"
+    "  set(PACKAGE_VERSION \"${CPKT_BUNDLE_VERSION}\")\n"
+    "  set(PACKAGE_VERSION_COMPATIBLE FALSE)\n"
+    "  set(PACKAGE_VERSION_EXACT FALSE)\n  return()\nendif()\n\n"
+    "${_native_version}")
+endforeach()
 set(_core_version "${CPKT_BUNDLE_VERSION}")
 
 file(GLOB_RECURSE _configs "${_stage_root}/lib/cmake/*.cmake")

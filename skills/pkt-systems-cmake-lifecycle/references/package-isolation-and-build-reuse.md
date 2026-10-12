@@ -18,7 +18,9 @@ Packages remain independent installations in separate prefixes, with unique
 payload owners, declared imports and no dependency cycles. Discover dependencies
 through ordinary CMake/pkg-config search paths; do not merge or overlay prefixes.
 Verify consumers against those separate installations, including relocation.
-Pin prerequisite version, target, archive digest and public package identity.
+Pin build prerequisite version, target, archive digest and public package identity.
+Keep those provenance pins separate from installed consumer compatibility requirements;
+validate the selected dependency's declared compatibility span and platform.
 Validate metadata, licenses, consumer links and actual delivered bytes.
 
 Selected staging/checksums live in owned `build/` namespaces and cannot authorize

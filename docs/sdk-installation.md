@@ -7,8 +7,10 @@ installation directory; do not overlay a previous SDK.
 Core is published at <https://github.com/c89systems/cpkt>. Optional providers
 are <https://github.com/c89systems/cpktdb> and
 <https://github.com/c89systems/cpktmisc>. Their release versions are independent.
-An optional package requires the exact core version, target and package ID
-recorded in its `share/cpkt/packages/<group>.json` manifest.
+Provider builds pin an exact core version, target, archive checksum and package ID
+for reproducibility. Installed providers declare the core version they require;
+the selected core must accept that compatibility baseline and match the target.
+Each installation's own package ID and payload hashes remain independently validated.
 
 Extract each selected archive as its own installation, retaining its archive root:
 
@@ -24,13 +26,44 @@ Set `CMAKE_PREFIX_PATH` to the selected independent installation prefixes, and
 `PKG_CONFIG_PATH` to their `lib/pkgconfig` directories. Cross builds also include
 the verified target SDK prefixes in `CMAKE_FIND_ROOT_PATH`. Avoid mixing host
 libraries into imported SDK targets. `find_package(CpktCore CONFIG REQUIRED)`
-provides the validated `CpktCore_PREFIX`, `CpktCore_VERSION`, `CpktCore_TARGET_ID`
-and `CpktCore_PACKAGE_ID`. Downstream packages validate their own payload and
-match their prerequisite pin against that discovered core identity.
+provides the validated `CpktCore_PREFIX`, `CpktCore_VERSION`, `CpktCore_TARGET_ID`,
+`CpktCore_PACKAGE_ID` and `CpktCore_COMPATIBLE_SINCE`. Downstream packages validate
+their own payload and discover a compatible core independently of their build pin.
 pkg-config cannot validate
 payload identities; the supplied pkg-config example uses CMake to validate the
 prefix before linking. Static and shared
 facade APIs keep their existing library names and `<cpkt/...>` headers.
+
+## Core compatibility
+
+Request a compatibility baseline with ordinary CMake discovery:
+
+```cmake
+find_package(CpktCore 0.2.0 CONFIG REQUIRED)
+# Optional consumer limit: at least 0.2.0, below 0.4.0.
+find_package(CpktCore 0.2.0...<0.4.0 CONFIG REQUIRED)
+```
+
+Core accepts a baseline from `CpktCore_COMPATIBLE_SINCE` through its installed
+version, inclusive. Consumer range bounds and `EXACT` remain enforced. A release
+declares its oldest compatible baseline in `cmake/sdk-discovery.cmake`; a breaking
+release advances that floor and makes any required library ABI-version changes.
+Compatibility is not inferred from matching major or minor release numbers.
+Development version `0.0.0` accepts only its own baseline.
+
+For example, core 0.3.0 with floor 0.2.0 accepts a provider requiring 0.2.0.
+Core 0.4.0 with floor 0.4.0 rejects that provider. Compatible upgrades preserve
+the provider binaries; statically linked applications must relink to incorporate
+updated core code. Verify compatibility with existing binaries and static
+provider archives before extending the supported span.
+
+Installed provider configs use `find_dependency(CpktCore <baseline> CONFIG REQUIRED)`
+and check target identity. Exact core hashes and package IDs record build provenance;
+they do not require consumers to select those same bytes. Existing provider archives
+that enforce exact core identity require updated provider metadata before accepting
+independent upgrades. pkg-config version constraints alone do not enforce core's
+compatibility floor; use the provider's CMake validation before linking through
+pkg-config, as the supplied examples do.
 
 Each repository ships its own upstream notices under
 `share/doc/cpkt/<group>/third_party/`. cmocka is delivered by core for downstream

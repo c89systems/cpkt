@@ -51,7 +51,6 @@ Host Bash >= 4.4 is required for the lifecycle helpers. On macOS, run
 `brew install bash`, then `export PATH="$(brew --prefix bash)/bin:$PATH"`
 before Make or scripts. On Linux, install/upgrade the host `bash` package.
 Run `bash scripts/require-host-bash.sh` to verify the selected shell.
-See [host setup](docs/build-lifecycle.md) for the scope and PATH requirement.
 
 Run `make help` for the authoritative command index. The default local Debug
 preset uses the pinned Bootlin GNU toolchain. Every Linux target uses its own
@@ -96,5 +95,3 @@ SHA-256 cache hit performs no network acquisition. `make clean` removes `build/`
 `dist/` and local `.cache/` completely, including hidden entries and local tools.
 The global cpkt cache is preserved. Checkouts and worktrees must not borrow each
 other's sources, generated tools or build caches.
-
-The native build ownership and specialist validation boundaries are documented in [build lifecycle architecture](docs/build-lifecycle.md).

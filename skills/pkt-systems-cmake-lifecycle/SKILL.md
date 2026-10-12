@@ -96,6 +96,18 @@ Review changes under [the simplicity contract](references/review-contract.md).
 A clean review must respect that contract, not merely accumulate safeguards.
 Inspect/commit under project policy and report actual evidence and remaining state.
 
+Use [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):
+`type(scope): imperative summary`, with scope optional unless project policy
+requires it. Use `feat` for features, `fix` for fixes, and the narrowest appropriate
+type for other changes. Mark breaking changes with `!` before the colon or an
+uppercase `BREAKING CHANGE:` footer describing the break. Separate the optional
+body and footers with blank lines.
+
+Write summaries and bodies to complete, in meaning: "When applying this
+commit, it will...". Describe the delivered change; never use commit messages as
+review logs, run logs, test reports or release diaries. Keep evidence in reports
+and logs.
+
 ## Read only the relevant reference
 
 | Task | Reference |
