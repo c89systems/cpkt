@@ -5,13 +5,13 @@ Preparation is incremental; final tagged release is one clean local artifact bui
 Failures stop. Repair is a separate authorized iteration, not an in-flow fix/retry.
 The release boundary in SKILL.md has no exceptions: the amended, signed,
 lightweight-tagged final commit must complete the entire local release gate before
-any default/release-branch or release-tag push in the release workflow.
+any default-branch or release-tag push in the release workflow.
 Never push for CI or validation.
 
 ## Preparation
 
 Review/update affected public documentation and commit the intended source.
-Resolve release remote, branch and GitHub repository from the declared project;
+Resolve release remote, default branch and GitHub repository from the declared project;
 fetch/push destinations must agree. Pin base commit, candidate tree and review baseline.
 The candidate contains that base; integration changes happen before proof.
 
@@ -42,27 +42,29 @@ Extracted source uses its own injected VERSION and RELEASE_MANIFEST. Git discove
 of an enclosing checkout does not establish ownership; compare physical source root
 with the declared owning Git root. Intentional subprojects declare that owner.
 
-Prepare the release commit locally against the pinned release base, preserving
-the development branch and leaving remote release refs unchanged. For a topic
-release, squash the verified tree into one factual Conventional Commit.
-Present that commit for the engineer to amend and sign. Verify the completed
-signature and exact tree before tagging, then continue the authorized release.
+Complete implementation, testing and review on one development branch against
+the pinned default-branch base. Preserve that branch, then check out the resolved
+local default branch and squash the verified change into one factual Conventional
+Commit. Create no intermediate release branch; leave remote refs unchanged.
+Present the default branch's squash commit for the engineer to amend and sign.
+On confirmation, verify that HEAD is attached to that branch, its signature is valid
+and its tree matches the verified candidate before tagging, then continue the authorized release.
 Unsigned continuation is forbidden; signing does not require renewed release approval.
 Message/signature-only changes preserve preparation proof. Freeze the final
 commit identity before the clean release build; later amendments require a new
 final gate against the amended, signed, lightweight-tagged commit.
 
-Verify tag absence locally/remotely and create the selected lightweight tag with
-signing disabled. Tests of tag variations, when a project needs them, belong in
-that project's disposable fixture environment. Do not mutate active release refs
+Verify tag absence locally/remotely and create the selected lightweight tag on
+the signed default-branch HEAD with tag signing disabled. Tests of tag variations
+belong in that project's disposable fixture environment. Do not mutate active release refs
 for a lifecycle test or build a temporary-tag recovery protocol.
 
 ## Clean release gate
 
-Before cleaning, compilation or packaging, require a clean committed worktree and
-the amended final commit's verified signature and exact lightweight tag on HEAD,
-with no candidate override. No unsigned commit or pre-signing build can authorize
-a release push.
+Before cleaning, compilation or packaging, require HEAD attached to the resolved
+default branch, a clean committed worktree and the amended final commit's verified
+signature and exact lightweight tag on HEAD, with no candidate override. No unsigned commit or
+pre-signing build can authorize a release push.
 Read-only lifecycle-version-contract checks may expose that validation.
 Invalid identity preserves generated outputs and starts no producers.
 
@@ -81,13 +83,15 @@ checksum manifest's own identity, using existing logs/manifests.
 
 ## Publish and retry
 
-After the complete local release gate passes, recheck the pinned remote branch
-and release-tag absence immediately before mutation. Resolve one explicit release_repository
-([HOST/]OWNER/REPO); every gh release create/edit/view/upload supplies --repo.
+After the complete local release gate passes, recheck the local default branch's
+frozen identity, the pinned remote default branch and release-tag absence immediately
+before mutation.
+Resolve one explicit release_repository ([HOST/]OWNER/REPO); every gh release
+create/edit/view/upload supplies --repo.
 Use explicit hostname/owner/repository for API calls; no ambient GH_REPO/default routing.
 
-Push only the completed release commit and verified lightweight tag with explicit
-refs and no automatic tag following. The signature, tag, completed build and
+Push only the default branch's completed release commit and verified lightweight
+tag with explicit refs and no automatic tag following. The signature, tag, completed build and
 verified upload set must all identify the frozen final commit. Check actual
 remote identities. Never push early for GitHub Actions or wait for hosted native
 builds as a release condition.

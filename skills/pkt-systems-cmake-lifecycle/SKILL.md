@@ -41,10 +41,17 @@ selected owned generated outputs.
 
 ## Release boundary: no exceptions
 
-Never push product or pipeline changes to the default/release branch, or any
-release tag, until the final amended commit has a verified signature, its exact
-local lightweight tag, and a completed clean release build with all required
-local tests and final-artifact checks passing.
+Resolve the project's default branch; it is usually `trunk`, but its name is not
+fixed. Use one development branch for implementation, testing and review. Squash
+its verified change onto the local default branch before requesting amendment/signing.
+Signing, release tagging and the final release gate use that default-branch commit.
+Never create an intermediate release branch or request release signing on the
+development branch.
+
+Never push product or pipeline changes to the default branch, or any release tag,
+until the final amended commit has a verified signature, its exact local lightweight tag,
+and a completed clean release build with all required local tests and
+final-artifact checks passing.
 The commit is signed; the lightweight tag is not an annotated/signed tag.
 Keep remote release refs unchanged throughout preparation, signing and building.
 Never push to trigger CI. Hosted builds are optional diagnostics, never release
