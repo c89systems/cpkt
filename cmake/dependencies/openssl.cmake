@@ -52,7 +52,7 @@ cpkt_append_pinned_external_toolchain_env_args(openssl_env_args)
 if(CPKT_BUILD_DEPENDENCIES)
 cpkt_cached_external_project_add(${project_name}
       URL "https://github.com/openssl/openssl/releases/download/openssl-${CPKT_OPENSSL_VERSION}/openssl-${CPKT_OPENSSL_VERSION}.tar.gz"
-      URL_HASH "SHA256=9bffaa1ad1e07b354c21bd3324ec02fa15579f45a7d0494b3e74bc449b7333ef"
+      URL_HASH "SHA256=a2157c2830efdec3788939b00c9b0638306d3f0bbb76dc4832ee503bb397df98"
       DOWNLOAD_NAME "openssl-${CPKT_OPENSSL_VERSION}.tar.gz"
       PREFIX "${prefix_dir}"
       DOWNLOAD_DIR "${CPKT_DOWNLOAD_ROOT}"
@@ -65,6 +65,10 @@ cpkt_cached_external_project_add(${project_name}
         ${CMAKE_COMMAND}
           -DOPENSSL_SOURCE_DIR=${source_dir}
           -P ${CMAKE_SOURCE_DIR}/cmake/patch_openssl_buildinfo.cmake
+        COMMAND ${CMAKE_COMMAND}
+          -DCPKT_PATCH_WORKING_DIRECTORY=${source_dir}
+          -DCPKT_PATCH_SERIES=${CMAKE_SOURCE_DIR}/cmake/patches/openssl.series
+          -P ${CMAKE_SOURCE_DIR}/cmake/apply_patch_series.cmake
       CONFIGURE_COMMAND
         ${CMAKE_COMMAND} -E env
           ${openssl_env_args}

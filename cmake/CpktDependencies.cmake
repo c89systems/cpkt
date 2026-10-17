@@ -393,6 +393,9 @@ cpkt_prepare_dependency_component(
       "${CMAKE_SOURCE_DIR}/cmake/CpktDependencyContract.cmake"
       "${CMAKE_SOURCE_DIR}/cmake/CpktDependencyArchiveCache.cmake"
       "${CMAKE_SOURCE_DIR}/cmake/patch_openssl_buildinfo.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/apply_patch_series.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/patches/openssl.series"
+      "${CMAKE_SOURCE_DIR}/cmake/patches/openssl_thread_cleanup.patch"
       "${CMAKE_SOURCE_DIR}/cmake/patch_darwin_generated_install_names.cmake")
 cpkt_prepare_dependency_component(
     NAME zlib

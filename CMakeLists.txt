@@ -239,7 +239,8 @@ endif()
 set(CPKT_BUILD_STATIC ON CACHE INTERNAL "cpkt release bundles always include static artifacts.")
 set(CPKT_BUILD_SHARED ON CACHE INTERNAL "cpkt release bundles always include shared artifacts.")
 set(CPKT_BUNDLE_VERSION "${PROJECT_VERSION}" CACHE STRING "Published dependency bundle version." FORCE)
-set(CPKT_OPENSSL_VERSION "3.6.4" CACHE STRING "Pinned OpenSSL release.")
+# The version and archive digest are one source-controlled pin, including in reused caches.
+set(CPKT_OPENSSL_VERSION "3.6.5" CACHE INTERNAL "Pinned OpenSSL release." FORCE)
 set(CPKT_OPENSSL_BUILD_CONFIG_REVISION "origin-runpath-1" CACHE INTERNAL "OpenSSL Configure contract revision." FORCE)
 set(CPKT_ZLIB_VERSION "1.3.2" CACHE STRING "Pinned zlib release.")
 set(CPKT_CURL_VERSION "8.22.0" CACHE STRING "Pinned curl release.")
@@ -1768,6 +1769,39 @@ if(CPKT_BUILD_TESTS AND CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 endif()
 if(CPKT_BUILD_TESTS)
   
+endif()
+
+# glibc dlclose really unloads this private static closure; musl retains DSOs.
+if(CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND
+    CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CPKT_TARGET_LIBC STREQUAL "gnu")
+  cpkt_group_add_library(cpkt_openssl_unload_module MODULE tests/openssl_unload_test.c)
+  target_compile_definitions(cpkt_openssl_unload_module PRIVATE CPKT_OPENSSL_UNLOAD_PLUGIN)
+  target_compile_options(cpkt_openssl_unload_module PRIVATE -std=c99)
+  cpkt_add_repo_warning_errors(cpkt_openssl_unload_module)
+  target_link_libraries(cpkt_openssl_unload_module PRIVATE
+    cpkt::openssl_crypto_static Threads::Threads ${CMAKE_DL_LIBS})
+  target_link_options(cpkt_openssl_unload_module PRIVATE "LINKER:--exclude-libs,ALL")
+  cpkt_group_add_executable(cpkt_openssl_unload_test tests/openssl_unload_test.c)
+  add_dependencies(cpkt_openssl_unload_test cpkt_openssl_unload_module)
+  target_compile_definitions(cpkt_openssl_unload_test PRIVATE _GNU_SOURCE)
+  target_compile_options(cpkt_openssl_unload_test PRIVATE -std=c99)
+  cpkt_add_repo_warning_errors(cpkt_openssl_unload_test)
+  target_link_libraries(cpkt_openssl_unload_test PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
+  cpkt_group_use_local_runtime(cpkt_openssl_unload_test)
+  if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
+    foreach(_mode unused cleanup-unused init-only auto thread-stop cleanup
+        double-cleanup thread-reuse worker live-worker)
+      if(_mode STREQUAL "worker" OR _mode STREQUAL "live-worker")
+        set(_arguments cleanup "${_mode}")
+      else()
+        set(_arguments "${_mode}")
+      endif()
+      cpkt_group_add_test(NAME openssl_unload_${_mode}
+        COMMAND cpkt_openssl_unload_test "$<TARGET_FILE:cpkt_openssl_unload_module>" ${_arguments})
+      cpkt_group_set_tests_properties(openssl_unload_${_mode}
+        PROPERTIES TIMEOUT 30 LABELS "openssl;unload;memcheck")
+    endforeach()
+  endif()
 endif()
 
 # Each linked shared module proves an owned static native/facade archive is PIC.

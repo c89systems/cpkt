@@ -1,9 +1,16 @@
 # OpenSSL C89 facade surface contract
 
-OpenSSL 3.6.4 is not a direct C89 dependency. Its installed headers expose
+OpenSSL 3.6.5 is not a direct C89 dependency. Its installed headers expose
 64-bit scalar parameters, results, and legacy state records; strict C89 has no
 portable scalar representation for those values. `cpkt_openssl` must therefore
 adapt the complete configured OpenSSL public API, not a convenient TLS subset.
+
+The bundled OpenSSL carries a local teardown patch that releases its internal
+master TLS key after global cleanup. Private statically linked plugins can unload
+without exhausting pthread key slots. Stop all threads using that private OpenSSL
+instance before unloading it; do not call global cleanup on a host's shared
+OpenSSL instance. GNU/Linux CTest cases check complete unload, thread reuse,
+worker cleanup and preservation of the host's unrelated TLS key.
 
 `<cpkt/openssl.h>` is the exhaustive C89-compatible import surface for every
 staged top-level OpenSSL public header. It contains OpenSSL's unavoidable
@@ -89,7 +96,7 @@ argument is a borrowed `cpkt_openssl_bio_mmsg_callback_args`; its messages and
 the record are valid only for that callback invocation. For other operations,
 the argument retains the upstream borrowed byte-pointer semantics.
 
-For the current x86_64 GNU OpenSSL 3.6.4 configuration, 6,468 public header
+For the x86_64 GNU OpenSSL 3.6.5 configuration, 6,468 public header
 functions are present. This is the raw OpenSSL API inventory, not the
 `libcpkt_openssl` export count. Only the mechanically classified typed-adapter
 subset (currently 74 direct signatures, plus record-dependent callers) needs

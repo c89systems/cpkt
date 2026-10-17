@@ -109,6 +109,9 @@
         "cmake/CpktDependencyContract.cmake",
         "cmake/CpktDependencyArchiveCache.cmake",
         "cmake/patch_openssl_buildinfo.cmake",
+        "cmake/apply_patch_series.cmake",
+        "cmake/patches/openssl.series",
+        "cmake/patches/openssl_thread_cleanup.patch",
         "cmake/patch_darwin_generated_install_names.cmake",
         "cmake/CpktDependencies.cmake",
         "cmake/dependencies/openssl.cmake"
@@ -2250,6 +2253,20 @@
       ],
       "requires": []
     },
+    "cpkt_openssl_unload_module": {
+      "group": "core",
+      "public": false,
+      "kind": "add_library",
+      "source_inputs": ["tests/openssl_unload_test.c"],
+      "requires": ["openssl"]
+    },
+    "cpkt_openssl_unload_test": {
+      "group": "core",
+      "public": false,
+      "kind": "executable",
+      "source_inputs": ["tests/openssl_unload_test.c"],
+      "requires": []
+    },
     "cpkt_static_archive_pic_crypto": {
       "group": "core",
       "public": false,
@@ -2830,6 +2847,24 @@
         }
       ],
       "target_sensitive": false
+    },
+    "openssl_unload_${_mode}": {
+      "group": "core",
+      "target_sensitive": true,
+      "source_inputs": ["tests/openssl_unload_test.c"],
+      "command_inputs": [],
+      "registrations": [
+        {"name": "openssl_unload_unused", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]},
+        {"name": "openssl_unload_cleanup-unused", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]},
+        {"name": "openssl_unload_init-only", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]},
+        {"name": "openssl_unload_auto", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]},
+        {"name": "openssl_unload_thread-stop", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]},
+        {"name": "openssl_unload_cleanup", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]},
+        {"name": "openssl_unload_double-cleanup", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]},
+        {"name": "openssl_unload_thread-reuse", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]},
+        {"name": "openssl_unload_worker", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]},
+        {"name": "openssl_unload_live-worker", "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES AND CMAKE_SYSTEM_NAME STREQUAL \"Linux\" AND CPKT_TARGET_LIBC STREQUAL \"gnu\""]}
+      ]
     },
     "openssl_bio_lifecycle_${_cpkt_bio_linkage}": {
       "group": "core",
