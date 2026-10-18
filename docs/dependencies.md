@@ -2,7 +2,8 @@
 
 ## Shipped libraries
 
-- openssl (pinned recipe and license: `cmake/components.json`).
+- openssl 3.6.5 (pinned recipe and license: `cmake/components.json`;
+  [local fixes and patch order](openssl-c89-facade-surface.md)).
 - zlib (pinned recipe and license: `cmake/components.json`).
 - nghttp2 (pinned recipe and license: `cmake/components.json`).
 - libssh2 (pinned recipe and license: `cmake/components.json`).

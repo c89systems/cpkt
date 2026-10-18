@@ -1,0 +1,59 @@
+Keep allocation-error reporting out of bootstrap locks and error-state TLS metadata.
+Use the existing non-reporting allocation convention for these dependencies.
+Apply before the thread-registration and error-string shelving fixes.
+Corresponds to report 06: bootstrap allocation-error recursion.
+
+--- a/crypto/threads_common.c
++++ b/crypto/threads_common.c
+@@ -360,8 +360,8 @@
+         /*
+          * we didn't find one, but that's ok, just initialize it now
+          */
+-        mkey = OPENSSL_calloc(CRYPTO_THREAD_LOCAL_KEY_MAX,
+-            sizeof(MASTER_KEY_ENTRY));
++        mkey = CRYPTO_calloc(CRYPTO_THREAD_LOCAL_KEY_MAX,
++            sizeof(MASTER_KEY_ENTRY), NULL, 0);
+         if (mkey == NULL)
+             return 0;
+         /*
+--- a/crypto/threads_pthread.c
++++ b/crypto/threads_pthread.c
+@@ -907,7 +907,7 @@
+ 
+     ossl_init_rwlock_contention_data();
+ 
+-    if ((lock = OPENSSL_zalloc(sizeof(pthread_rwlock_t))) == NULL)
++    if ((lock = CRYPTO_zalloc(sizeof(pthread_rwlock_t), NULL, 0)) == NULL)
+         /* Don't set error, to avoid recursion blowup. */
+         return NULL;
+ 
+@@ -919,7 +919,7 @@
+     pthread_mutexattr_t attr;
+     CRYPTO_RWLOCK *lock;
+ 
+-    if ((lock = OPENSSL_zalloc(sizeof(pthread_mutex_t))) == NULL)
++    if ((lock = CRYPTO_zalloc(sizeof(pthread_mutex_t), NULL, 0)) == NULL)
+         /* Don't set error, to avoid recursion blowup. */
+         return NULL;
+ 
+--- a/crypto/sparse_array.c
++++ b/crypto/sparse_array.c
+@@ -57,7 +57,8 @@
+ 
+ OPENSSL_SA *ossl_sa_new(void)
+ {
+-    OPENSSL_SA *res = OPENSSL_zalloc(sizeof(*res));
++    /* Error-queue TLS uses sparse arrays: reporting OOM here would recurse. */
++    OPENSSL_SA *res = CRYPTO_zalloc(sizeof(*res), NULL, 0);
+ 
+     return res;
+ }
+@@ -173,7 +174,7 @@
+ 
+ static ossl_inline void **alloc_node(void)
+ {
+-    return OPENSSL_calloc(SA_BLOCK_MAX, sizeof(void *));
++    return CRYPTO_calloc(SA_BLOCK_MAX, sizeof(void *), NULL, 0);
+ }
+ 
+ int ossl_sa_set(OPENSSL_SA *sa, ossl_uintmax_t posn, void *val)

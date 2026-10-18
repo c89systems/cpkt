@@ -1,0 +1,94 @@
+Shelve the error state while constructing and growing the thread-cleanup registry.
+Restore it on every exit so failed registration cannot acquire nested handlers.
+Requires the master-key initialization check and bootstrap allocation fix.
+Corresponds to report 07: thread-cleanup registration error re-entry.
+
+--- a/crypto/initthread.c
++++ b/crypto/initthread.c
+@@ -13,6 +13,7 @@
+ #include "prov/providercommon.h"
+ #include "internal/thread_once.h"
+ #include "internal/threads_common.h"
++#include "crypto/err.h"
+ #include "crypto/context.h"
+ 
+ #ifdef FIPS_MODULE
+@@ -58,9 +59,14 @@
+ 
+ DEFINE_RUN_ONCE_STATIC(create_global_tevent_register)
+ {
++    void *err_state;
++    int ret = 0;
++
++    if (!err_shelve_state(&err_state))
++        return 0;
+     glob_tevent_reg = OPENSSL_zalloc(sizeof(*glob_tevent_reg));
+     if (glob_tevent_reg == NULL)
+-        return 0;
++        goto end;
+ 
+     glob_tevent_reg->skhands = sk_THREAD_EVENT_HANDLER_PTR_new_null();
+     glob_tevent_reg->lock = CRYPTO_THREAD_lock_new();
+@@ -69,10 +75,13 @@
+         CRYPTO_THREAD_lock_free(glob_tevent_reg->lock);
+         OPENSSL_free(glob_tevent_reg);
+         glob_tevent_reg = NULL;
+-        return 0;
++        goto end;
+     }
+ 
+-    return 1;
++    ret = 1;
++end:
++    err_unshelve_state(err_state);
++    return ret;
+ }
+ 
+ static GLOBAL_TEVENT_REGISTER *get_global_tevent_register(void)
+@@ -201,16 +210,21 @@
+ static int init_thread_push_handlers(THREAD_EVENT_HANDLER **hands)
+ {
+     int ret;
++    void *err_state;
+     GLOBAL_TEVENT_REGISTER *gtr;
+ 
+     gtr = get_global_tevent_register();
+     if (gtr == NULL)
+         return 0;
+ 
+-    if (!CRYPTO_THREAD_write_lock(gtr->lock))
++    if (!err_shelve_state(&err_state))
+         return 0;
+-    ret = (sk_THREAD_EVENT_HANDLER_PTR_push(gtr->skhands, hands) != 0);
+-    CRYPTO_THREAD_unlock(gtr->lock);
++    ret = 0;
++    if (CRYPTO_THREAD_write_lock(gtr->lock)) {
++        ret = (sk_THREAD_EVENT_HANDLER_PTR_push(gtr->skhands, hands) != 0);
++        CRYPTO_THREAD_unlock(gtr->lock);
++    }
++    err_unshelve_state(err_state);
+ 
+     return ret;
+ }
+--- a/crypto/err/err.c
++++ b/crypto/err/err.c
+@@ -724,16 +724,9 @@
+     int saveerrno = get_last_sys_error();
+ 
+     /*
+-     * Note, at present our only caller is OPENSSL_init_crypto(), indirectly
+-     * via ossl_init_load_crypto_nodelete(), by which point the requested
+-     * "base" initialization has already been performed, so the below call is a
+-     * NOOP, that re-enters OPENSSL_init_crypto() only to quickly return.
+-     *
+-     * If are no other valid callers of this function, the call below can be
+-     * removed, avoiding the re-entry into OPENSSL_init_crypto().  If there are
+-     * potential uses that are not from inside OPENSSL_init_crypto(), then this
+-     * call is needed, but some care is required to make sure that the re-entry
+-     * remains a NOOP.
++     * Complete base initialization before accessing error-state TLS.
++     * Initialization callbacks using shelving must run after base initialization
++     * to avoid re-entering its active once-control.
+      */
+     if (!OPENSSL_init_crypto(OPENSSL_INIT_BASE_ONLY, NULL))
+         return 0;

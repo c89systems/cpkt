@@ -1,0 +1,26 @@
+Reject TLS access when the master-key once callback failed to allocate its key.
+CRYPTO_THREAD_run_once reports callback completion, not allocation success.
+Corresponds to report 02: failed master-key initialization.
+
+--- a/crypto/threads_common.c
++++ b/crypto/threads_common.c
+@@ -273,7 +273,8 @@
+      * and in libcrypto, so we use CRYPTO_THREAD_run_one directly, which is
+      * always defined.
+      */
+-    if (!CRYPTO_THREAD_run_once(&master_once, init_master_key))
++    if (!CRYPTO_THREAD_run_once(&master_once, init_master_key)
++        || !master_key_init)
+         return NULL;
+ 
+     if (!ossl_assert(id < CRYPTO_THREAD_LOCAL_KEY_MAX))
+@@ -343,7 +344,8 @@
+      * Make sure our master key is initialized
+      * See notes above on the use of CRYPTO_THREAD_run_once here
+      */
+-    if (!CRYPTO_THREAD_run_once(&master_once, init_master_key))
++    if (!CRYPTO_THREAD_run_once(&master_once, init_master_key)
++        || !master_key_init)
+         return 0;
+ 
+     if (!ossl_assert(id < CRYPTO_THREAD_LOCAL_KEY_MAX))

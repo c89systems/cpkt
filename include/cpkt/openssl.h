@@ -8,6 +8,10 @@
  * consumer's own source remains warning-clean under -std=c89 -pedantic-errors.
  * Typed cpkt_openssl_* adapters provide C89 word values for APIs that accept
  * or return native 64-bit values.
+ * Stop every user of a private static OpenSSL instance before calling
+ * OPENSSL_cleanup() and unloading its plugin. Global cleanup ends that
+ * instance's lifetime; OPENSSL_thread_stop() only releases calling-thread
+ * state.
  */
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC diagnostic push
@@ -297,11 +301,16 @@ cpkt_openssl_i64_low_word(cpkt_openssl_i64 value);
 CPKT_OPENSSL_API int cpkt_openssl_i64_equal(cpkt_openssl_i64 left,
                                             cpkt_openssl_i64 right);
 
-/** C89 adapter for OPENSSL_init_crypto. */
+/** Initializes libcrypto with C89 option bits; returns 1 on success, 0 on
+ * failure. Base initialization failure is retained by the instance's once
+ * state. Global OPENSSL_cleanup() requires all users to have stopped and ends
+ * the instance's lifetime. Release calling-thread state with
+ * OPENSSL_thread_stop(). */
 CPKT_OPENSSL_API int
 cpkt_openssl_OPENSSL_init_crypto(cpkt_openssl_u64 options,
                                  const OPENSSL_INIT_SETTINGS *settings);
-/** C89 adapter for OPENSSL_init_ssl. */
+/** Initializes libssl and libcrypto with C89 option bits; returns 1 on success,
+ * 0 on failure. Uses the same instance lifetime as OPENSSL_init_crypto(). */
 CPKT_OPENSSL_API int
 cpkt_openssl_OPENSSL_init_ssl(cpkt_openssl_u64 options,
                               const OPENSSL_INIT_SETTINGS *settings);

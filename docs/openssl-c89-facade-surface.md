@@ -12,6 +12,54 @@ instance before unloading it; do not call global cleanup on a host's shared
 OpenSSL instance. GNU/Linux CTest cases check complete unload, thread reuse,
 worker cleanup and preservation of the host's unrelated TLS key.
 
+A separate local patch rejects TLS access when master-key allocation fails.
+GNU/Linux CTest cases inject base-key allocation failures through RAND and
+check host TLS preservation, explicit and process-exit cleanup, and successful
+no-fault controls. A separate case initializes the thread destructor key, then
+fails master-key allocation during error-state access and checks repeated access,
+host TLS preservation and global cleanup.
+Partial base initialization releases its thread resources when a subsequent
+key allocation fails. RAND and default-context initialization propagate that
+failure before allocating more state. Repeated public/private RAND calls and
+context creation must fail safely after a base initialization failure.
+Plugin-unload checks require the full key capacity to be restored after each
+initialization failure, including repeated cleanup.
+
+`OSSL_LIB_CTX_set0_default()` returns NULL when storing the requested thread
+default fails and leaves the previous default installed. Passing NULL queries
+the current default without changing it.
+
+Local patches prevent allocation-error reporting from re-entering partially
+constructed locks, TLS metadata, error-string tables and cleanup registries.
+Full configuration-module unload detaches and frees the existing module list
+without allocating a replacement list. Partial unload reserves its removal list
+before changing module ownership. Other configuration-shutdown phases may still
+allocate.
+
+Global `OPENSSL_cleanup()` ends the instance's lifetime and requires every user
+to have stopped. `OPENSSL_thread_stop()` releases calling-thread state and permits
+subsequent use before global cleanup. Static consumers must relink against the
+updated SDK to receive the bundled fixes. These changes preserve the public C API,
+shared-library ABI majors and core compatibility floor.
+
+The patches in `cmake/patches/openssl.series` correspond to the following issues:
+
+| Report | Issue | Patch |
+| --- | --- | --- |
+| 01 | Master TLS key leak on plugin unload | [openssl_thread_cleanup.patch](../cmake/patches/openssl_thread_cleanup.patch) |
+| 02 | Failed master-key initialization | [openssl_master_key_init.patch](../cmake/patches/openssl_master_key_init.patch) |
+| 03 | Partial base-initialization rollback | [openssl_base_init_rollback.patch](../cmake/patches/openssl_base_init_rollback.patch) |
+| 04 | Base-initialization failure propagation | [openssl_base_init_propagation.patch](../cmake/patches/openssl_base_init_propagation.patch) |
+| 05 | Default-context TLS store failure | [openssl_default_context_store.patch](../cmake/patches/openssl_default_context_store.patch) |
+| 06 | Bootstrap allocation-error recursion | [openssl_bootstrap_allocations.patch](../cmake/patches/openssl_bootstrap_allocations.patch) |
+| 07 | Thread-cleanup registration error re-entry | [openssl_thread_registration.patch](../cmake/patches/openssl_thread_registration.patch) |
+| 08 | Error-string initialization recursion | [openssl_error_strings.patch](../cmake/patches/openssl_error_strings.patch) |
+| 09 | Configuration-module unload allocation failure | [openssl_conf_module_unload.patch](../cmake/patches/openssl_conf_module_unload.patch) |
+
+Apply the series in order. Base-initialization rollback precedes failure
+propagation. The master-key check and bootstrap allocation changes precede
+the error-state shelving patches, which use the same TLS machinery.
+
 `<cpkt/openssl.h>` is the exhaustive C89-compatible import surface for every
 staged top-level OpenSSL public header. It contains OpenSSL's unavoidable
 legacy declaration diagnostic locally; it does not relax diagnostics in

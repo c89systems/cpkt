@@ -1,0 +1,16 @@
+Return failure when storing a requested thread-default library context fails.
+Corresponds to report 05: default-context false success.
+
+--- a/crypto/context.c
++++ b/crypto/context.c
+@@ -512,8 +512,8 @@
+     OSSL_LIB_CTX *current_defctx;
+ 
+     if ((current_defctx = get_default_context()) != NULL) {
+-        if (libctx != NULL)
+-            set_default_context(libctx);
++        if (libctx != NULL && !set_default_context(libctx))
++            return NULL;
+         return current_defctx;
+     }
+ 

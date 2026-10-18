@@ -1,1 +1,9 @@
 openssl_thread_cleanup.patch
+openssl_master_key_init.patch
+openssl_base_init_rollback.patch
+openssl_base_init_propagation.patch
+openssl_default_context_store.patch
+openssl_bootstrap_allocations.patch
+openssl_thread_registration.patch
+openssl_error_strings.patch
+openssl_conf_module_unload.patch

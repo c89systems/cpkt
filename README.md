@@ -1,6 +1,6 @@
 # cpkt: Core C89 SDK
 
-[cpkt on GitHub](https://github.com/c89systems/cpkt) ships static and
+[cpkt](https://github.com/c89systems/cpkt) ships static and
 shared libraries with strict C89 public interfaces, CMake packages, pkg-config
 metadata, examples and complete third-party license notices.
 
@@ -25,6 +25,12 @@ versions are independent of those ABI majors.
 
 See [Lua runtime execution policy](docs/lua-runtime-policy.md) for embedding
 limits, coroutine behavior and native module ownership.
+
+Bundled OpenSSL 3.6.5 carries focused initialization, TLS and resource-cleanup
+fixes. Private static plugins release their master TLS key on global cleanup;
+failed initialization and TLS stores report failure. See the
+[OpenSSL lifecycle contract and patch inventory](docs/openssl-c89-facade-surface.md).
+Consumers embedding static OpenSSL must relink to receive these changes.
 
 The libssh2 C89 facade uses SFTP attribute `flags` to select valid fields:
 `SIZE` selects `filesize`, `UIDGID` selects `uid`/`gid`, `PERMISSIONS` selects

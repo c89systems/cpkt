@@ -1774,6 +1774,28 @@ endif()
 # glibc dlclose really unloads this private static closure; musl retains DSOs.
 if(CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND
     CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CPKT_TARGET_LIBC STREQUAL "gnu")
+  # RAND targets base-key failures; ERR targets master failure after thread setup.
+  cpkt_group_add_executable(cpkt_openssl_tls_init_test tests/openssl_tls_init_test.c)
+  target_compile_options(cpkt_openssl_tls_init_test PRIVATE -std=c99)
+  cpkt_add_repo_warning_errors(cpkt_openssl_tls_init_test)
+  target_link_libraries(cpkt_openssl_tls_init_test PRIVATE
+    cpkt::openssl_crypto_static Threads::Threads ${CMAKE_DL_LIBS})
+  target_link_options(cpkt_openssl_tls_init_test PRIVATE "LINKER:--wrap=pthread_key_create")
+  cpkt_group_use_local_runtime(cpkt_openssl_tls_init_test)
+  if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
+    foreach(_failure IN ITEMS 0 1 2 master)
+      foreach(_cleanup auto cleanup)
+        if(_failure STREQUAL "master" AND _cleanup STREQUAL "auto")
+          continue()
+        endif()
+        cpkt_group_add_test(NAME openssl_tls_init_${_failure}_${_cleanup}
+          COMMAND cpkt_openssl_tls_init_test ${_failure} ${_cleanup})
+        cpkt_group_set_tests_properties(openssl_tls_init_${_failure}_${_cleanup}
+          PROPERTIES TIMEOUT 30 LABELS "openssl;tls-init;memcheck")
+      endforeach()
+    endforeach()
+  endif()
+
   cpkt_group_add_library(cpkt_openssl_unload_module MODULE tests/openssl_unload_test.c)
   target_compile_definitions(cpkt_openssl_unload_module PRIVATE CPKT_OPENSSL_UNLOAD_PLUGIN)
   target_compile_options(cpkt_openssl_unload_module PRIVATE -std=c99)
@@ -1781,6 +1803,7 @@ if(CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND
   target_link_libraries(cpkt_openssl_unload_module PRIVATE
     cpkt::openssl_crypto_static Threads::Threads ${CMAKE_DL_LIBS})
   target_link_options(cpkt_openssl_unload_module PRIVATE "LINKER:--exclude-libs,ALL")
+  target_link_options(cpkt_openssl_unload_module PRIVATE "LINKER:--wrap=pthread_key_create")
   cpkt_group_add_executable(cpkt_openssl_unload_test tests/openssl_unload_test.c)
   add_dependencies(cpkt_openssl_unload_test cpkt_openssl_unload_module)
   target_compile_definitions(cpkt_openssl_unload_test PRIVATE _GNU_SOURCE)
@@ -1790,7 +1813,8 @@ if(CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND
   cpkt_group_use_local_runtime(cpkt_openssl_unload_test)
   if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
     foreach(_mode unused cleanup-unused init-only auto thread-stop cleanup
-        double-cleanup thread-reuse worker live-worker)
+        double-cleanup thread-reuse worker live-worker
+        key-failure-1 key-failure-2)
       if(_mode STREQUAL "worker" OR _mode STREQUAL "live-worker")
         set(_arguments cleanup "${_mode}")
       else()

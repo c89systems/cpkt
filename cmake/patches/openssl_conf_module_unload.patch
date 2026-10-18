@@ -1,0 +1,38 @@
+Reserve partial-unload removal capacity before changing module ownership.
+Full unload detaches and frees the existing list without allocating a replacement.
+Corresponds to report 09: configuration-module unload allocation failure.
+
+--- a/crypto/conf/conf_mod.c
++++ b/crypto/conf/conf_mod.c
+@@ -527,6 +527,17 @@
+     ossl_rcu_write_lock(module_list_lock);
+ 
+     old_modules = ossl_rcu_deref(&supported_modules);
++    if (all) {
++        new_modules = NULL;
++        ossl_rcu_assign_ptr(&supported_modules, &new_modules);
++        ossl_rcu_write_unlock(module_list_lock);
++        ossl_synchronize_rcu(module_list_lock);
++        while ((md = sk_CONF_MODULE_pop(old_modules)) != NULL)
++            module_free(md);
++        sk_CONF_MODULE_free(old_modules);
++        return;
++    }
++
+     new_modules = sk_CONF_MODULE_dup(old_modules);
+ 
+     if (new_modules == NULL) {
+@@ -534,7 +545,12 @@
+         return;
+     }
+ 
+-    to_delete = sk_CONF_MODULE_new_null();
++    to_delete = sk_CONF_MODULE_new_reserve(NULL, sk_CONF_MODULE_num(new_modules));
++    if (to_delete == NULL) {
++        sk_CONF_MODULE_free(new_modules);
++        ossl_rcu_write_unlock(module_list_lock);
++        return;
++    }
+ 
+     /* unload modules in reverse order */
+     for (i = sk_CONF_MODULE_num(new_modules) - 1; i >= 0; i--) {

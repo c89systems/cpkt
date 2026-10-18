@@ -2,13 +2,48 @@
 #include <string.h>
 
 #ifdef CPKT_OPENSSL_UNLOAD_PLUGIN
+#include <errno.h>
 #include <openssl/crypto.h>
 #include <openssl/rand.h>
+#include <pthread.h>
+
+extern int __real_pthread_key_create(pthread_key_t *, void (*)(void *));
+static unsigned int key_calls;
+static unsigned int fail_key;
+
+int __wrap_pthread_key_create(pthread_key_t *key, void (*cleanup)(void *)) {
+  if (++key_calls == fail_key)
+    return EAGAIN;
+  return __real_pthread_key_create(key, cleanup);
+}
 
 __attribute__((visibility("default"))) int
 cpkt_openssl_unload_probe(const char *mode) {
   unsigned char bytes[16];
   unsigned int i;
+  if (strncmp(mode, "key-failure-", 12) == 0 && strlen(mode) == 13 &&
+      mode[12] >= '1' && mode[12] <= '2') {
+    int result;
+    fail_key = (unsigned int)(mode[12] - '0');
+    result = RAND_bytes(bytes, sizeof(bytes));
+    if (result != 0 || key_calls < fail_key ||
+        RAND_bytes(bytes, sizeof(bytes)) != 0 ||
+        RAND_priv_bytes(bytes, sizeof(bytes)) != 0)
+      return 1;
+    {
+      OSSL_LIB_CTX *context = OSSL_LIB_CTX_new();
+      if (context != NULL) {
+        OSSL_LIB_CTX_free(context);
+        return 1;
+      }
+      if (OSSL_LIB_CTX_get0_global_default() != NULL || key_calls != fail_key)
+        return 1;
+    }
+    OPENSSL_thread_stop();
+    OPENSSL_cleanup();
+    OPENSSL_cleanup();
+    return 0;
+  }
   if (strcmp(mode, "unused") == 0)
     return 0;
   if (strcmp(mode, "cleanup-unused") == 0) {

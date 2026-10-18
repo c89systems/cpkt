@@ -1,0 +1,40 @@
+Require successful base initialization before acquiring RAND/default-context state.
+Apply after the base-initialization rollback fix.
+Corresponds to report 04: allocation after base-initialization failure.
+
+--- a/crypto/context.c
++++ b/crypto/context.c
+@@ -381,6 +381,9 @@
+ 
+ DEFINE_RUN_ONCE_STATIC(default_context_do_init)
+ {
++    if (!OPENSSL_init_crypto(OPENSSL_INIT_BASE_ONLY, NULL))
++        return 0;
++
+     if (!CRYPTO_THREAD_init_local(&default_context_thread_local, NULL))
+         goto err;
+ 
+--- a/crypto/rand/rand_lib.c
++++ b/crypto/rand/rand_lib.c
+@@ -129,6 +129,11 @@
+ 
+ DEFINE_RUN_ONCE_STATIC(do_rand_init)
+ {
++#ifndef FIPS_MODULE
++    if (!OPENSSL_init_crypto(OPENSSL_INIT_BASE_ONLY, NULL))
++        return 0;
++#endif
++
+ #ifndef OPENSSL_NO_ENGINE
+     rand_engine_lock = CRYPTO_THREAD_lock_new();
+     if (rand_engine_lock == NULL)
+@@ -520,7 +525,8 @@
+      * We need to ensure that base libcrypto thread handling has been
+      * initialised.
+      */
+-    OPENSSL_init_crypto(OPENSSL_INIT_BASE_ONLY, NULL);
++    if (!OPENSSL_init_crypto(OPENSSL_INIT_BASE_ONLY, NULL))
++        goto err0;
+ 
+     /* Prepopulate the random provider name */
+     dgbl->random_provider_name = OPENSSL_strdup(random_provider_fips_name);
