@@ -64,6 +64,14 @@ complete pinned compiler collection. LLVM/Clang, clangd, clang-format, Valgrind
 and QEMU are host tools; Darwin cross builds require osxcross and its Apple SDK.
 The configured concurrency limit remains eight locally and two on native Darwin.
 
+Run `make build` once before editing with clangd. The normal native Debug build
+prepares dependency and generated headers and publishes
+`build/clangd/compile_commands.json`, matching `.clangd`. Neovim and other clangd
+clients then use the project's include paths and compile flags automatically.
+After `make clean`, run the native build again. No separate SDK or editor setup
+command is required. Cross-target builds do not replace the native editor
+database.
+
 ```sh
 make debug
 make finalize-slice

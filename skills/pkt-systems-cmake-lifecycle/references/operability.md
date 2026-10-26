@@ -20,6 +20,15 @@ Checkouts/worktrees are isolated; another checkout's generated state is not a
 shared cache. Scoped cleanup preserves unrelated generated state.
 Normal build/test entrypoints never depend on clean.
 
+For projects using clangd, the normal native build prepares the real dependency
+and generated headers and publishes its compilation database automatically. Keep
+one documented database location matching `.clangd` and every producer of editor
+metadata. Use the owning targets' language, defines, include paths and toolchain
+context from this checkout; another checkout's database or build tree is not an
+editor prerequisite. Full clean still removes generated editor state. Document
+the native build command that restores it; do not introduce a separate SDK or
+editor bootstrap solely for clangd.
+
 Bash helpers preserve argv, check command status, and use ordinary foreground
 execution. The caller owns whole-job cancellation under SKILL.md. Do not add a
 second dispatcher or process manager beneath every Make target.

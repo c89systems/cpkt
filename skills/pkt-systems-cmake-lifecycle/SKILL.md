@@ -85,6 +85,14 @@ Any other pipeline Python requires explicit developer permission before writing
 or extending it; existing Python and a generic refactor request are not permission.
 Porting a large controller into Bash or CMake does not satisfy this rule.
 
+## Editor setup
+
+For projects using clangd, the normal native build must prepare its dependency and
+generated headers and publish a compilation database matching editor configuration.
+Document that initial build requirement and reuse normal prerequisite inputs
+instead of introducing an editor-only SDK or bootstrap. Verify ordinary editor discovery as described in
+[operability](references/operability.md) and [local CI](references/local-ci.md).
+
 ## Feedback and delivery
 
 Implement a coherent change, run affected CTest checks, then complete missing

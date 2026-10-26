@@ -4244,7 +4244,11 @@
     "clangd_surface": {
       "group": "tooling",
       "command_inputs": [
-        "scripts/verify-clangd-surface.sh"
+        "scripts/verify-clangd-surface.sh",
+        "scripts/lifecycle-common.sh",
+        "tests/editor/CMakeLists.txt",
+        "tests/editor/comments_test.cmake",
+        ".clangd"
       ],
       "registrations": [
         {
@@ -5219,6 +5223,30 @@
       "registrations": [
         {
           "name": "sdk_native_validation",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ],
+      "target_sensitive": false
+    },
+    "clangd_database": {
+      "group": "tooling",
+      "command_inputs": [
+        "tests/clangd_database_test.cmake",
+        "tests/test-command.cmake",
+        "scripts/build.sh",
+        "scripts/lifecycle-common.sh",
+        "scripts/mutation-paths.sh",
+        "scripts/require-host-bash.sh",
+        "cmake/lifecycle-info.cmake",
+        ".clangd"
+      ],
+      "registrations": [
+        {
+          "name": "clangd_database",
           "conditions": [
             "CPKT_BUILD_TESTS",
             "CPKT_CAN_RUN_TARGET_EXECUTABLES",

@@ -46,6 +46,14 @@ cpkt_copy_artifact() {
   cmp -s -- "$1" "$2" || cp -- "$1" "$2"
 }
 
+cpkt_publish_compile_commands() {
+  local binary=$1 database="$cpkt_root/build/clangd/compile_commands.json"
+  [ -f "$binary/compile_commands.json" ] || cpkt_fail 'native compile database is missing'
+  cpkt_owned_path "$database"
+  mkdir -p -- "${database%/*}"
+  cpkt_copy_artifact "$binary/compile_commands.json" "$database"
+}
+
 cpkt_cache_value() {
   local key=$1 file=$2 line
   [ -f "$file" ] || return 1

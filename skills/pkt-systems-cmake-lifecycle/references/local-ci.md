@@ -28,6 +28,13 @@ extracted-package checks retain target/byte scope. Debug/Release and plain/memor
 checking may differ; identical prerequisite builds still share one producer.
 Final clean release creates fresh results and verifies final artifacts.
 
+For projects with clangd support, verify that the normal native build publishes
+the editor database. Check representative implementation files and public headers
+through ordinary `.clangd` discovery, without test-only database or driver
+overrides. Changes to editor configuration must invalidate that check. A successful
+parser check using an explicitly selected build database does not establish the
+editor's normal discovery path.
+
 ## Failure and fix posture
 
 Preserve the failing diagnostics. Reproduce the cause with the smallest meaningful

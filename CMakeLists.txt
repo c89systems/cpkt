@@ -1538,6 +1538,9 @@ if(CPKT_BUILD_TESTS)
       cpkt_group_add_test(NAME sdk_native_validation COMMAND "${CMAKE_COMMAND}"
         "-DCPKT_ROOT=${CMAKE_SOURCE_DIR}" "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}"
         -P "${CMAKE_SOURCE_DIR}/tests/sdk_native_validation_test.cmake")
+      cpkt_group_add_test(NAME clangd_database COMMAND "${CMAKE_COMMAND}"
+        "-DCPKT_ROOT=${CMAKE_SOURCE_DIR}" "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}"
+        -P "${CMAKE_SOURCE_DIR}/tests/clangd_database_test.cmake")
       cpkt_group_add_test(NAME package_verification COMMAND "${CMAKE_COMMAND}"
         "-DCPKT_ROOT=${CMAKE_SOURCE_DIR}" "-DCPKT_SCRATCH=${CMAKE_BINARY_DIR}"
         -P "${CMAKE_SOURCE_DIR}/tests/package_verification_test.cmake")

@@ -148,6 +148,9 @@ if [ "$action" = deps ]; then exit 0; fi
 arguments=(--build "$cpkt_binary" --parallel "$(cpkt_jobs "$cpkt_binary")")
 if [ "${#targets[@]}" -gt 0 ]; then arguments+=(--target "${targets[@]}"); fi
 "$cpkt_cmake" "${arguments[@]}"
+case "$preset" in
+  debug|arm64-apple-darwin-debug) cpkt_publish_compile_commands "$cpkt_binary" ;;
+esac
 [ "$action" != build ] || exit 0
 arguments=(--test-dir "$cpkt_binary" --no-tests=error --stop-on-failure --output-on-failure)
 if [ -n "$regex$label" ]; then
