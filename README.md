@@ -34,6 +34,10 @@ failed initialization and TLS stores report failure. See the
 [OpenSSL lifecycle contract and patch inventory](docs/openssl-c89-facade-surface.md).
 Consumers embedding static OpenSSL must relink to receive these changes.
 
+Bundled libssh2 releases unused MAC keys when AES-GCM supplies authentication,
+including during nonblocking Curve25519 handshakes. Consumers embedding static
+libssh2 must relink to receive this cleanup fix.
+
 The libssh2 C89 facade uses SFTP attribute `flags` to select valid fields:
 `SIZE` selects `filesize`, `UIDGID` selects `uid`/`gid`, `PERMISSIONS` selects
 `permissions`, and `ACMODTIME` selects `atime`/`mtime`. Setters and `open_ex_r`

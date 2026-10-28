@@ -75,6 +75,9 @@ cpkt_cached_external_project_add(${project_name}
         COMMAND ${CMAKE_COMMAND}
           -DCPKT_LIBSSH2_SOURCE_DIR=<SOURCE_DIR>
           -P ${CMAKE_SOURCE_DIR}/cmake/patch_libssh2_poll_elapsed.cmake
+        COMMAND ${CMAKE_COMMAND}
+          -DCPKT_LIBSSH2_SOURCE_DIR=<SOURCE_DIR>
+          -P ${CMAKE_SOURCE_DIR}/cmake/patch_libssh2_aes_gcm_key_cleanup.cmake
       CMAKE_ARGS
         -DCMAKE_INSTALL_PREFIX=${install_dir}
         -DCMAKE_INSTALL_LIBDIR=lib

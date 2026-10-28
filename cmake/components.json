@@ -506,6 +506,7 @@
         "cmake/CpktDependencyArchiveCache.cmake",
         "cmake/patch_libssh2_single_pass.cmake",
         "cmake/patch_libssh2_poll_elapsed.cmake",
+        "cmake/patch_libssh2_aes_gcm_key_cleanup.cmake",
         "cmake/CpktDependencies.cmake",
         "cmake/dependencies/libssh2.cmake"
       ],
@@ -1915,6 +1916,15 @@
         "tests/libssh2_sftp_attributes_test.c"
       ]
     },
+    "cpkt_libssh2_aes_gcm_key_cleanup_test": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [],
+      "source_inputs": [
+        "tests/libssh2_aes_gcm_key_cleanup_test.c"
+      ]
+    },
     "cpkt_libssh2_poll_elapsed_test": {
       "group": "core",
       "kind": "add_executable",
@@ -3081,6 +3091,20 @@
         }
       ],
       "target_sensitive": false
+    },
+    "libssh2_aes_gcm_key_cleanup": {
+      "group": "core",
+      "command_inputs": [],
+      "registrations": [
+        {
+          "name": "libssh2_aes_gcm_key_cleanup",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ]
     },
     "mqttc_header_facade": {
       "group": "core",
