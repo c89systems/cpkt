@@ -26,6 +26,27 @@ typedef void (*cpkt_lua_runtime_warning_fn)(void *context, const char *message,
                                             int to_continue);
 
 /**
+ * Snapshot of a Lua line event, borrowed only until the observer returns.
+ * Copy any fields needed afterward. No Lua state or stack access is exposed.
+ */
+typedef struct cpkt_lua_runtime_trace_event {
+  /** Lua source identifier: @path, =name, or the source text itself. */
+  const char *source;
+  /** Source identifier length in bytes, excluding its trailing NUL. */
+  size_t source_size;
+  /** Positive, one-based source line about to execute. */
+  int line;
+} cpkt_lua_runtime_trace_event;
+
+/**
+ * Observes a line event synchronously with caller-owned context.
+ * The event and its source bytes are borrowed until return. The callback must
+ * return normally: yielding, raising Lua errors and longjmp are unsupported.
+ */
+typedef void (*cpkt_lua_runtime_trace_fn)(
+    void *context, const cpkt_lua_runtime_trace_event *event);
+
+/**
  * Result codes returned by strict Lua runtime facade operations.
  */
 typedef enum cpkt_lua_runtime_status {
@@ -210,6 +231,31 @@ void cpkt_lua_runtime_set_context(cpkt_lua_runtime *runtime, void *context);
 void cpkt_lua_runtime_set_warning_callback(cpkt_lua_runtime *runtime,
                                            cpkt_lua_runtime_warning_fn callback,
                                            void *context);
+
+/**
+ * Replaces the optional line observer. NULL removes it and ignores context.
+ *
+ * Observes main-thread and coroutine execution, including Lua finalizers during
+ * collection and destruction. Keep callback/context alive until removal or
+ * runtime destruction completes. Source identifiers retain Lua's @/= prefixes;
+ * use source_size rather than assuming source text has no embedded NUL bytes.
+ * Native C execution and chunks without line information emit no line events.
+ *
+ * Observation coexists with instruction limits and cannot alter the budget.
+ * Install or remove the observer between host operations. Changes from warning
+ * callbacks or C module openers during execution/destruction return ERR_ARG.
+ * Within a trace callback, this setter and read-only operations are allowed;
+ * replacement/removal takes effect on the next event. Other operations on this
+ * runtime return ERR_ARG, or do nothing for void functions, without changing
+ * its error. Do not access its Lua state through another API from the callback.
+ * The runtime requires serialized use; callbacks do not make it thread-safe.
+ * Callback failures must be recorded in caller-owned context and handled after
+ * the host call; the callback has no error return or cancellation channel.
+ */
+cpkt_lua_runtime_status
+cpkt_lua_runtime_set_trace_callback(cpkt_lua_runtime *runtime,
+                                    cpkt_lua_runtime_trace_fn callback,
+                                    void *context);
 
 /**
  * Returns the embedder-owned context pointer currently stored on the runtime.

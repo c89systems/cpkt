@@ -61,6 +61,15 @@ static int cpkt_check(cpkt_lua_runtime_status status) {
   return status == CPKT_LUA_RUNTIME_OK ? 0 : 1;
 }
 
+static void cpkt_trace(void *context,
+                       const cpkt_lua_runtime_trace_event *event) {
+  unsigned *lines;
+  lines = (unsigned *)context;
+  if (event->source != 0 && event->source_size > 0 && event->line > 0) {
+    *lines += 1;
+  }
+}
+
 int main(int argc, char **argv) {
   static const unsigned char preload_source[] = "return {value = 'chunk'}";
   static const unsigned char buffer_source[] =
@@ -80,6 +89,7 @@ int main(int argc, char **argv) {
   cpkt_lua_runtime *limited_runtime;
   cpkt_lua_runtime_status status;
   const char *limit_error;
+  unsigned trace_lines;
 
   if (argc != 2) {
     return 2;
@@ -183,14 +193,26 @@ int main(int argc, char **argv) {
 
   script_argv[0] = "one";
   script_argv[1] = "two";
+  trace_lines = 0;
+  if (cpkt_check(cpkt_lua_runtime_set_trace_callback(runtime, cpkt_trace,
+                                                     &trace_lines)) != 0) {
+    cpkt_lua_runtime_free(runtime);
+    return 20;
+  }
   if (cpkt_check(cpkt_lua_runtime_run_buffer(
           runtime, buffer_source, sizeof(buffer_source) - 1, "buffer.lua", 2,
           script_argv, 0)) != 0) {
     cpkt_lua_runtime_free(runtime);
     return 20;
   }
+  if (trace_lines == 0) {
+    cpkt_lua_runtime_free(runtime);
+    return 20;
+  }
+  trace_lines = 0;
   if (cpkt_check(cpkt_lua_runtime_run_file(runtime, argv[1], 2, script_argv,
-                                           0)) != 0) {
+                                           0)) != 0 ||
+      trace_lines == 0) {
     cpkt_lua_runtime_free(runtime);
     return 21;
   }

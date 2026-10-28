@@ -25,6 +25,8 @@ versions are independent of those ABI majors.
 
 See [Lua runtime execution policy](docs/lua-runtime-policy.md) for embedding
 limits, coroutine behavior and native module ownership.
+The strict runtime's optional line observer reports source/line events across
+coroutines and finalizers while preserving instruction-limit enforcement.
 
 Bundled OpenSSL 3.6.5 carries focused initialization, TLS and resource-cleanup
 fixes. Private static plugins release their master TLS key on global cleanup;

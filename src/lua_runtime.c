@@ -37,6 +37,10 @@ struct cpkt_lua_runtime {
   void *context;
   cpkt_lua_runtime_warning_fn warning_callback;
   void *warning_context;
+  cpkt_lua_runtime_trace_fn trace_callback;
+  void *trace_context;
+  int trace_active;
+  int execution_active;
   struct cpkt_lua_runtime_chunk *chunks;
   struct cpkt_lua_runtime_c_module *c_modules;
   int traceback_enabled;
@@ -437,31 +441,54 @@ cpkt_lua_runtime_maybe_openlibs(cpkt_lua_runtime *runtime, int flags) {
 static void cpkt_lua_runtime_instruction_hook(lua_State *state,
                                               lua_Debug *debug) {
   cpkt_lua_runtime *runtime;
+  cpkt_lua_runtime_trace_event event;
 
-  (void)debug;
   runtime = cpkt_lua_runtime_from_state(state);
-  if (runtime == NULL || runtime->instruction_limit <= 0) {
+  if (runtime == NULL) {
     return;
   }
-  if (!runtime->instruction_limit_hit && runtime->instruction_remaining > 0) {
-    runtime->instruction_remaining -= 1;
-    if (runtime->instruction_remaining > 0) {
-      return;
+  if (debug->event == LUA_HOOKCOUNT && runtime->instruction_limit > 0) {
+    if (!runtime->instruction_limit_hit && runtime->instruction_remaining > 0) {
+      runtime->instruction_remaining -= 1;
+      if (runtime->instruction_remaining > 0) {
+        return;
+      }
     }
+    runtime->instruction_limit_hit = 1;
+    luaL_error(state, "Lua instruction limit exceeded");
+    return;
   }
-  runtime->instruction_limit_hit = 1;
-  luaL_error(state, "Lua instruction limit exceeded");
+  if (debug->event != LUA_HOOKLINE || runtime->trace_callback == NULL ||
+      runtime->instruction_limit_hit || debug->currentline <= 0) {
+    return;
+  }
+  /* 'S' copies source metadata without pushing values or allocating in Lua. */
+  if (!lua_getinfo(state, "S", debug)) {
+    return;
+  }
+  event.source = debug->source;
+  event.source_size = debug->srclen;
+  event.line = debug->currentline;
+  runtime->trace_active = 1;
+  runtime->trace_callback(runtime->trace_context, &event);
+  runtime->trace_active = 0;
 }
 
 static void cpkt_lua_runtime_apply_instruction_hook(cpkt_lua_runtime *runtime,
                                                     lua_State *state) {
+  int mask;
   if (runtime == NULL || state == NULL) {
     return;
   }
+  mask = runtime->trace_callback != NULL ? LUA_MASKLINE : 0;
   if (runtime->instruction_limit > 0) {
     /* One shared counter accounts for every thread, including short yields. */
+    mask |= LUA_MASKCOUNT;
+  }
+  if (mask != 0) {
     lua_sethook(state, cpkt_lua_runtime_instruction_hook,
-                LUA_MASKCOUNT | CPKT_LUA_RUNTIME_MASK_FINALIZERS, 1);
+                mask | CPKT_LUA_RUNTIME_MASK_FINALIZERS,
+                runtime->instruction_limit > 0 ? 1 : 0);
   } else {
     lua_sethook(state, NULL, 0, 0);
   }
@@ -779,8 +806,11 @@ static cpkt_lua_runtime_status cpkt_lua_runtime_call_with_status(
   int function_index;
   int error_index;
   int result;
+  int previous_execution_active;
   cpkt_lua_runtime_status status;
 
+  previous_execution_active = runtime->execution_active;
+  runtime->execution_active = 1;
   state = runtime->state;
   function_index = lua_gettop(state) - nargs;
   error_index = 0;
@@ -822,6 +852,7 @@ static cpkt_lua_runtime_status cpkt_lua_runtime_call_with_status(
     } else {
       lua_pop(state, 1);
     }
+    runtime->execution_active = previous_execution_active;
     return status;
   }
 
@@ -835,11 +866,14 @@ static cpkt_lua_runtime_status cpkt_lua_runtime_call_with_status(
 
   runtime->allocator.failed = 0;
   if (runtime->instruction_limit_hit) {
-    return cpkt_lua_runtime_set_error(runtime, CPKT_LUA_RUNTIME_ERR_LIMIT,
-                                      "Lua instruction limit exceeded");
+    status = cpkt_lua_runtime_set_error(runtime, CPKT_LUA_RUNTIME_ERR_LIMIT,
+                                        "Lua instruction limit exceeded");
+    runtime->execution_active = previous_execution_active;
+    return status;
   }
 
   cpkt_lua_runtime_clear_error(runtime);
+  runtime->execution_active = previous_execution_active;
   return CPKT_LUA_RUNTIME_OK;
 }
 
@@ -1308,7 +1342,7 @@ void cpkt_lua_runtime_free(cpkt_lua_runtime *runtime) {
   struct cpkt_lua_runtime_c_module *module;
   struct cpkt_lua_runtime_c_module *next;
 
-  if (runtime == NULL) {
+  if (runtime == NULL || runtime->trace_active) {
     return;
   }
   allocator = runtime->allocator;
@@ -1318,6 +1352,7 @@ void cpkt_lua_runtime_free(cpkt_lua_runtime *runtime) {
     runtime->instruction_limit_hit = 0;
     runtime->instruction_remaining = runtime->instruction_limit;
     cpkt_lua_runtime_apply_instruction_hook(runtime, runtime->state);
+    runtime->execution_active = 1;
     lua_close(runtime->state);
   }
   cpkt_lua_runtime_clear_chunks(runtime);
@@ -1337,7 +1372,7 @@ void cpkt_lua_runtime_free(cpkt_lua_runtime *runtime) {
 /** Implements the public Lua runtime facade function declared in
  * <cpkt/lua_runtime.h>. */
 void cpkt_lua_runtime_set_context(cpkt_lua_runtime *runtime, void *context) {
-  if (runtime != NULL) {
+  if (runtime != NULL && !runtime->trace_active) {
     runtime->context = context;
   }
 }
@@ -1346,10 +1381,29 @@ void cpkt_lua_runtime_set_context(cpkt_lua_runtime *runtime, void *context) {
 void cpkt_lua_runtime_set_warning_callback(cpkt_lua_runtime *runtime,
                                            cpkt_lua_runtime_warning_fn callback,
                                            void *context) {
-  if (runtime != NULL) {
+  if (runtime != NULL && !runtime->trace_active) {
     runtime->warning_callback = callback;
     runtime->warning_context = context;
   }
+}
+
+/** Implements the public Lua runtime line observer operation. */
+cpkt_lua_runtime_status
+cpkt_lua_runtime_set_trace_callback(cpkt_lua_runtime *runtime,
+                                    cpkt_lua_runtime_trace_fn callback,
+                                    void *context) {
+  if (runtime == NULL || runtime->state == NULL ||
+      (runtime->execution_active && !runtime->trace_active)) {
+    return CPKT_LUA_RUNTIME_ERR_ARG;
+  }
+  runtime->trace_callback = callback;
+  runtime->trace_context = callback != NULL ? context : NULL;
+  /* During observation, keep the active thread's instruction count intact.
+   * The dispatcher sees replacement/removal on its next line event. */
+  if (!runtime->trace_active) {
+    cpkt_lua_runtime_apply_instruction_hook(runtime, runtime->state);
+  }
+  return CPKT_LUA_RUNTIME_OK;
 }
 
 /** Implements the public Lua runtime facade function declared in
@@ -1380,7 +1434,7 @@ void *cpkt_lua_runtime_context_from_state(void *lua_state) {
 /** Implements the public Lua runtime facade function declared in
  * <cpkt/lua_runtime.h>. */
 cpkt_lua_runtime_status cpkt_lua_runtime_openlibs(cpkt_lua_runtime *runtime) {
-  if (runtime == NULL || runtime->state == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
 
@@ -1393,7 +1447,8 @@ cpkt_lua_runtime_status cpkt_lua_runtime_open_libs(cpkt_lua_runtime *runtime,
                                                    int libs) {
   cpkt_lua_runtime_status status;
 
-  if (runtime == NULL || runtime->state == NULL || libs < 0) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      libs < 0) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
 
@@ -1464,7 +1519,7 @@ cpkt_lua_runtime_status cpkt_lua_runtime_open_libs(cpkt_lua_runtime *runtime,
  * <cpkt/lua_runtime.h>. */
 cpkt_lua_runtime_status
 cpkt_lua_runtime_set_traceback(cpkt_lua_runtime *runtime, int enabled) {
-  if (runtime == NULL || runtime->state == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   runtime->traceback_enabled = enabled != 0;
@@ -1477,7 +1532,8 @@ cpkt_lua_runtime_set_traceback(cpkt_lua_runtime *runtime, int enabled) {
 cpkt_lua_runtime_status
 cpkt_lua_runtime_set_instruction_limit(cpkt_lua_runtime *runtime,
                                        int instruction_count) {
-  if (runtime == NULL || runtime->state == NULL || instruction_count <= 0) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      instruction_count <= 0) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   runtime->instruction_limit = instruction_count;
@@ -1490,7 +1546,7 @@ cpkt_lua_runtime_set_instruction_limit(cpkt_lua_runtime *runtime,
  * <cpkt/lua_runtime.h>. */
 cpkt_lua_runtime_status
 cpkt_lua_runtime_clear_instruction_limit(cpkt_lua_runtime *runtime) {
-  if (runtime == NULL || runtime->state == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   runtime->instruction_limit = 0;
@@ -1504,7 +1560,8 @@ cpkt_lua_runtime_clear_instruction_limit(cpkt_lua_runtime *runtime) {
  * <cpkt/lua_runtime.h>. */
 cpkt_lua_runtime_status
 cpkt_lua_runtime_set_package_path(cpkt_lua_runtime *runtime, const char *path) {
-  if (runtime == NULL || runtime->state == NULL || path == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      path == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   return cpkt_lua_runtime_set_package_field(runtime, "path", path);
@@ -1515,7 +1572,8 @@ cpkt_lua_runtime_set_package_path(cpkt_lua_runtime *runtime, const char *path) {
 cpkt_lua_runtime_status
 cpkt_lua_runtime_prepend_package_path(cpkt_lua_runtime *runtime,
                                       const char *path) {
-  if (runtime == NULL || runtime->state == NULL || path == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      path == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   return cpkt_lua_runtime_prepend_package_field(runtime, "path", path);
@@ -1526,7 +1584,8 @@ cpkt_lua_runtime_prepend_package_path(cpkt_lua_runtime *runtime,
 cpkt_lua_runtime_status
 cpkt_lua_runtime_set_package_cpath(cpkt_lua_runtime *runtime,
                                    const char *path) {
-  if (runtime == NULL || runtime->state == NULL || path == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      path == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   return cpkt_lua_runtime_set_package_field(runtime, "cpath", path);
@@ -1537,7 +1596,8 @@ cpkt_lua_runtime_set_package_cpath(cpkt_lua_runtime *runtime,
 cpkt_lua_runtime_status
 cpkt_lua_runtime_prepend_package_cpath(cpkt_lua_runtime *runtime,
                                        const char *path) {
-  if (runtime == NULL || runtime->state == NULL || path == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      path == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   return cpkt_lua_runtime_prepend_package_field(runtime, "cpath", path);
@@ -1550,8 +1610,8 @@ cpkt_lua_runtime_set_global_string(cpkt_lua_runtime *runtime, const char *name,
                                    const char *value) {
   struct cpkt_lua_runtime_global_string_context context;
 
-  if (runtime == NULL || runtime->state == NULL || name == NULL ||
-      value == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      name == NULL || value == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   context.name = name;
@@ -1568,7 +1628,8 @@ cpkt_lua_runtime_set_global_boolean(cpkt_lua_runtime *runtime, const char *name,
                                     int value) {
   struct cpkt_lua_runtime_global_boolean_context context;
 
-  if (runtime == NULL || runtime->state == NULL || name == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      name == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   context.name = name;
@@ -1585,7 +1646,8 @@ cpkt_lua_runtime_set_global_number(cpkt_lua_runtime *runtime, const char *name,
                                    double value) {
   struct cpkt_lua_runtime_global_number_context context;
 
-  if (runtime == NULL || runtime->state == NULL || name == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      name == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   context.name = name;
@@ -1602,7 +1664,8 @@ cpkt_lua_runtime_set_global_integer(cpkt_lua_runtime *runtime, const char *name,
                                     long value) {
   struct cpkt_lua_runtime_global_integer_context context;
 
-  if (runtime == NULL || runtime->state == NULL || name == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      name == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   context.name = name;
@@ -1622,8 +1685,8 @@ cpkt_lua_runtime_register_c_module(cpkt_lua_runtime *runtime,
   struct cpkt_lua_runtime_c_module *module;
   cpkt_lua_runtime_status status;
 
-  if (runtime == NULL || runtime->state == NULL || module_name == NULL ||
-      opener == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      module_name == NULL || opener == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
 
@@ -1659,8 +1722,8 @@ cpkt_lua_runtime_status cpkt_lua_runtime_register_lua_module(
   struct cpkt_lua_runtime_chunk *chunk;
   struct cpkt_lua_runtime_lua_module_context context;
 
-  if (runtime == NULL || runtime->state == NULL || module_name == NULL ||
-      source == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      module_name == NULL || source == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
 
@@ -1720,7 +1783,8 @@ cpkt_lua_runtime_status cpkt_lua_runtime_require(cpkt_lua_runtime *runtime,
   struct cpkt_lua_runtime_require_context context;
   cpkt_lua_runtime_status status;
 
-  if (runtime == NULL || runtime->state == NULL || module_name == NULL) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      module_name == NULL) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
 
@@ -1745,7 +1809,8 @@ cpkt_lua_runtime_status cpkt_lua_runtime_run_file(cpkt_lua_runtime *runtime,
   cpkt_lua_runtime_status status;
   struct cpkt_lua_runtime_load_file_context context;
 
-  if (runtime == NULL || runtime->state == NULL || path == NULL || argc < 0) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      path == NULL || argc < 0) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   if (argc > 0 && argv == NULL) {
@@ -1786,7 +1851,8 @@ cpkt_lua_runtime_status cpkt_lua_runtime_run_buffer(
   cpkt_lua_runtime_status status;
   struct cpkt_lua_runtime_load_buffer_context context;
 
-  if (runtime == NULL || runtime->state == NULL || source == NULL || argc < 0) {
+  if (runtime == NULL || runtime->state == NULL || runtime->trace_active ||
+      source == NULL || argc < 0) {
     return CPKT_LUA_RUNTIME_ERR_ARG;
   }
   if (argc > 0 && argv == NULL) {
@@ -1833,7 +1899,7 @@ const char *cpkt_lua_runtime_error(const cpkt_lua_runtime *runtime) {
 /** Implements the public Lua runtime facade function declared in
  * <cpkt/lua_runtime.h>. */
 void cpkt_lua_runtime_clear_error(cpkt_lua_runtime *runtime) {
-  if (runtime == NULL) {
+  if (runtime == NULL || runtime->trace_active) {
     return;
   }
   cpkt_lua_runtime_allocator_free(

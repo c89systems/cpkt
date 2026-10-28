@@ -357,6 +357,7 @@ int lua_pcall(lua_State *state, int nargs, int nresults, int error_index) {
   (void)error_index;
   if (state->next_limit_loop && state->hook != 0 && state->hook_count > 0) {
     memset(&debug, 0, sizeof(debug));
+    debug.event = LUA_HOOKCOUNT;
     do {
       state->hook(state, &debug);
     } while (!state->raised_error);
@@ -550,6 +551,14 @@ void lua_sethook(lua_State *state, void (*hook)(lua_State *, lua_Debug *),
   state->hook_count = count;
 }
 
+int lua_getinfo(lua_State *state, const char *what, lua_Debug *debug) {
+  (void)state;
+  (void)what;
+  debug->source = "=mock";
+  debug->srclen = 5;
+  return 1;
+}
+
 lua_State *lua_tothread(lua_State *state, int index) {
   struct mock_value *value;
 
@@ -585,6 +594,7 @@ int lua_resume(lua_State *state, lua_State *from, int nargs, int *nresults) {
     lua_Debug debug;
 
     memset(&debug, 0, sizeof(debug));
+    debug.event = LUA_HOOKCOUNT;
     state->hook(state, &debug);
     mock_push_message(state, "Lua instruction limit exceeded");
     if (nresults != 0) {

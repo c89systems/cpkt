@@ -8,7 +8,10 @@
 #define LUA_YIELD 1
 #define LUA_MULTRET (-1)
 #define LUA_REGISTRYINDEX (-10000)
-#define LUA_MASKCOUNT 1
+#define LUA_HOOKLINE 2
+#define LUA_HOOKCOUNT 3
+#define LUA_MASKLINE (1 << LUA_HOOKLINE)
+#define LUA_MASKCOUNT (1 << LUA_HOOKCOUNT)
 #define LUA_TLIGHTUSERDATA 2
 #define LUA_TSTRING 4
 #define LUA_TFUNCTION 6
@@ -36,7 +39,10 @@ typedef void (*lua_WarnFunction)(void *user, const char *message,
                                  int to_continue);
 
 struct lua_Debug {
-  int unused;
+  int event;
+  const char *source;
+  size_t srclen;
+  int currentline;
 };
 
 lua_State *lua_newstate(lua_Alloc alloc_fn, void *user, int seed);
@@ -78,6 +84,7 @@ void lua_pushcclosure(lua_State *state, lua_CFunction fn, int n);
 int lua_error(lua_State *state);
 void lua_sethook(lua_State *state, void (*hook)(lua_State *, lua_Debug *),
                  int mask, int count);
+int lua_getinfo(lua_State *state, const char *what, lua_Debug *debug);
 lua_State *lua_tothread(lua_State *state, int index);
 void lua_xmove(lua_State *from, lua_State *to, int n);
 int lua_resume(lua_State *state, lua_State *from, int nargs, int *nresults);

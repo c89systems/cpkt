@@ -448,7 +448,16 @@ static cpkt_lua_runtime_status exercise_preload(cpkt_lua_runtime *runtime,
       "assert(package.preload.preload_contract().count==0)");
 }
 
-static int exercise(const struct runtime_case *item) {
+static void count_trace(void *context,
+                        const cpkt_lua_runtime_trace_event *event) {
+  unsigned *count;
+  count = (unsigned *)context;
+  if (event->source != NULL && event->source_size > 0 && event->line > 0) {
+    *count += 1;
+  }
+}
+
+static int exercise(const struct runtime_case *item, int observed) {
   cpkt_lua_runtime *runtime;
   cpkt_lua_runtime_status status;
   const char *message;
@@ -457,8 +466,10 @@ static int exercise(const struct runtime_case *item) {
   struct failure_allocator allocator;
   cpkt_lua_runtime_allocator_config config;
   int conversion_case;
+  unsigned trace_count;
 
   runtime = NULL;
+  trace_count = 0;
   if (strcmp(item->name, "native_gc_hooks") == 0) {
     return exercise_native_gc_hooks();
   }
@@ -488,6 +499,10 @@ static int exercise(const struct runtime_case *item) {
     return 1;
   }
   status = cpkt_lua_runtime_openlibs(runtime);
+  if (status == CPKT_LUA_RUNTIME_OK && observed) {
+    status =
+        cpkt_lua_runtime_set_trace_callback(runtime, count_trace, &trace_count);
+  }
   if (status == CPKT_LUA_RUNTIME_OK && item->limited) {
     status = cpkt_lua_runtime_set_instruction_limit(runtime, 1000);
   }
@@ -568,7 +583,7 @@ static int exercise(const struct runtime_case *item) {
   }
   if (strncmp(item->name, "gc_close_", 9) == 0) {
     cpkt_lua_runtime_free(runtime);
-    return failed;
+    return failed || (observed && trace_count == 0);
   }
   if (!failed && (strcmp(item->name, "existing_wrap_limit") == 0 ||
                   strcmp(item->name, "native_upvalues") == 0)) {
@@ -627,6 +642,376 @@ static int exercise(const struct runtime_case *item) {
     }
   }
   cpkt_lua_runtime_free(runtime);
+  return failed || (observed && trace_count == 0);
+}
+
+struct trace_capture {
+  cpkt_lua_runtime *runtime;
+  const char *source;
+  unsigned events;
+  unsigned matching;
+  unsigned lines;
+  int action;
+  int failed;
+  struct trace_capture *replacement;
+};
+
+static void capture_trace(void *context,
+                          const cpkt_lua_runtime_trace_event *event);
+
+static void replacement_trace(void *context,
+                              const cpkt_lua_runtime_trace_event *event) {
+  capture_trace(context, event);
+}
+
+struct warning_trace_install {
+  struct trace_capture *capture;
+  cpkt_lua_runtime_status status;
+  unsigned calls;
+};
+
+static void install_trace_from_warning(void *context, const char *message,
+                                       int to_continue) {
+  struct warning_trace_install *install;
+  (void)message;
+  (void)to_continue;
+  install = (struct warning_trace_install *)context;
+  install->calls += 1;
+  install->status = cpkt_lua_runtime_set_trace_callback(
+      install->capture->runtime, capture_trace, install->capture);
+}
+
+static int install_trace_from_module(void *state) {
+  struct warning_trace_install *install;
+  install = (struct warning_trace_install *)cpkt_lua_runtime_context_from_state(
+      state);
+  install->status = cpkt_lua_runtime_set_trace_callback(
+      install->capture->runtime, capture_trace, install->capture);
+  return 0;
+}
+
+static void capture_trace(void *context,
+                          const cpkt_lua_runtime_trace_event *event) {
+  struct trace_capture *capture;
+  cpkt_lua_runtime *runtime;
+  static const unsigned char source[] = "return true";
+  capture = (struct trace_capture *)context;
+  runtime = capture->runtime;
+  capture->events += 1;
+  if (event->source == NULL || event->line <= 0) {
+    capture->failed = 1;
+    return;
+  }
+  if (event->source_size != strlen(capture->source) ||
+      memcmp(event->source, capture->source, event->source_size) != 0) {
+    return;
+  }
+  capture->matching += 1;
+  if (event->line <= 8) {
+    capture->lines |= 1U << (event->line - 1);
+  }
+  if (capture->action == 1) {
+    capture->failed |= cpkt_lua_runtime_set_trace_callback(
+                           runtime, NULL, NULL) != CPKT_LUA_RUNTIME_OK;
+  } else if (capture->action == 2) {
+    capture->failed |= cpkt_lua_runtime_set_trace_callback(
+                           runtime, replacement_trace, capture->replacement) !=
+                       CPKT_LUA_RUNTIME_OK;
+  } else if (capture->action == 3) {
+#define REJECT_TRACE_CALL(call)                                                \
+  capture->failed |= (call) != CPKT_LUA_RUNTIME_ERR_ARG
+    REJECT_TRACE_CALL(cpkt_lua_runtime_openlibs(runtime));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_open_libs(runtime, 0));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_set_traceback(runtime, 1));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_set_instruction_limit(runtime, 1));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_clear_instruction_limit(runtime));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_set_package_path(runtime, ""));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_prepend_package_path(runtime, ""));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_set_package_cpath(runtime, ""));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_prepend_package_cpath(runtime, ""));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_set_global_string(runtime, "x", ""));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_set_global_boolean(runtime, "x", 1));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_set_global_number(runtime, "x", 1));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_set_global_integer(runtime, "x", 1));
+    REJECT_TRACE_CALL(
+        cpkt_lua_runtime_register_c_module(runtime, "x", preload_c_module));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_register_lua_module(
+        runtime, "x", source, sizeof(source) - 1, "x"));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_require(runtime, "x"));
+    REJECT_TRACE_CALL(
+        cpkt_lua_runtime_run_file(runtime, "missing.lua", 0, NULL, 0));
+    REJECT_TRACE_CALL(cpkt_lua_runtime_run_buffer(
+        runtime, source, sizeof(source) - 1, "x", 0, NULL, 0));
+#undef REJECT_TRACE_CALL
+    cpkt_lua_runtime_free(runtime);
+    cpkt_lua_runtime_set_context(runtime, NULL);
+    cpkt_lua_runtime_set_warning_callback(runtime, NULL, NULL);
+    cpkt_lua_runtime_clear_error(runtime);
+    capture->failed |= cpkt_lua_runtime_context(runtime) != capture;
+    capture->failed |= cpkt_lua_runtime_error(runtime)[0] != '\0';
+  }
+  capture->action = 0;
+}
+
+static int exercise_trace_observer(void) {
+  static const unsigned char source[] =
+      "local value = 1\nvalue = value + 1\nassert(value == 2)\n";
+  static const char *child_setup =
+      "saved=coroutine.create(assert(load('local "
+      "x=1\\ncoroutine.yield()\\nx=x+1', '@child.lua'))); "
+      "wrapped=coroutine.wrap(assert(load('local x=1\\nx=x+1', "
+      "'@child.lua'))); "
+      "assert(coroutine.resume(saved))";
+  static const char *finalizer_setup =
+      "saved_gc=setmetatable({}, {__gc=assert(load('local "
+      "x=1\\nx=x+1\\nassert(x==2)', '@finalizer.lua'))})";
+  cpkt_lua_runtime *runtime;
+  struct trace_capture capture;
+  struct trace_capture second;
+  struct warning_trace_install install;
+  unsigned before;
+  int limited;
+  int failed;
+  runtime = NULL;
+  memset(&capture, 0, sizeof(capture));
+  memset(&second, 0, sizeof(second));
+  memset(&install, 0, sizeof(install));
+  failed = 0;
+#define TRACE_CHECK(condition)                                                 \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      fprintf(stderr, "trace observer check failed at line %d: %s\n",          \
+              __LINE__, #condition);                                           \
+      failed = 1;                                                              \
+      goto done;                                                               \
+    }                                                                          \
+  } while (0)
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                  NULL, capture_trace, &capture) == CPKT_LUA_RUNTIME_ERR_ARG);
+  TRACE_CHECK(cpkt_lua_runtime_new(&runtime) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(cpkt_lua_runtime_openlibs(runtime) == CPKT_LUA_RUNTIME_OK);
+  capture.runtime = runtime;
+  capture.source = "@trace.lua";
+  second.runtime = runtime;
+  second.source = "@trace.lua";
+  install.capture = &capture;
+  cpkt_lua_runtime_set_warning_callback(runtime, install_trace_from_warning,
+                                        &install);
+  TRACE_CHECK(run_text(runtime,
+                       "coroutine.wrap(function()\nwarn('observer')"
+                       "\nlocal x=1\nx=x+1\nend)()") == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(install.calls > 0 && install.status == CPKT_LUA_RUNTIME_ERR_ARG);
+  TRACE_CHECK(capture.events == 0);
+  cpkt_lua_runtime_set_context(runtime, &install);
+  TRACE_CHECK(cpkt_lua_runtime_register_c_module(runtime, "trace_install",
+                                                 install_trace_from_module) ==
+              CPKT_LUA_RUNTIME_OK);
+  install.status = CPKT_LUA_RUNTIME_OK;
+  TRACE_CHECK(cpkt_lua_runtime_require(runtime, "trace_install") ==
+              CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(install.status == CPKT_LUA_RUNTIME_ERR_ARG &&
+              capture.events == 0);
+  for (limited = 0; limited <= 1; ++limited) {
+    if (limited) {
+      TRACE_CHECK(cpkt_lua_runtime_set_instruction_limit(runtime, 1000) ==
+                  CPKT_LUA_RUNTIME_OK);
+    }
+    capture.lines = 0;
+    TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                    runtime, capture_trace, &capture) == CPKT_LUA_RUNTIME_OK);
+    TRACE_CHECK(cpkt_lua_runtime_run_buffer(runtime, source, sizeof(source) - 1,
+                                            "@trace.lua", 0, NULL,
+                                            0) == CPKT_LUA_RUNTIME_OK);
+    TRACE_CHECK(capture.lines == 7 && !capture.failed);
+    TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(runtime, NULL, &second) ==
+                CPKT_LUA_RUNTIME_OK);
+    before = capture.events;
+    TRACE_CHECK(run_text(runtime, "local x=1; x=x+1") == CPKT_LUA_RUNTIME_OK);
+    TRACE_CHECK(capture.events == before);
+  }
+  TRACE_CHECK(cpkt_lua_runtime_clear_instruction_limit(runtime) ==
+              CPKT_LUA_RUNTIME_OK);
+  capture.source = "=named chunk";
+  capture.lines = 0;
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                  runtime, capture_trace, &capture) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(cpkt_lua_runtime_run_buffer(runtime, source, sizeof(source) - 1,
+                                          "=named chunk", 0, NULL,
+                                          0) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(capture.lines == 7);
+  capture.source =
+      "=a deliberately long source identifier that must remain complete in the "
+      "observer event instead of using Lua's shortened display name";
+  capture.lines = 0;
+  TRACE_CHECK(cpkt_lua_runtime_run_buffer(runtime, source, sizeof(source) - 1,
+                                          capture.source, 0, NULL,
+                                          0) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(capture.lines == 7);
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(runtime, NULL, NULL) ==
+              CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(run_text(runtime, child_setup) == CPKT_LUA_RUNTIME_OK);
+  capture.source = "@child.lua";
+  capture.lines = 0;
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                  runtime, capture_trace, &capture) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(run_text(runtime,
+                       "assert(coroutine.resume(saved)); wrapped(); "
+                       "assert(coroutine.resume(coroutine.create(assert(load('"
+                       "local x=1\\nx=x+1', '@child.lua')))))") ==
+              CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(capture.lines == 7);
+  capture.source = "@trace.lua";
+  capture.matching = 0;
+  capture.action = 2;
+  capture.replacement = &second;
+  TRACE_CHECK(cpkt_lua_runtime_run_buffer(runtime, source, sizeof(source) - 1,
+                                          "@trace.lua", 0, NULL,
+                                          0) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(capture.matching == 1 && second.matching == 2);
+  capture.source = "@child.lua";
+  capture.action = 1;
+  capture.matching = 0;
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                  runtime, capture_trace, &capture) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(
+      run_text(runtime,
+               "local f=assert(load('local x=1\\nx=x+1', '@child.lua')); "
+               "coroutine.wrap(f)(); coroutine.wrap(f)()") ==
+      CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(capture.matching == 1);
+  before = capture.events;
+  TRACE_CHECK(run_text(runtime, "assert(true)") == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(capture.events == before);
+  TRACE_CHECK(cpkt_lua_runtime_set_instruction_limit(runtime, 100) ==
+              CPKT_LUA_RUNTIME_OK);
+  /* A line event must not consume another unit of the instruction budget. */
+  TRACE_CHECK(
+      run_text(runtime, "progress=0\nfor i=1,1000 do\nprogress=i\nend") ==
+      CPKT_LUA_RUNTIME_ERR_LIMIT);
+  TRACE_CHECK(run_text(runtime, "unobserved_progress=progress") ==
+              CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                  runtime, capture_trace, &capture) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(
+      run_text(runtime, "progress=0\nfor i=1,1000 do\nprogress=i\nend") ==
+      CPKT_LUA_RUNTIME_ERR_LIMIT);
+  TRACE_CHECK(run_text(runtime, "assert(progress==unobserved_progress)") ==
+              CPKT_LUA_RUNTIME_OK);
+  capture.source = "reentry";
+  capture.action = 3;
+  cpkt_lua_runtime_set_context(runtime, &capture);
+  TRACE_CHECK(cpkt_lua_runtime_set_instruction_limit(runtime, 100) ==
+              CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                  runtime, capture_trace, &capture) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(cpkt_lua_runtime_run_buffer(
+                  runtime, (const unsigned char *)"while true do\nend",
+                  sizeof("while true do\nend") - 1, "reentry", 0, NULL,
+                  0) == CPKT_LUA_RUNTIME_ERR_LIMIT);
+  TRACE_CHECK(!capture.failed && capture.action == 0);
+  capture.source = "remove-budget";
+  capture.matching = 0;
+  capture.action = 1;
+  TRACE_CHECK(cpkt_lua_runtime_run_buffer(
+                  runtime, (const unsigned char *)"while true do\nend",
+                  sizeof("while true do\nend") - 1, capture.source, 0, NULL,
+                  0) == CPKT_LUA_RUNTIME_ERR_LIMIT);
+  TRACE_CHECK(capture.matching == 1);
+  capture.source = "replace-budget";
+  capture.matching = 0;
+  capture.action = 2;
+  second.source = capture.source;
+  second.matching = 0;
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                  runtime, capture_trace, &capture) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(cpkt_lua_runtime_run_buffer(
+                  runtime, (const unsigned char *)"while true do\nend",
+                  sizeof("while true do\nend") - 1, capture.source, 0, NULL,
+                  0) == CPKT_LUA_RUNTIME_ERR_LIMIT);
+  TRACE_CHECK(capture.matching == 1 && second.matching > 0);
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                  runtime, capture_trace, &capture) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(cpkt_lua_runtime_clear_instruction_limit(runtime) ==
+              CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(run_text(runtime, "error('observed script error')") ==
+              CPKT_LUA_RUNTIME_ERR_RUNTIME);
+  TRACE_CHECK(
+      strstr(cpkt_lua_runtime_error(runtime), "observed script error") != NULL);
+  before = capture.events;
+  TRACE_CHECK(run_text(runtime, "local =") == CPKT_LUA_RUNTIME_ERR_LOAD);
+  TRACE_CHECK(capture.events == before);
+  TRACE_CHECK(cpkt_lua_runtime_set_trace_callback(
+                  runtime, capture_trace, &capture) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(run_text(runtime, "assert(true)") == CPKT_LUA_RUNTIME_OK);
+  capture.source = "@finalizer.lua";
+  for (limited = 0; limited <= 1; ++limited) {
+    if (limited) {
+      TRACE_CHECK(cpkt_lua_runtime_set_instruction_limit(runtime, 1000) ==
+                  CPKT_LUA_RUNTIME_OK);
+    }
+    capture.lines = 0;
+    TRACE_CHECK(run_text(runtime, finalizer_setup) == CPKT_LUA_RUNTIME_OK);
+    TRACE_CHECK(run_text(runtime, "saved_gc=nil; collectgarbage()") ==
+                CPKT_LUA_RUNTIME_OK);
+    TRACE_CHECK(capture.lines == 7);
+  }
+  capture.lines = 0;
+  TRACE_CHECK(run_text(runtime, finalizer_setup) == CPKT_LUA_RUNTIME_OK);
+  TRACE_CHECK(run_text(runtime,
+                       "warning_gc=setmetatable({}, {__gc=function() "
+                       "error('close warning') end})") == CPKT_LUA_RUNTIME_OK);
+  before = install.calls;
+  cpkt_lua_runtime_free(runtime);
+  runtime = NULL;
+  TRACE_CHECK(capture.lines == 7 && !capture.failed);
+  TRACE_CHECK(install.calls > before &&
+              install.status == CPKT_LUA_RUNTIME_ERR_ARG);
+done:
+  cpkt_lua_runtime_free(runtime);
+#undef TRACE_CHECK
+  return failed;
+}
+
+static int exercise_trace_limits(void) {
+  cpkt_lua_runtime *runtime;
+  unsigned count;
+  size_t index;
+  int failed;
+  const char *nested;
+  const char *cyclic;
+  /* Reuse the existing budget/finalizer regressions with observation enabled.
+   */
+  for (index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
+    if ((cases[index].limited ||
+         strncmp(cases[index].name, "coroutine_close_", 16) == 0 ||
+         strcmp(cases[index].name, "existing_wrap_limit") == 0) &&
+        exercise(&cases[index], 1)) {
+      return 1;
+    }
+  }
+  runtime = NULL;
+  count = 0;
+  if (cpkt_lua_runtime_new(&runtime) != CPKT_LUA_RUNTIME_OK) {
+    return 1;
+  }
+  failed = cpkt_lua_runtime_openlibs(runtime) != CPKT_LUA_RUNTIME_OK ||
+           cpkt_lua_runtime_set_instruction_limit(runtime, 1000) !=
+               CPKT_LUA_RUNTIME_OK ||
+           cpkt_lua_runtime_set_trace_callback(runtime, count_trace, &count) !=
+               CPKT_LUA_RUNTIME_OK;
+  nested = "local function f(n) if n>0 then "
+           "coroutine.resume(coroutine.create(function() f(n-1) end)) "
+           "else while true do end end end; f(8)";
+  cyclic = "local a,b; a=coroutine.create(function() while true do "
+           "coroutine.resume(b) end end); "
+           "b=coroutine.create(function() coroutine.resume(a) end); "
+           "coroutine.resume(a)";
+  if (!failed) {
+    failed = run_text(runtime, nested) != CPKT_LUA_RUNTIME_ERR_LIMIT ||
+             run_text(runtime, cyclic) != CPKT_LUA_RUNTIME_ERR_LIMIT ||
+             count == 0;
+  }
+  cpkt_lua_runtime_free(runtime);
   return failed;
 }
 
@@ -635,9 +1020,15 @@ int main(int argc, char **argv) {
   if (argc != 2) {
     return 2;
   }
+  if (strcmp(argv[1], "trace_observer") == 0) {
+    return exercise_trace_observer();
+  }
+  if (strcmp(argv[1], "trace_limits") == 0) {
+    return exercise_trace_limits();
+  }
   for (index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
     if (strcmp(argv[1], cases[index].name) == 0) {
-      return exercise(&cases[index]);
+      return exercise(&cases[index], 0);
     }
   }
   fprintf(stderr, "unknown runtime case: %s\n", argv[1]);

@@ -1198,6 +1198,7 @@ if(CPKT_BUILD_TESTS)
           cpkt_lua_${_cpkt_lua_policy_linkage})
     if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
       foreach(_cpkt_lua_policy_case IN ITEMS large_arguments large_results large_yields
+              trace_observer trace_limits
               closed_error close_error_replaced protected_limit xprotected_limit
               xhandler_limit xhandler_error_limit xhandler_normal gc_limit gc_coroutine_limit gc_finite gc_close_limit gc_close_after_limit native_gc_hooks
               coroutine_close_existing_limit coroutine_close_reopen_limit coroutine_close_cleared_limit coroutine_close_normal_results

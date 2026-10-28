@@ -13,7 +13,32 @@ clearing or changing that budget. This is a VM instruction policy, not a wall
 clock timeout or a security sandbox; trusted C modules can block, execute native
 code or alter VM policy. The counter is shared across all coroutine switches,
 including short yields. With a limit enabled, the VM calls the accounting hook
-for each instruction; unlimited execution does not install that hook.
+for each instruction; unlimited execution does not install a count hook.
+
+`cpkt_lua_runtime_set_trace_callback()` installs an optional line observer with
+caller-owned context. Each synchronous callback receives a borrowed snapshot of
+the source identifier, its byte length and the positive one-based line about to
+execute. Source identifiers follow Lua's conventions: `@path`, `=name`, or source
+text. Copy needed bytes before returning; source text can contain embedded NUL
+bytes. Native C execution and chunks without line information emit no line events.
+The observer covers main-thread and coroutine execution, Lua finalizers during
+collection and destruction, and Lua close handlers. Keep the callback and context
+alive until removal or until runtime destruction completes.
+
+The runtime multiplexes line events with its count hook. Observation neither
+consumes an extra instruction budget unit nor replenishes the budget. With no
+limit, only line observation is enabled. Passing NULL removes the observer.
+Install or remove it between host operations. Changes from warning callbacks or
+C module openers during execution or destruction return `CPKT_LUA_RUNTIME_ERR_ARG`.
+Replacement or removal inside the trace callback takes effect on the next event,
+including events from another coroutine. Read-only facade calls are allowed
+inside an observer. Other operations on the same runtime return
+`CPKT_LUA_RUNTIME_ERR_ARG`, or do nothing for void functions, without changing
+the runtime error. This includes execution, instruction-limit changes and free.
+Do not access its Lua state through another API from the callback. Callbacks
+must return normally; yielding, raising Lua errors and longjmp are unsupported.
+Record observer errors in caller-owned context and handle them after the host
+call returns. Runtime use remains serialized.
 
 Lua error handlers and finalizers are included in this policy. After exhaustion,
 the runtime's `xpcall` handler returns the limit error without calling the Lua
