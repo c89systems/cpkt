@@ -85,6 +85,25 @@ Any other pipeline Python requires explicit developer permission before writing
 or extending it; existing Python and a generic refactor request are not permission.
 Porting a large controller into Bash or CMake does not satisfy this rule.
 
+## Thread stack budget
+
+Design for the supported platforms' default worker-thread stacks.
+[musl defaults to 128 KiB for newly created threads](https://wiki.musl-libc.org/functional-differences-from-glibc.html#thread-stack-size);
+this is distinct from the main thread's stack. glibc commonly provides several MiB,
+so passing on glibc can hide stack exhaustion that crashes on musl.
+
+Prefer heap storage for multi-KiB buffers and aggregates, using the project's
+allocator where available with explicit ownership, allocation-failure handling
+and cleanup. A 64 KiB buffer or object always belongs on the heap. Small bounded
+chunk buffers of a couple of KiB can stay on the stack when the total budget allows.
+Account for the entire active call chain, nested aggregates, recursion, callbacks
+and library frames, leaving headroom. Variable-length arrays and `alloca` consume
+the same stack budget.
+
+When introducing substantial stack use or fixing stack exhaustion, use a focused
+regression on a musl worker thread with default stack settings. Main-thread-only
+tests or tests with enlarged thread stacks do not establish this contract.
+
 ## Editor setup
 
 For projects using clangd, the normal native build must prepare its dependency and
