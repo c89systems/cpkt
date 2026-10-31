@@ -1,0 +1,2 @@
+# cpkt: move large Chorba CRC scratch buffers to aligned heap storage.
+zlib_ng_chorba_heap.patch

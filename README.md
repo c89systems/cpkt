@@ -8,6 +8,7 @@ metadata, examples and complete third-party license notices.
 
 - openssl
 - zlib
+- zlib-ng
 - nghttp2
 - libssh2
 - curl
@@ -43,6 +44,12 @@ The libssh2 C89 facade uses SFTP attribute `flags` to select valid fields:
 `permissions`, and `ACMODTIME` selects `atime`/`mtime`. Setters and `open_ex_r`
 read only selected fields. Successful getters preserve flags and zero absent
 fields; errors, EAGAIN and directory EOF leave caller attributes unchanged.
+
+zlib-ng is delivered separately from zlib with a complete Unix C89 facade at
+`<cpkt/zlibng.h>`. Its large and medium generic and SSE4.1 Chorba CRC scratch
+buffers use aligned heap storage, with allocation-free CRC fallback on failure.
+Existing zlib-dependent components retain their zlib dependency. See the
+[zlib-ng facade contract and patch](docs/zlib-ng-c89-facade.md).
 
 ## Independent repositories
 

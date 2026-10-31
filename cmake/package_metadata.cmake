@@ -28,6 +28,11 @@ function(cpkt_metadata_file operation)
 endfunction()
 set(_cpkt_static_library_suffix ".a")
 if(CPKT_TARGET_ID STREQUAL "arm64-apple-darwin")
+  set(_cpkt_zlibng_native_library "libz-ng.2.dylib")
+else()
+  set(_cpkt_zlibng_native_library "libz-ng.so.2")
+endif()
+if(CPKT_TARGET_ID STREQUAL "arm64-apple-darwin")
   set(_cpkt_shared_library_suffix ".dylib")
   set(_cpkt_lua_facade_shared_library_link_name "libcpkt_lua.dylib")
   set(_cpkt_lua_facade_shared_library_abi_name "libcpkt_lua.${CPKT_LUA_ABI_VERSION}.dylib")
@@ -821,6 +826,59 @@ cpkt_metadata_file(WRITE "${_stage_root}/lib/pkgconfig/cpkt-libssh2.pc"
   "Libs: -L\${libdir} -lcpkt_libssh2\n"
   "Cflags: -I\${includedir}\n"
 )
+cpkt_metadata_file(MAKE_DIRECTORY "${_stage_root}/lib/cmake/zlib-ng")
+cpkt_metadata_file(WRITE "${_stage_root}/lib/cmake/zlib-ng/zlib-ng-config.cmake"
+  "get_filename_component(_cpkt_zlibng_prefix \"\${CMAKE_CURRENT_LIST_DIR}/../../..\" ABSOLUTE)\n"
+  "set(zlib-ng_VERSION \"${CPKT_ZLIB_NG_VERSION}\")\n"
+  "if(NOT TARGET zlib-ng::zlibstatic)\n"
+  "  add_library(zlib-ng::zlibstatic STATIC IMPORTED)\n"
+  "  set_target_properties(zlib-ng::zlibstatic PROPERTIES\n"
+  "    IMPORTED_LOCATION \"\${_cpkt_zlibng_prefix}/lib/libz-ng.a\"\n"
+  "    INTERFACE_INCLUDE_DIRECTORIES \"\${_cpkt_zlibng_prefix}/include\"\n"
+  "    INTERFACE_COMPILE_DEFINITIONS \"WITH_GZFILEOP;ZLIBNG_NATIVE_API;_FILE_OFFSET_BITS=64;_LARGEFILE64_SOURCE=1\")\n"
+  "endif()\n"
+  "if(NOT TARGET zlib-ng::zlib)\n"
+  "  add_library(zlib-ng::zlib SHARED IMPORTED)\n"
+  "  set_target_properties(zlib-ng::zlib PROPERTIES\n"
+  "    IMPORTED_LOCATION \"\${_cpkt_zlibng_prefix}/lib/${_cpkt_zlibng_native_library}\"\n"
+  "    INTERFACE_INCLUDE_DIRECTORIES \"\${_cpkt_zlibng_prefix}/include\"\n"
+  "    INTERFACE_COMPILE_DEFINITIONS \"WITH_GZFILEOP;ZLIBNG_NATIVE_API;_FILE_OFFSET_BITS=64;_LARGEFILE64_SOURCE=1\")\n"
+  "endif()\n")
+cpkt_metadata_file(MAKE_DIRECTORY "${_stage_root}/lib/cmake/CpktZlibNg")
+cpkt_metadata_file(WRITE "${_stage_root}/lib/cmake/zlib-ng/zlib-ng-config-version.cmake"
+  "set(PACKAGE_VERSION \"${CPKT_ZLIB_NG_VERSION}\")\n"
+  "if(PACKAGE_FIND_VERSION VERSION_EQUAL PACKAGE_VERSION)\n"
+  "  set(PACKAGE_VERSION_EXACT TRUE)\nendif()\n"
+  "if(PACKAGE_FIND_VERSION VERSION_LESS_EQUAL PACKAGE_VERSION)\n"
+  "  set(PACKAGE_VERSION_COMPATIBLE TRUE)\nendif()\n")
+cpkt_metadata_file(WRITE "${_stage_root}/lib/cmake/CpktZlibNg/CpktZlibNgConfig.cmake"
+  "include(CMakeFindDependencyMacro)\nfind_dependency(zlib-ng CONFIG REQUIRED)\n"
+  "get_filename_component(_cpkt_zlibng_prefix \"\${CMAKE_CURRENT_LIST_DIR}/../../..\" ABSOLUTE)\n"
+  "set(CpktZlibNg_VERSION \"${CPKT_ZLIB_NG_VERSION}\")\n"
+  "if(NOT TARGET cpkt::zlibng)\n"
+  "  add_library(cpkt::zlibng STATIC IMPORTED)\n"
+  "  set_target_properties(cpkt::zlibng PROPERTIES\n"
+  "    IMPORTED_LOCATION \"\${_cpkt_zlibng_prefix}/lib/libcpkt_zlibng.a\"\n"
+  "    INTERFACE_INCLUDE_DIRECTORIES \"\${_cpkt_zlibng_prefix}/include\"\n"
+  "    INTERFACE_LINK_LIBRARIES \"\$<LINK_ONLY:zlib-ng::zlibstatic>\")\n"
+  "endif()\n"
+  "if(NOT TARGET cpkt::zlibng_facade_shared)\n"
+  "  add_library(cpkt::zlibng_facade_shared SHARED IMPORTED)\n"
+  "  set_target_properties(cpkt::zlibng_facade_shared PROPERTIES\n"
+  "    IMPORTED_LOCATION \"\${_cpkt_zlibng_prefix}/lib/libcpkt_zlibng${_cpkt_shared_library_suffix}\"\n"
+  "    INTERFACE_INCLUDE_DIRECTORIES \"\${_cpkt_zlibng_prefix}/include\"\n"
+  "    INTERFACE_LINK_LIBRARIES \"\$<LINK_ONLY:zlib-ng::zlib>\")\n"
+  "endif()\n")
+cpkt_write_config_version("CpktZlibNg" "CpktZlibNg" "${CPKT_ZLIB_NG_VERSION}")
+cpkt_metadata_file(WRITE "${_stage_root}/lib/pkgconfig/zlib-ng.pc"
+  "prefix=\${pcfiledir}/../..\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n"
+  "Name: zlib-ng\nDescription: Native zlib-ng from cpkt\nVersion: ${CPKT_ZLIB_NG_VERSION}\n"
+  "Libs: -L\${libdir} -lz-ng\n"
+  "Cflags: -I\${includedir} -DWITH_GZFILEOP -DZLIBNG_NATIVE_API -D_FILE_OFFSET_BITS=64 -D_LARGEFILE64_SOURCE=1\n")
+cpkt_metadata_file(WRITE "${_stage_root}/lib/pkgconfig/cpkt-zlibng.pc"
+  "prefix=\${pcfiledir}/../..\nlibdir=\${prefix}/lib\nincludedir=\${prefix}/include\n"
+  "Name: cpkt-zlibng\nDescription: C89 zlib-ng facade from cpkt\nVersion: ${CPKT_ZLIB_NG_VERSION}\n"
+  "Libs.private: -lz-ng\nLibs: -L\${libdir} -lcpkt_zlibng\nCflags: -I\${includedir}\n")
 cpkt_metadata_file(WRITE "${_stage_root}/lib/pkgconfig/zlib.pc"
   "prefix=\${pcfiledir}/../..\n"
   "exec_prefix=\${prefix}\n"

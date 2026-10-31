@@ -76,7 +76,8 @@
           "docs/openssl-c89-facade-surface.md",
           "docs/sasl-c89-facade-spec.md",
           "docs/cmocka-c89.md",
-          "docs/sdk-installation.md"
+          "docs/sdk-installation.md",
+          "docs/zlib-ng-c89-facade.md"
         ],
         "examples": [
           "examples/lua-runtime-c89/CMakeLists.txt",
@@ -1429,6 +1430,87 @@
         "version_variable": "CPKT_CMOCKA_VERSION"
       },
       "recipe_file": "cmake/dependencies/cmocka.cmake"
+    },
+    "zlib-ng": {
+      "group": "core",
+      "directory": "zlib-ng",
+      "dependencies": [],
+      "recipe_functions": [
+        "cpkt_add_zlib_ng"
+      ],
+      "recipe_inputs": [
+        "cmake/CpktDependencyContract.cmake",
+        "cmake/CpktDependencyArchiveCache.cmake",
+        "cmake/CpktDependencies.cmake",
+        "cmake/dependencies/zlib-ng.cmake",
+        "cmake/apply_patch_series.cmake",
+        "cmake/patches/zlib-ng.series",
+        "cmake/patches/zlib_ng_chorba_heap.patch"
+      ],
+      "variants": [
+        "static",
+        "shared"
+      ],
+      "test_dependencies": [],
+      "notices": [
+        "LICENSE.md"
+      ],
+      "payload": {
+        "install_prefix": "install",
+        "headers": [
+          "include/**"
+        ],
+        "libraries": [
+          "lib/**"
+        ],
+        "metadata": [
+          "lib/pkgconfig/**",
+          "lib/cmake/**"
+        ]
+      },
+      "helpers": [
+        "cpkt_add_zlib_ng",
+        "cpkt_append_common_external_cmake_args",
+        "cpkt_get_external_cmake_step_commands",
+        "cpkt_get_strip_dependency_install_command",
+        "cpkt_get_external_c_flags"
+      ],
+      "package": {
+        "cmake": [
+          "zlib-ng"
+        ],
+        "pkgconfig": [
+          "zlib-ng"
+        ],
+        "license": "src/LICENSE.md",
+        "facades": [
+          {
+            "target": "cpkt_zlibng",
+            "cmake": "CpktZlibNg",
+            "pkgconfig": "cpkt-zlibng",
+            "headers": [
+              "@zlibng"
+            ],
+            "generated": "zlibng",
+            "export_catalog": "cmake/exports/cpkt_zlibng.txt",
+            "abi_version_variable": "CPKT_ZLIBNG_ABI_VERSION"
+          }
+        ],
+        "owned_patterns": [
+          "include/zlib-ng.h",
+          "include/zconf-ng.h",
+          "include/zlib_name_mangling-ng.h",
+          "lib/libz-ng.*",
+          "lib/libz-ng.a",
+          "lib/cmake/zlib-ng/**",
+          "lib/pkgconfig/zlib-ng.pc"
+        ],
+        "version_variable": "CPKT_ZLIB_NG_VERSION",
+        "required_runpaths": {
+          "lib/libcpkt_zlibng.*": "$ORIGIN"
+        }
+      },
+      "recipe_file": "cmake/dependencies/zlib-ng.cmake"
     }
   },
   "targets": {
@@ -2470,6 +2552,78 @@
       "kind": "add_custom_target",
       "public": false,
       "requires": []
+    },
+    "cpkt_zlibng_facade_generated": {
+      "group": "core",
+      "kind": "add_custom_target",
+      "public": false,
+      "requires": [],
+      "source_inputs": []
+    },
+    "cpkt_zlibng_static": {
+      "group": "core",
+      "kind": "add_library",
+      "public": true,
+      "requires": [],
+      "source_inputs": []
+    },
+    "cpkt_zlibng_shared": {
+      "group": "core",
+      "kind": "add_library",
+      "public": true,
+      "requires": [],
+      "source_inputs": []
+    },
+    "cpkt_zlibng_behavior_static": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [],
+      "source_inputs": [
+        "tests/zlibng_facade_test.c"
+      ]
+    },
+    "cpkt_zlibng_behavior_shared": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [],
+      "source_inputs": [
+        "tests/zlibng_facade_test.c"
+      ]
+    },
+    "cpkt_zlibng_surface_static": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [],
+      "source_inputs": []
+    },
+    "cpkt_zlibng_surface_shared": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [],
+      "source_inputs": []
+    },
+    "cpkt_zlibng_layout": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [],
+      "source_inputs": [
+        "tests/zlibng_layout_test.c"
+      ]
+    },
+    "cpkt_zlibng_chorba_heap": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": [],
+      "source_inputs": [
+        "tests/zlibng_chorba_heap_test.c",
+        "tests/zlibng_chorba_sse41_test.c"
+      ]
     }
   },
   "tests": {
@@ -5392,6 +5546,121 @@
         }
       ],
       "target_sensitive": false
+    },
+    "zlibng_behavior_static": {
+      "group": "core",
+      "requires": [],
+      "source_inputs": [
+        "tests/zlibng_facade_test.c"
+      ],
+      "registrations": [
+        {
+          "name": "zlibng_behavior_static",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ]
+    },
+    "zlibng_behavior_shared": {
+      "group": "core",
+      "requires": [],
+      "source_inputs": [
+        "tests/zlibng_facade_test.c"
+      ],
+      "registrations": [
+        {
+          "name": "zlibng_behavior_shared",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ]
+    },
+    "zlibng_surface_static": {
+      "group": "core",
+      "requires": [],
+      "source_inputs": [
+        "tools/generate_zlibng_c89_facade.py"
+      ],
+      "registrations": [
+        {
+          "name": "zlibng_surface_static",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ]
+    },
+    "zlibng_surface_shared": {
+      "group": "core",
+      "requires": [],
+      "source_inputs": [
+        "tools/generate_zlibng_c89_facade.py"
+      ],
+      "registrations": [
+        {
+          "name": "zlibng_surface_shared",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ]
+    },
+    "zlibng_layout": {
+      "group": "core",
+      "requires": [],
+      "source_inputs": [
+        "tests/zlibng_layout_test.c"
+      ],
+      "registrations": [
+        {
+          "name": "zlibng_layout",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES"
+          ]
+        }
+      ]
+    },
+    "zlibng_chorba_heap": {
+      "group": "core",
+      "requires": [],
+      "source_inputs": [
+        "tests/zlibng_chorba_heap_test.c",
+        "tests/zlibng_chorba_sse41_test.c",
+        "cmake/patches/zlib_ng_chorba_heap.patch"
+      ],
+      "registrations": [
+        {
+          "name": "zlibng_chorba_heap",
+          "conditions": [
+            "CPKT_BUILD_TESTS",
+            "CPKT_CAN_RUN_TARGET_EXECUTABLES",
+            "CMAKE_SYSTEM_NAME STREQUAL \"Linux\""
+          ]
+        }
+      ]
+    },
+    "zlibng_exports": {
+      "group": "core",
+      "requires": [],
+      "source_inputs": [
+        "tests/zlibng_exports_test.cmake",
+        "cmake/exports/cpkt_zlibng.txt"
+      ],
+      "registrations": [
+        {
+          "name": "zlibng_exports",
+          "conditions": [
+            "CPKT_BUILD_TESTS"
+          ]
+        }
+      ]
     }
   },
   "hover": {
@@ -6210,6 +6479,86 @@
       "link_contains": [],
       "link_lacks": [],
       "intentional_failure": false
+    },
+    "cpkt_cmake_zlibng": {
+      "component": "zlib-ng",
+      "group": "core",
+      "package": "zlib-ng",
+      "pc": "zlib-ng",
+      "source": "tests/sdk-consumers/cpkt_zlibng.c",
+      "link": [
+        "zlib-ng::zlibstatic"
+      ],
+      "kind": "static",
+      "standard": 99,
+      "runtime_args": [],
+      "link_contains": [],
+      "link_lacks": [],
+      "package_directory": "zlib-ng"
+    },
+    "cpkt_cmake_zlibng_shared": {
+      "component": "zlib-ng",
+      "group": "core",
+      "package": "zlib-ng",
+      "pc": "zlib-ng",
+      "source": "tests/sdk-consumers/cpkt_zlibng.c",
+      "link": [
+        "zlib-ng::zlib"
+      ],
+      "kind": "shared",
+      "standard": 99,
+      "runtime_args": [],
+      "link_contains": [],
+      "link_lacks": [],
+      "package_directory": "zlib-ng"
+    },
+    "cpkt_cmake_zlibng_facade": {
+      "component": "zlib-ng",
+      "group": "core",
+      "package": "CpktZlibNg",
+      "pc": "cpkt-zlibng",
+      "source": "tests/sdk-consumers/cpkt_zlibng_facade_strict.c",
+      "link": [
+        "cpkt::zlibng"
+      ],
+      "kind": "static",
+      "standard": 89,
+      "runtime_args": [],
+      "link_contains": [
+        "@prefix/lib/libcpkt_zlibng.a",
+        "@prefix/lib/libz-ng.a"
+      ],
+      "link_lacks": []
+    },
+    "cpkt_cmake_zlibng_facade_shared": {
+      "component": "zlib-ng",
+      "group": "core",
+      "package": "CpktZlibNg",
+      "pc": "cpkt-zlibng",
+      "source": "tests/sdk-consumers/cpkt_zlibng_facade_strict.c",
+      "link": [
+        "cpkt::zlibng_facade_shared"
+      ],
+      "kind": "shared",
+      "standard": 89,
+      "runtime_args": [],
+      "link_contains": [],
+      "link_lacks": []
+    },
+    "cpkt_cmake_pic_zlibng_facade": {
+      "component": "zlib-ng",
+      "group": "core",
+      "package": "CpktZlibNg",
+      "pc": "cpkt-zlibng",
+      "source": "tests/sdk-consumers/cpkt_zlibng_facade_strict.c",
+      "link": [
+        "cpkt::zlibng"
+      ],
+      "kind": "pic",
+      "standard": 89,
+      "runtime_args": [],
+      "link_contains": [],
+      "link_lacks": []
     }
   },
   "installed_examples": {

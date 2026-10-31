@@ -371,6 +371,7 @@ endfunction()
 include("${CMAKE_CURRENT_LIST_DIR}/dependencies/openssl.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dependencies/nghttp2.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dependencies/zlib.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/dependencies/zlib-ng.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dependencies/libssh2.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dependencies/curl.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dependencies/libxml2.cmake")
@@ -382,6 +383,19 @@ include("${CMAKE_CURRENT_LIST_DIR}/dependencies/openldap.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dependencies/cmocka.cmake")
 
 function(cpkt_configure_dependencies)
+cpkt_prepare_dependency_component(
+    NAME zlib-ng
+    BUILD_ROOT "${CPKT_DEPENDENCY_BUILD_ROOT}/zlib-ng"
+    INSTALL_ROOT "${CPKT_EXTERNAL_ROOT}/zlib-ng/install"
+    VARIABLES CPKT_ZLIB_NG_VERSION
+    INPUT_FILES
+      "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/CpktDependencies.cmake"
+      "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/dependencies/zlib-ng.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/CpktDependencyContract.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/CpktDependencyArchiveCache.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/apply_patch_series.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/patches/zlib-ng.series"
+      "${CMAKE_SOURCE_DIR}/cmake/patches/zlib_ng_chorba_heap.patch")
 cpkt_prepare_dependency_component(
     NAME openssl
     BUILD_ROOT "${CPKT_DEPENDENCY_BUILD_ROOT}/openssl"
