@@ -829,6 +829,9 @@
         "cmake/CpktDependencyArchiveCache.cmake",
         "cmake/install_lua.cmake",
         "cmake/patch_lua_runtime_hooks.cmake",
+        "cmake/apply_patch_series.cmake",
+        "cmake/patches/lua.series",
+        "cmake/patches/lua_native_stack.patch",
         "src/lua_runtime_hook_policy.h",
         "cmake/CpktDependencies.cmake",
         "cmake/dependencies/lua.cmake"
@@ -1514,6 +1517,13 @@
     }
   },
   "targets": {
+    "cpkt_lua_native_stack_${_cpkt_lua_policy_linkage}_test": {
+      "group": "core",
+      "kind": "add_executable",
+      "public": false,
+      "requires": ["lua"],
+      "source_inputs": ["tests/lua_native_stack_test.c"]
+    },
     "cpkt_bootlin_runtime_test": {
       "group": "core",
       "kind": "add_executable",
@@ -2627,6 +2637,21 @@
     }
   },
   "tests": {
+    "lua_native_stack_${_cpkt_lua_policy_linkage}": {
+      "group": "core",
+      "requires": ["lua"],
+      "source_inputs": ["tests/lua_native_stack_test.c"],
+      "registrations": [
+        {
+          "name": "lua_native_stack_static",
+          "conditions": ["CPKT_BUILD_TESTS", "CPKT_CAN_RUN_TARGET_EXECUTABLES"]
+        },
+        {
+          "name": "lua_native_stack_shared",
+          "conditions": ["CPKT_BUILD_TESTS", "CPKT_CAN_RUN_TARGET_EXECUTABLES"]
+        }
+      ]
+    },
     "local_executable_runtime_policy": {
       "group": "core",
       "command_inputs": [

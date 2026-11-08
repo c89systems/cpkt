@@ -4,6 +4,25 @@ The full `<cpkt/lua.h>` facade preserves Lua's public C API. The separate
 `<cpkt/lua_runtime.h>` facade owns a VM and adds embedding policy, including
 allocation caps, warning callbacks and an optional instruction limit.
 
+Bundled Lua also checks native recursion against the current OS thread's stack
+bounds. This covers ordinary non-yieldable protected calls, coroutine resumes,
+parser recursion and standard-library callbacks on default musl workers.
+Lua-owned native recursion raises a normal Lua error at the stack boundary;
+protected calls can catch it and subsequent calls remain usable.
+Error handlers receive reserved stack headroom; exhausting that reserve reports
+an error in error handling.
+
+Stack bounds are discovered once per OS thread and copied on outer entry, so a
+Lua state can move between threads between completed host operations. Native
+thread stack mappings must remain fixed for the OS thread's lifetime. Recursive
+checks sample the stack pointer and compare a cached limit. They add no
+per-protected-call allocation or VM instruction hook. Linux x86_64 builds use TLS descriptors for
+the cache, including when Lua is loaded dynamically. Public APIs and ABIs are
+unchanged; callers do not need larger thread stacks or private Lua headers.
+Trusted native callbacks remain responsible for their own stack consumption.
+If OS stack bounds cannot be discovered, protected execution fails without
+invoking its error handler; discovery is retried on the next outer entry.
+
 With a limit enabled, exhaustion ends the host invocation with
 `CPKT_LUA_RUNTIME_ERR_LIMIT`. Lua `pcall` and `xpcall` cannot repeatedly swallow
 that failure. Their normal error results, argument forwarding and yielding
@@ -89,3 +108,19 @@ argument forwarding, loader-upvalue substitution, reopened standard libraries
 and failed C registration recovery, bounded error handlers, finalization during
 collection and destruction, and ordinary native GC-hook behavior. A timeout or
 process abort is a failing result.
+
+The `lua_native_stack_*` regressions exercise both library variants with default
+musl worker attributes and 128 KiB glibc workers. They cover protected calls,
+recursive error handlers, string callbacks, module loading, parser nesting,
+coroutine resumes, close handlers, native C callbacks, reentrant C readers and
+coroutine reuse after an overflow handler, followed by recovery.
+They also cover yielded protected calls resumed at the stack boundary and
+successful self-close from an overflow handler, followed by ordinary calls.
+Recursive programs run through native protected/coroutine entry and runtime entry
+with observation disabled/enabled. All cases use zero or 32 KiB of deliberate
+caller stack consumption.
+States created on the main thread are reused on successive workers to verify
+serialized migration. A GC-only first operation on a migrated state must still
+run its pending finalizers.
+The Linux static test also injects stack-bound discovery failure: execution must
+fail without calling the user error handler, then recover when discovery succeeds.

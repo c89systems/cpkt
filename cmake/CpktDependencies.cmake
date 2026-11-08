@@ -485,7 +485,12 @@ cpkt_prepare_dependency_component(
       "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/dependencies/lua.cmake"
       "${CMAKE_SOURCE_DIR}/cmake/CpktDependencyContract.cmake"
       "${CMAKE_SOURCE_DIR}/cmake/CpktDependencyArchiveCache.cmake"
-      "${CMAKE_SOURCE_DIR}/cmake/install_lua.cmake")
+      "${CMAKE_SOURCE_DIR}/cmake/install_lua.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/patch_lua_runtime_hooks.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/apply_patch_series.cmake"
+      "${CMAKE_SOURCE_DIR}/cmake/patches/lua.series"
+      "${CMAKE_SOURCE_DIR}/cmake/patches/lua_native_stack.patch"
+      "${CMAKE_SOURCE_DIR}/src/lua_runtime_hook_policy.h")
 cpkt_prepare_dependency_component(
     NAME mqttc
     BUILD_ROOT "${CPKT_DEPENDENCY_BUILD_ROOT}/mqtt-c"

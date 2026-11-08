@@ -182,6 +182,9 @@ const char *cpkt_lua_runtime_facade_version(void);
 /**
  * Creates an unrestricted runtime with the default heap allocator.
  *
+ * The bundled VM bounds native recursion to the current thread's available
+ * stack and reports exhaustion as a Lua error.
+ *
  * On success, writes a new handle to `*out`. The caller owns the handle and
  * must free it with `cpkt_lua_runtime_free()`.
  */

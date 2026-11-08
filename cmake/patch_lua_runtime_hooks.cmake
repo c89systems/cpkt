@@ -17,3 +17,6 @@ if(_already EQUAL -1)
 endif()
 file(COPY_FILE "${CPKT_LUA_HOOK_POLICY_HEADER}"
   "${CPKT_LUA_SOURCE_DIR}/src/cpkt_lua_runtime_hook_policy.h" ONLY_IF_DIFFERENT)
+set(CPKT_PATCH_WORKING_DIRECTORY "${CPKT_LUA_SOURCE_DIR}")
+set(CPKT_PATCH_SERIES "${CMAKE_CURRENT_LIST_DIR}/patches/lua.series")
+include("${CMAKE_CURRENT_LIST_DIR}/apply_patch_series.cmake")
