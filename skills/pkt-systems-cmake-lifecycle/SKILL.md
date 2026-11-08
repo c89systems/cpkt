@@ -92,17 +92,34 @@ Design for the supported platforms' default worker-thread stacks.
 this is distinct from the main thread's stack. glibc commonly provides several MiB,
 so passing on glibc can hide stack exhaustion that crashes on musl.
 
-Prefer heap storage for multi-KiB buffers and aggregates, using the project's
-allocator where available with explicit ownership, allocation-failure handling
-and cleanup. A 64 KiB buffer or object always belongs on the heap. Small bounded
+Eliminate large stack allocations, particularly variable-length arrays (VLAs)
+and large `alloca()` calls. Prefer heap storage for multi-KiB buffers and aggregates.
+Prefer the project's allocator over `alloca()`, even for smaller allocations,
+with explicit ownership, allocation-failure handling and cleanup.
+A 64 KiB buffer or object always belongs on the heap. Small bounded
 chunk buffers of a couple of KiB can stay on the stack when the total budget allows.
 Account for the entire active call chain, nested aggregates, recursion, callbacks
-and library frames, leaving headroom. Variable-length arrays and `alloca` consume
-the same stack budget.
+and library frames, leaving headroom.
+
+For glibc Debug unit and end-to-end tests, reproduce musl's nominal 128 KiB
+default worker stack in the processes under test, including child applications.
+Keep main-thread limits and build-tool worker defaults unchanged. With glibc's
+default-attribute API, disable the thread-stack cache for test processes
+(`GLIBC_TUNABLES=glibc.pthread.stack_cache_size=0`): otherwise a default worker
+can reuse a larger cached stack. Verify actual default and nested worker sizes,
+preserved explicit stack-size requests, and working guard regions.
+
+Prefer pthread-owned stacks through default attributes or `pthread_attr_setstacksize()`.
+Preserve nonzero guards. If using caller-owned memory with `pthread_attr_setstack()`,
+provide page-aligned inaccessible guard memory, such as `mprotect(PROT_NONE)`,
+outside the usable stack range; pthreads ignores the guard-size attribute in this
+case. Verify that guard access faults; mapping permissions alone may not reveal
+kernel lightweight guards.
 
 When introducing substantial stack use or fixing stack exhaustion, use a focused
 regression on a musl worker thread with default stack settings. Main-thread-only
 tests or tests with enlarged thread stacks do not establish this contract.
+The constrained glibc run complements native musl verification.
 
 ## Editor setup
 
