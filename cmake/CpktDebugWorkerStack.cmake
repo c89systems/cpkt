@@ -1,0 +1,71 @@
+# Apply only to processes under test. SDK libraries, dependency producers and
+# host build tools keep their ordinary stack defaults.
+function(cpkt_debug_worker_stack_environment)
+  get_property(_tests DIRECTORY PROPERTY TESTS)
+  foreach(_test IN LISTS _tests)
+    get_property(_environment TEST "${_test}" PROPERTY ENVIRONMENT)
+    set(_tunables "$ENV{GLIBC_TUNABLES}")
+    foreach(_entry IN LISTS _environment)
+      if(_entry MATCHES "^GLIBC_TUNABLES=(.*)$")
+        set(_tunables "${CMAKE_MATCH_1}")
+      endif()
+    endforeach()
+    string(REGEX REPLACE "(^|:)glibc\\.pthread\\.stack_cache_size=[^:]*" "" _tunables "${_tunables}")
+    if(_tunables)
+      string(APPEND _tunables ":")
+    endif()
+    string(APPEND _tunables "glibc.pthread.stack_cache_size=0")
+    list(FILTER _environment EXCLUDE REGEX "^GLIBC_TUNABLES=")
+    list(APPEND _environment "GLIBC_TUNABLES=${_tunables}")
+    set_property(TEST "${_test}" PROPERTY ENVIRONMENT "${_environment}")
+  endforeach()
+endfunction()
+
+function(cpkt_configure_debug_worker_stacks)
+  set(CPKT_DEBUG_WORKER_STACK OFF PARENT_SCOPE)
+  if(CPKT_DEPENDENCY_PRODUCER OR NOT CPKT_BUILD_TESTS OR
+      NOT CMAKE_BUILD_TYPE STREQUAL "Debug" OR
+      NOT CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NOT CPKT_TARGET_LIBC STREQUAL "gnu")
+    return()
+  endif()
+  set(CPKT_DEBUG_WORKER_STACK ON PARENT_SCOPE)
+  cpkt_group_add_library(cpkt_debug_worker_stack OBJECT tests/debug_worker_stack_init.c)
+  cpkt_configure_c89_target(cpkt_debug_worker_stack)
+  cpkt_add_repo_warning_errors(cpkt_debug_worker_stack)
+  set_target_properties(cpkt_debug_worker_stack PROPERTIES POSITION_INDEPENDENT_CODE ON)
+  target_link_libraries(cpkt_debug_worker_stack PUBLIC Threads::Threads)
+  if(NOT CPKT_FACADE_ONLY)
+    cpkt_group_add_executable(cpkt_debug_worker_stack_test tests/debug_worker_stack_test.c)
+    cpkt_configure_c89_target(cpkt_debug_worker_stack_test)
+    cpkt_add_repo_warning_errors(cpkt_debug_worker_stack_test)
+    cpkt_group_use_local_runtime(cpkt_debug_worker_stack_test)
+    if(NOT CMAKE_CROSSCOMPILING_EMULATOR OR CPKT_NATIVE_BOOTLIN_RUNTIME)
+      target_compile_definitions(cpkt_debug_worker_stack_test PRIVATE CPKT_TEST_NATIVE_SELF_EXEC)
+    endif()
+    if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
+      cpkt_group_add_test(NAME debug_worker_stack_defaults
+        COMMAND cpkt_debug_worker_stack_test defaults)
+      cpkt_group_set_tests_properties(debug_worker_stack_defaults
+        PROPERTIES LABELS "regression;memcheck" TIMEOUT 30)
+      if(NOT CMAKE_CROSSCOMPILING_EMULATOR OR CPKT_NATIVE_BOOTLIN_RUNTIME)
+        cpkt_group_add_test(NAME debug_worker_stack_guard
+          COMMAND cpkt_debug_worker_stack_test guard)
+        # A real kernel guard fault is checked natively, outside Memcheck.
+        # QEMU can acknowledge MADV_GUARD_INSTALL without protecting guest pages.
+        cpkt_group_set_tests_properties(debug_worker_stack_guard
+          PROPERTIES LABELS "regression" TIMEOUT 30)
+      endif()
+    endif()
+  endif()
+  get_property(_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+  foreach(_target IN LISTS _targets)
+    get_target_property(_type "${_target}" TYPE)
+    if(_type STREQUAL "EXECUTABLE")
+      target_link_libraries(${_target} PRIVATE cpkt_debug_worker_stack)
+    endif()
+  endforeach()
+  # Run after other deferred test registrations, before verification stamps.
+  cmake_language(DEFER CALL cpkt_debug_worker_stack_environment)
+endfunction()
+
+cmake_language(DEFER CALL cpkt_configure_debug_worker_stacks)

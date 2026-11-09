@@ -29,6 +29,11 @@ set(lua_static_library "${install_dir}/lib/liblua${CMAKE_STATIC_LIBRARY_SUFFIX}"
 set(lua_shared_library_path "${install_dir}/lib/${lua_shared_library}")
 cpkt_get_external_c_flags(lua_external_cflags)
 set(lua_my_cflags "${lua_external_cflags} -fPIC -DLUA_USE_POSIX -DLUA_USE_DLOPEN")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CPKT_TARGET_ARCH STREQUAL "x86_64")
+# The pinned GNU and musl loaders support descriptors for fast dynamic TLS.
+# Keep late-loaded shared Lua libraries valid; do not assume initial-exec TLS.
+string(APPEND lua_my_cflags " -mtls-dialect=gnu2")
+endif()
 set(lua_env_args "")
 cpkt_append_pinned_external_toolchain_env_args(lua_env_args)
 set(lua_shared_extra_link_flags "")

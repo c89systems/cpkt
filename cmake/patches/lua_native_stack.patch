@@ -1,0 +1,281 @@
+--- a/src/lstate.h
++++ b/src/lstate.h
+@@ -7,6 +7,8 @@
+ #ifndef lstate_h
+ #define lstate_h
+ 
++#include <stdint.h>
++
+ #include "lua.h"
+ 
+ 
+@@ -279,6 +281,12 @@
+ #define getoah(ci)  (((ci)->callstatus & CIST_OAH) ? 1 : 0)
+ 
+ 
++/* cpkt: error-unwind headroom belongs to the physical OS thread stack. */
++typedef struct NativeStackContext {
++  uintptr_t limit;
++  lu_byte overflow;
++} NativeStackContext;
++
+ /*
+ ** 'per thread' state
+ */
+@@ -309,6 +317,9 @@
+     int ftransfer;  /* offset of first value transferred */
+     int ntransfer;  /* number of values transferred */
+   } transferinfo;
++  /* cpkt: private guard state, appended to retain existing hot-field offsets. */
++  uintptr_t cpkt_stack_limit;
++  NativeStackContext *cpkt_stack_context;
+ };
+ 
+ 
+@@ -441,6 +452,9 @@
+ LUAI_FUNC CallInfo *luaE_extendCI (lua_State *L, int err);
+ LUAI_FUNC void luaE_shrinkCI (lua_State *L);
+ LUAI_FUNC void luaE_checkcstack (lua_State *L);
++LUAI_DDEC(__thread NativeStackContext luaE_native_stack_context;)
++LUAI_FUNC uintptr_t luaE_initnativestack (void);
++LUAI_FUNC void luaE_nativestackerror (lua_State *L, uintptr_t position);
+ LUAI_FUNC void luaE_incCstack (lua_State *L);
+ LUAI_FUNC void luaE_warning (lua_State *L, const char *msg, int tocont);
+ LUAI_FUNC void luaE_warnerror (lua_State *L, const char *where);
+--- a/src/lstate.c
++++ b/src/lstate.c
+@@ -7,11 +7,21 @@
+ #define lstate_c
+ #define LUA_CORE
+ 
++#if defined(__APPLE__) && !defined(_DARWIN_C_SOURCE)
++#define _DARWIN_C_SOURCE 1
++#endif
++
++/* cpkt: pthread_getattr_np is used only when first discovering OS thread bounds. */
++#ifndef _GNU_SOURCE
++#define _GNU_SOURCE 1
++#endif
++
+ #include "lprefix.h"
+ 
+ 
+ #include <stddef.h>
+ #include <string.h>
++#include <pthread.h>
+ 
+ #include "lua.h"
+ 
+@@ -126,6 +136,66 @@
+ }
+ 
+ 
++/* cpkt: cache belongs to the OS thread, not to a Lua state. New OS threads get
++** fresh TLS even when pthread IDs are reused. Refresh a Lua state's copy on
++** outer entry so serialized state migration and coroutine resumes stay valid.
++** Native thread stack mappings remain fixed for that OS thread's lifetime.
++*/
++LUAI_DDEF __thread NativeStackContext luaE_native_stack_context;
++
++uintptr_t luaE_initnativestack (void) {
++  uintptr_t low = 0;
++  size_t size = 0;
++#if defined(__linux__)
++  pthread_attr_t attributes;
++  void *base = NULL;
++  if (pthread_getattr_np(pthread_self(), &attributes) == 0) {
++    int status = pthread_attr_getstack(&attributes, &base, &size);
++    pthread_attr_destroy(&attributes);
++    if (status == 0)
++      low = cast(uintptr_t, base);
++    else
++      size = 0;
++  }
++#elif defined(__APPLE__)
++  uintptr_t high = cast(uintptr_t, pthread_get_stackaddr_np(pthread_self()));
++  size = pthread_get_stacksize_np(pthread_self());
++  if (high >= size)
++    low = high - size;
++  else
++    size = 0;
++#else
++#error Unsupported cpkt Lua native stack platform
++#endif
++  if (size > 16384 && low <= UINTPTR_MAX - size)
++    return low + 16384;
++  /* Failed discovery is retried on the next outer entry, never guessed. */
++  return UINTPTR_MAX;
++}
++
++void luaE_nativestackerror (lua_State *L, uintptr_t position) {
++  if (L->cpkt_stack_limit == UINTPTR_MAX) {
++    if (!completestate(G(L)))  /* lua_newstate can only report initialization failure */
++      luaD_throw(L, LUA_ERRMEM);
++    luaD_checkstack(L, LUA_MINSTACK);
++    /* Do not invoke an error handler that would need undiscovered bounds. */
++    setsvalue2s(L, L->top.p, luaS_newliteral(L, "native stack bounds unavailable"));
++    L->top.p++;
++    luaD_throw(L, LUA_ERRRUN);
++  }
++  /* The physical reserve also applies to first entry on another Lua state. */
++  if (position <= L->cpkt_stack_limit - 8192) {
++    luaD_checkstack(L, LUA_MINSTACK);
++    luaD_errerr(L);
++  }
++  if (!L->cpkt_stack_context->overflow) {
++    L->cpkt_stack_context->overflow = 1;
++    /* Entry checks may run while callers are using EXTRA_STACK slots. */
++    luaD_checkstack(L, LUA_MINSTACK);
++    luaG_runerror(L, "C stack overflow");
++  }
++}
++
+ /*
+ ** Called when 'getCcalls(L)' larger or equal to LUAI_MAXCCALLS.
+ ** If equal, raises an overflow error. If value is larger than
+@@ -143,6 +213,7 @@
+ 
+ LUAI_FUNC void luaE_incCstack (lua_State *L) {
+   L->nCcalls++;
++  luaD_checknativestack(L);
+   if (l_unlikely(getCcalls(L) >= LUAI_MAXCCALLS))
+     luaE_checkcstack(L);
+ }
+@@ -234,6 +305,8 @@
+   L->nci = 0;
+   L->twups = L;  /* thread has no upvalues */
+   L->nCcalls = 0;
++  L->cpkt_stack_limit = 0;
++  L->cpkt_stack_context = NULL;
+   L->errorJmp = NULL;
+   L->hook = NULL;
+   L->hookmask = 0;
+--- a/src/ldo.h
++++ b/src/ldo.h
+@@ -63,6 +63,37 @@
+ #define LUAI_MAXCCALLS		200
+ #endif
+ 
++/* cpkt: recursive paths only compare an address with cached thread bounds.
++** All declared targets have downward-growing native stacks. Keep 16 KiB for
++** error handling, and stop recursive error handlers before the last 8 KiB.
++*/
++l_sinline uintptr_t luaD_nativeposition (void) {
++  uintptr_t position;
++#if defined(__x86_64__)
++  __asm__ volatile ("mov %%rsp, %0" : "=r" (position));
++#elif defined(__aarch64__) || defined(__arm__)
++  __asm__ volatile ("mov %0, sp" : "=r" (position));
++#else
++#error Unsupported cpkt Lua native stack architecture
++#endif
++  return position;
++}
++
++#define luaE_refreshnativestack(L) \
++  { NativeStackContext *cpkt_context = &luaE_native_stack_context; \
++    /* Materialize the address once instead of repeating TLS descriptors. */ \
++    __asm__ ("" : "+r" (cpkt_context)); \
++    uintptr_t cpkt_limit = cpkt_context->limit; \
++    if (l_unlikely(cpkt_limit == 0 || cpkt_limit == UINTPTR_MAX)) \
++      cpkt_context->limit = cpkt_limit = luaE_initnativestack(); \
++    (L)->cpkt_stack_limit = cpkt_limit; \
++    (L)->cpkt_stack_context = cpkt_context; }
++
++#define luaD_checknativestack(L) \
++  { uintptr_t cpkt_stack_position = luaD_nativeposition(); \
++    if (l_unlikely(cpkt_stack_position <= (L)->cpkt_stack_limit)) \
++      luaE_nativestackerror((L), cpkt_stack_position); }
++
+ 
+ /* type of protected functions, to be ran by 'runprotected' */
+ typedef void (*Pfunc) (lua_State *L, void *ud);
+--- a/src/ldo.c
++++ b/src/ldo.c
+@@ -62,6 +62,7 @@
+   struct lua_longjmp *previous;
+   jmp_buf b;
+   volatile TStatus status;  /* error code */
++  lu_byte cpkt_stack_overflow;  /* saved in the recovery record's padding */
+ } lua_longjmp;
+ 
+ 
+@@ -152,6 +153,8 @@
+     /* unroll error entries up to the first level */
+     while (L->errorJmp->previous != NULL)
+       L->errorJmp = L->errorJmp->previous;
++    /* cpkt: self-close can unwind successfully, without an error status. */
++    L->cpkt_stack_context->overflow = L->errorJmp->cpkt_stack_overflow;
+   }
+   luaD_throw(L, errcode);
+ }
+@@ -160,13 +163,20 @@
+ TStatus luaD_rawrunprotected (lua_State *L, Pfunc f, void *ud) {
+   l_uint32 oldnCcalls = L->nCcalls;
+   lua_longjmp lj;
++  TStatus status;
++  if (L->errorJmp == NULL)
++    luaE_refreshnativestack(L);
+   lj.status = LUA_OK;
++  lj.cpkt_stack_overflow = L->cpkt_stack_context->overflow;
+   lj.previous = L->errorJmp;  /* chain new error handler */
+   L->errorJmp = &lj;
+   LUAI_TRY(L, &lj, f, ud);  /* call 'f' catching errors */
+   L->errorJmp = lj.previous;  /* restore old error handler */
+   L->nCcalls = oldnCcalls;
+-  return lj.status;
++  status = lj.status;
++  if (l_unlikely(status != LUA_OK))
++    L->cpkt_stack_context->overflow = lj.cpkt_stack_overflow;
++  return status;
+ }
+ 
+ /* }====================================================== */
+@@ -226,6 +236,10 @@
+ ** available CallInfos, and two "slots" in the C stack.
+ */
+ int luaD_checkminstack (lua_State *L) {
++  if (L->errorJmp == NULL)
++    luaE_refreshnativestack(L);  /* collection can be the first API after migration */
++  if (luaD_nativeposition() <= L->cpkt_stack_limit)
++    return 0;  /* cpkt: leave error-unwind headroom; defer finalizers */
+   if (getCcalls(L) >= LUAI_MAXCCALLS - 2)
+     return 0;  /* not enough C-stack slots */
+   if (L->ci->next == NULL && luaE_extendCI(L, 0) == NULL)
+@@ -758,6 +772,9 @@
+ */
+ l_sinline void ccall (lua_State *L, StkId func, int nResults, l_uint32 inc) {
+   CallInfo *ci;
++  if (L->errorJmp == NULL)
++    luaE_refreshnativestack(L);
++  luaD_checknativestack(L);
+   L->nCcalls += inc;
+   if (l_unlikely(getCcalls(L) >= LUAI_MAXCCALLS)) {
+     checkstackp(L, 0, func);  /* free any use of EXTRA_STACK */
+@@ -924,6 +941,7 @@
+   else {  /* resuming from previous yield */
+     lua_assert(L->status == LUA_YIELD);
+     L->status = LUA_OK;  /* mark that it is running (again) */
++    luaD_checknativestack(L);  /* cpkt: errors can recover into this running state */
+     if (isLua(ci)) {  /* yielded inside a hook? */
+       /* undo increment made by 'luaG_traceexec': instruction was not
+          executed yet */
+@@ -978,6 +996,9 @@
+   else if (L->status != LUA_YIELD)  /* ended with errors? */
+     return resume_error(L, "cannot resume dead coroutine", nargs);
+   L->nCcalls = (from) ? getCcalls(from) : 0;
++  /* cpkt: outer protected entry refreshes otherwise; avoid doing it twice. */
++  if (l_unlikely(L->errorJmp != NULL))
++    luaE_refreshnativestack(L);
+   if (getCcalls(L) >= LUAI_MAXCCALLS)
+     return resume_error(L, "C stack overflow", nargs);
+   L->nCcalls++;
+@@ -1133,6 +1154,8 @@
+   int c;
+   Table *anchor;
+   ptrdiff_t otop = savestack(L, L->top.p);  /* original top */
++  /* cpkt: a reader can reenter lua_load before syntax recursion is counted. */
++  luaD_checknativestack(L);
+   luaD_checkstack(L, 2);
+   anchor = luaH_new(L);  /* create the anchor table */
+   sethvalue2s(L, L->top.p++, anchor);  /* anchor the anchor table */

@@ -8,6 +8,7 @@ metadata, examples and complete third-party license notices.
 
 - openssl
 - zlib
+- zlib-ng
 - nghttp2
 - libssh2
 - curl
@@ -43,6 +44,12 @@ The libssh2 C89 facade uses SFTP attribute `flags` to select valid fields:
 `permissions`, and `ACMODTIME` selects `atime`/`mtime`. Setters and `open_ex_r`
 read only selected fields. Successful getters preserve flags and zero absent
 fields; errors, EAGAIN and directory EOF leave caller attributes unchanged.
+
+zlib-ng is delivered separately from zlib with a complete Unix C89 facade at
+`<cpkt/zlibng.h>`. Its large and medium generic and SSE4.1 Chorba CRC scratch
+buffers use aligned heap storage, with allocation-free CRC fallback on failure.
+Existing zlib-dependent components retain their zlib dependency. See the
+[zlib-ng facade contract and patch](docs/zlib-ng-c89-facade.md).
 
 ## Independent repositories
 
@@ -89,6 +96,15 @@ native clangd checks, then asserts formatting. `format-check` is required after
 the final edit and before each commit. `test-all` includes the relevant native
 hardening and integration tiers. Cross-target and extracted-package consumers
 remain part of the complete release gate.
+
+Test executables built in `Debug` and linked against glibc use a 128 KiB default
+worker-thread stack with nonzero guards. CTest disables glibc's stack cache so
+default workers cannot
+reuse larger stacks. Explicit stack-size requests remain supported, and the
+main-thread limit stays unchanged. The startup helper is private to Debug
+executables built with tests enabled and is excluded from SDK libraries.
+Build tools keep their normal worker defaults. Native musl tests remain part
+of release verification.
 
 ## Distribution and release
 

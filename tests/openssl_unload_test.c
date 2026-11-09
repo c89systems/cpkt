@@ -1,4 +1,5 @@
 /* Build as a private static-OpenSSL plugin and as its OpenSSL-free host. */
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef CPKT_OPENSSL_UNLOAD_PLUGIN
@@ -100,16 +101,19 @@ static void *run(void *opaque) {
 }
 
 static size_t available_keys(void) {
-  pthread_key_t keys[2048];
+  pthread_key_t *keys = malloc(2048 * sizeof(*keys));
   size_t count = 0;
   size_t i;
-  while (count < sizeof(keys) / sizeof(keys[0]) &&
-         pthread_key_create(&keys[count], NULL) == 0)
+  int failed = 0;
+  if (keys == NULL)
+    return 0;
+  while (count < 2048 && pthread_key_create(&keys[count], NULL) == 0)
     ++count;
   for (i = 0; i < count; ++i)
     if (pthread_key_delete(keys[i]) != 0)
-      return 0;
-  return count;
+      failed = 1;
+  free(keys);
+  return failed ? 0 : count;
 }
 
 int main(int argc, char **argv) {

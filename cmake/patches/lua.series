@@ -1,0 +1,2 @@
+# Private native-stack checks for the bundled Lua runtime.
+lua_native_stack.patch

@@ -8,20 +8,29 @@
 /* Observe loaded objects, not just ELF metadata. Also exercise a real exec. */
 int main(int argc, char **argv) {
   FILE *maps;
-  char line[4096];
+  char *line;
+  const size_t line_size = 4096;
   int libc_seen = 0;
   int loader_seen = 0;
   int status;
   pid_t child;
   if (argc < 2)
     return 2;
-  maps = fopen("/proc/self/maps", "r");
-  if (!maps)
+  line = malloc(line_size);
+  if (line == NULL)
     return 3;
-  while (fgets(line, sizeof(line), maps)) {
+  maps = fopen("/proc/self/maps", "r");
+  if (!maps) {
+    free(line);
+    return 3;
+  }
+  while (fgets(line, (int)line_size, maps)) {
     if (strstr(line, "libc.so") || strstr(line, "ld-musl-")) {
-      if (!strstr(line, argv[1]))
+      if (!strstr(line, argv[1])) {
+        fclose(maps);
+        free(line);
         return 4;
+      }
       libc_seen = 1;
 #ifndef __GLIBC__
       /* musl combines its loader and libc in this mapped object. */
@@ -29,12 +38,16 @@ int main(int argc, char **argv) {
 #endif
     }
     if (strstr(line, "ld-linux-") || strstr(line, "ld-musl-")) {
-      if (!strstr(line, argv[1]))
+      if (!strstr(line, argv[1])) {
+        fclose(maps);
+        free(line);
         return 5;
+      }
       loader_seen = 1;
     }
   }
   fclose(maps);
+  free(line);
   if (!libc_seen || !loader_seen) {
     fprintf(stderr, "selected runtime mappings missing: libc=%d loader=%d\n",
             libc_seen, loader_seen);

@@ -572,13 +572,16 @@ static void test_failed_lua_module_registration_releases_chunk(void **state) {
   struct test_allocator allocator;
   cpkt_lua_runtime_allocator_config config;
   cpkt_lua_runtime *runtime;
-  unsigned char source[4096];
+  unsigned char *source;
+  const size_t source_size = 4096;
   int i;
 
   (void)state;
+  source = malloc(source_size);
+  assert_non_null(source);
   memset(&allocator, 0, sizeof(allocator));
   memset(&config, 0, sizeof(config));
-  memset(source, ' ', sizeof(source));
+  memset(source, ' ', source_size);
   memcpy(source, "return true", sizeof("return true") - 1);
 
   config.user = &allocator;
@@ -592,7 +595,7 @@ static void test_failed_lua_module_registration_releases_chunk(void **state) {
                    CPKT_LUA_RUNTIME_OK);
   for (i = 0; i < 300; ++i) {
     assert_int_equal(cpkt_lua_runtime_register_lua_module(
-                         runtime, "missing_package", source, sizeof(source),
+                         runtime, "missing_package", source, source_size,
                          "missing_package.lua"),
                      CPKT_LUA_RUNTIME_ERR_RUNTIME);
     assert_non_null(strstr(cpkt_lua_runtime_error(runtime), "package table"));
@@ -609,6 +612,7 @@ static void test_failed_lua_module_registration_releases_chunk(void **state) {
 
   cpkt_lua_runtime_free(runtime);
   assert_int_equal(allocator.bytes_live, 0);
+  free(source);
 }
 
 struct warning_capture {

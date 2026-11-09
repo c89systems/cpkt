@@ -1,4 +1,5 @@
 # Public facade ABI versions are independent of release versions.
+set(CPKT_ZLIBNG_ABI_VERSION "0" CACHE STRING "zlib-ng C89 facade ABI major.")
 set(CPKT_LUA_ABI_VERSION "0" CACHE STRING "Lua C89 facade ABI major. Do not bump without maintainer approval.")
 set(CPKT_LUA_RUNTIME_ABI_VERSION "0" CACHE STRING "Lua runtime facade ABI major. Do not bump without maintainer approval.")
 set(CPKT_GSSAPI_ABI_VERSION "0" CACHE STRING "GSSAPI facade ABI major. Do not bump without maintainer approval.")

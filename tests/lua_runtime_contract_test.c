@@ -1,5 +1,6 @@
 #include <cpkt/lua.h>
 #include <cpkt/lua_runtime.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1015,22 +1016,50 @@ static int exercise_trace_limits(void) {
   return failed;
 }
 
-int main(int argc, char **argv) {
+static int run_case(const char *name) {
   size_t index;
-  if (argc != 2) {
-    return 2;
-  }
-  if (strcmp(argv[1], "trace_observer") == 0) {
+  if (strcmp(name, "trace_observer") == 0) {
     return exercise_trace_observer();
   }
-  if (strcmp(argv[1], "trace_limits") == 0) {
+  if (strcmp(name, "trace_limits") == 0) {
     return exercise_trace_limits();
   }
   for (index = 0; index < sizeof(cases) / sizeof(cases[0]); ++index) {
-    if (strcmp(argv[1], cases[index].name) == 0) {
+    if (strcmp(name, cases[index].name) == 0) {
       return exercise(&cases[index], 0);
     }
   }
-  fprintf(stderr, "unknown runtime case: %s\n", argv[1]);
+  fprintf(stderr, "unknown runtime case: %s\n", name);
   return 2;
+}
+
+struct worker_case {
+  const char *name;
+  int result;
+};
+
+static void *run_worker(void *argument) {
+  struct worker_case *item = (struct worker_case *)argument;
+  item->result = run_case(item->name);
+  return NULL;
+}
+
+int main(int argc, char **argv) {
+  struct worker_case item;
+  pthread_t worker;
+  int status;
+  if (argc != 2)
+    return 2;
+  item.name = argv[1];
+  item.result = 1;
+  /* Exercise the libc's default worker stack. This also avoids musl's slow
+   * main-stack discovery under ARM QEMU without changing the test timeout. */
+  status = pthread_create(&worker, NULL, run_worker, &item);
+  if (status == 0)
+    status = pthread_join(worker, NULL);
+  if (status != 0) {
+    fprintf(stderr, "runtime test worker failed: %s\n", strerror(status));
+    return 1;
+  }
+  return item.result;
 }
