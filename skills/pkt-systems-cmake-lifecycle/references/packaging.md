@@ -9,6 +9,11 @@ metadata/docs and licenses/notices. No private headers, generated build/cache st
 credentials, VCS data, developer service/fuzz state or workstation paths.
 Intentional bundled dependencies retain their public interfaces and provenance.
 
+When an archive ships `README.md`, include the public documentation it links to,
+including pages split into `docs/` and the local pages and assets they reference.
+Declare these files in the CMake install rules or source manifest as applicable.
+Preserve the relative paths from the shipped README and between documentation files.
+
 Use deterministic archive tools: stable ordering, timestamps, ownership and gzip
 metadata; preserve intentional executable/file modes. Test the actual package
 entrypoint with unchanged content and changed staging timestamps/umask where needed.
@@ -27,6 +32,9 @@ architecture, versions, licenses, dependency metadata, public exports/imports an
 relocatable CMake/pkg-config interfaces. Build real static/shared installed consumers
 and shipped examples as applicable; metadata must supply their full static closure.
 Relocate the SDK and repeat relevant consumer proof. Keep test-only flags private.
+
+Check that relative documentation links from the README and its linked pages
+resolve to files in the extracted archive.
 
 Execute consumers where the declared host/runner supports it. Report deferred cases;
 required runtime gates cannot be replaced with build proof. A packaged Darwin
