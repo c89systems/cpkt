@@ -131,6 +131,10 @@ instead of introducing an editor-only SDK or bootstrap. Verify ordinary editor d
 
 ## Feedback and delivery
 
+Use native build/test logs, manifests, checksums and Git refs as evidence.
+Do not create separate narrative reports for successful or failed runs unless
+explicitly requested. Keep replies brief and link to existing evidence.
+
 Implement a coherent change, run affected CTest checks, then complete missing
 required coverage. After failure, reproduce and prove the specific repair in
 isolation before one affected broader rerun. Preserve unrelated valid work.
@@ -145,7 +149,8 @@ publish inside a failed release.
 
 Review changes under [the simplicity contract](references/review-contract.md).
 A clean review must respect that contract, not merely accumulate safeguards.
-Inspect/commit under project policy and report actual evidence and remaining state.
+Inspect/commit under project policy and state results and remaining work in the
+final reply.
 
 Use [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/):
 `type(scope): imperative summary`, with scope optional unless project policy
@@ -156,8 +161,7 @@ body and footers with blank lines.
 
 Write summaries and bodies to complete, in meaning: "When applying this
 commit, it will...". Describe the delivered change; never use commit messages as
-review logs, run logs, test reports or release diaries. Keep evidence in reports
-and logs.
+review logs, run logs, test reports or release diaries.
 
 ## Read only the relevant reference
 
