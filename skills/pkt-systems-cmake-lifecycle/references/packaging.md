@@ -9,8 +9,9 @@ metadata/docs and licenses/notices. No private headers, generated build/cache st
 credentials, VCS data, developer service/fuzz state or workstation paths.
 Intentional bundled dependencies retain their public interfaces and provenance.
 
-When an archive ships `README.md`, include the public documentation it links to,
-including pages split into `docs/` and the local pages and assets they reference.
+When an archive ships `README.md`, include the public documentation referenced
+by its local file links, including pages under `docs/` and their linked local
+pages and assets.
 Declare these files in the CMake install rules or source manifest as applicable.
 Preserve the relative paths from the shipped README and between documentation files.
 
