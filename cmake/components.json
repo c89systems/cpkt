@@ -124,6 +124,7 @@
         "cmake/patches/openssl_thread_registration.patch",
         "cmake/patches/openssl_error_strings.patch",
         "cmake/patches/openssl_conf_module_unload.patch",
+        "cmake/patches/openssl_error_print.patch",
         "cmake/patch_darwin_generated_install_names.cmake",
         "cmake/CpktDependencies.cmake",
         "cmake/dependencies/openssl.cmake"
@@ -2380,6 +2381,13 @@
       ],
       "requires": []
     },
+    "cpkt_openssl_error_print_${_cpkt_error_print_linkage}_test": {
+      "group": "core",
+      "public": false,
+      "kind": "add_executable",
+      "source_inputs": ["tests/openssl_error_print_test.c"],
+      "requires": ["openssl"]
+    },
     "cpkt_openssl_tls_init_test": {
       "group": "core",
       "public": false,
@@ -3084,6 +3092,20 @@
         }
       ],
       "target_sensitive": false
+    },
+    "openssl_error_print_${_cpkt_error_print_linkage}": {
+      "group": "core",
+      "source_inputs": ["tests/openssl_error_print_test.c"],
+      "registrations": [
+        {
+          "name": "openssl_error_print_static",
+          "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES"]
+        },
+        {
+          "name": "openssl_error_print_shared",
+          "conditions": ["CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND CPKT_CAN_RUN_TARGET_EXECUTABLES"]
+        }
+      ]
     },
     "openssl_tls_init_${_failure}_${_cleanup}": {
       "group": "core",

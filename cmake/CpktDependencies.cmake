@@ -418,6 +418,7 @@ cpkt_prepare_dependency_component(
       "${CMAKE_SOURCE_DIR}/cmake/patches/openssl_thread_registration.patch"
       "${CMAKE_SOURCE_DIR}/cmake/patches/openssl_error_strings.patch"
       "${CMAKE_SOURCE_DIR}/cmake/patches/openssl_conf_module_unload.patch"
+      "${CMAKE_SOURCE_DIR}/cmake/patches/openssl_error_print.patch"
       "${CMAKE_SOURCE_DIR}/cmake/patch_darwin_generated_install_names.cmake")
 cpkt_prepare_dependency_component(
     NAME zlib

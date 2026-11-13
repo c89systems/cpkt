@@ -7,3 +7,4 @@ openssl_bootstrap_allocations.patch
 openssl_thread_registration.patch
 openssl_error_strings.patch
 openssl_conf_module_unload.patch
+openssl_error_print.patch

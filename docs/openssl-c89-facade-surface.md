@@ -36,6 +36,12 @@ without allocating a replacement list. Partial unload reserves its removal list
 before changing module ownership. Other configuration-shutdown phases may still
 allocate.
 
+Error printing formats the thread ID in a fixed buffer instead of allocating
+while draining the queue. A formatting allocation failure must not add replacement
+errors to the same queue. Static and shared CTest regressions check output order,
+thread-ID formatting, complete draining under single and persistent allocation
+failure, callback cancellation and subsequent error reporting on a default worker.
+
 Global `OPENSSL_cleanup()` ends the instance's lifetime and requires every user
 to have stopped. `OPENSSL_thread_stop()` releases calling-thread state and permits
 subsequent use before global cleanup. Static consumers must relink against the
@@ -55,6 +61,7 @@ The patches in `cmake/patches/openssl.series` correspond to the following issues
 | 07 | Thread-cleanup registration error re-entry | [openssl_thread_registration.patch](../cmake/patches/openssl_thread_registration.patch) |
 | 08 | Error-string initialization recursion | [openssl_error_strings.patch](../cmake/patches/openssl_error_strings.patch) |
 | 09 | Configuration-module unload allocation failure | [openssl_conf_module_unload.patch](../cmake/patches/openssl_conf_module_unload.patch) |
+| — | Error-printing allocation feedback | [openssl_error_print.patch](../cmake/patches/openssl_error_print.patch) |
 
 Apply the series in order. Base-initialization rollback precedes failure
 propagation. The master-key check and bootstrap allocation changes precede

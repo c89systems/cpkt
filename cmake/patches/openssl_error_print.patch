@@ -1,0 +1,35 @@
+Format the thread ID without allocating while draining the error queue.
+Allocation failures during printing must not replenish the queue being printed.
+
+--- a/crypto/err/err_prn.c
++++ b/crypto/err/err_prn.c
+@@ -24,23 +24,25 @@
+     unsigned long l;
+     const char *file, *data, *func;
+     int line, flags;
++    char hex[2 * sizeof(tid) + 1];
++    int hex_ok;
++
++    hex_ok = OPENSSL_buf2hexstr_ex(hex, sizeof(hex), NULL,
++        (const unsigned char *)&tid, sizeof(tid), '\0');
+ 
+     while ((l = ERR_get_error_all(&file, &line, &func, &data, &flags)) != 0) {
+         char buf[ERR_PRINT_BUF_SIZE] = "";
+-        char *hex = NULL;
+         int offset;
+ 
+         if ((flags & ERR_TXT_STRING) == 0)
+             data = "";
+ 
+-        hex = ossl_buf2hexstr_sep((const unsigned char *)&tid, sizeof(tid), '\0');
+-        BIO_snprintf(buf, sizeof(buf), "%s:", hex == NULL ? "<null>" : hex);
++        BIO_snprintf(buf, sizeof(buf), "%s:", hex_ok ? hex : "<null>");
+         offset = (int)strlen(buf);
+         ossl_err_string_int(l, func, buf + offset, sizeof(buf) - offset);
+         offset += (int)strlen(buf + offset);
+         BIO_snprintf(buf + offset, sizeof(buf) - offset, ":%s:%d:%s\n",
+             file, line, data);
+-        OPENSSL_free(hex);
+         if (cb(buf, strlen(buf), u) <= 0)
+             break; /* abort outputting the error report */
+     }

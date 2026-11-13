@@ -1810,6 +1810,25 @@ if(CPKT_BUILD_TESTS)
   
 endif()
 
+if(CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY)
+  foreach(_cpkt_error_print_linkage IN ITEMS static shared)
+    cpkt_group_add_executable(cpkt_openssl_error_print_${_cpkt_error_print_linkage}_test
+      tests/openssl_error_print_test.c)
+    target_compile_options(cpkt_openssl_error_print_${_cpkt_error_print_linkage}_test PRIVATE -std=c99)
+    cpkt_add_repo_warning_errors(cpkt_openssl_error_print_${_cpkt_error_print_linkage}_test)
+    target_link_libraries(cpkt_openssl_error_print_${_cpkt_error_print_linkage}_test PRIVATE
+      cpkt::openssl_crypto_${_cpkt_error_print_linkage} Threads::Threads ${CMAKE_DL_LIBS})
+    cpkt_group_use_local_runtime(cpkt_openssl_error_print_${_cpkt_error_print_linkage}_test
+      cpkt::openssl_crypto_shared)
+    if(CPKT_CAN_RUN_TARGET_EXECUTABLES)
+      cpkt_group_add_test(NAME openssl_error_print_${_cpkt_error_print_linkage}
+        COMMAND cpkt_openssl_error_print_${_cpkt_error_print_linkage}_test)
+      cpkt_group_set_tests_properties(openssl_error_print_${_cpkt_error_print_linkage}
+        PROPERTIES TIMEOUT 15 LABELS "openssl;regression;memcheck")
+    endif()
+  endforeach()
+endif()
+
 # glibc dlclose really unloads this private static closure; musl retains DSOs.
 if(CPKT_BUILD_TESTS AND NOT CPKT_FACADE_ONLY AND
     CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CPKT_TARGET_LIBC STREQUAL "gnu")
